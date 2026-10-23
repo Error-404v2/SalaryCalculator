@@ -1,0 +1,17 @@
+{
+  "name": "salarycalculator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Client-side Egypt salary & income tax calculator",
+  "scripts": {
+    "build": "npm run build:js && npm run build:css",
+    "build:js": "esbuild js/main.js --bundle --format=iife --target=es2020 --outfile=dist/app.js",
+    "build:css": "esbuild css/main.css --bundle --outfile=dist/app.css",
+    "watch": "esbuild js/main.js --bundle --format=iife --target=es2020 --outfile=dist/app.js --watch",
+    "test": "node --test tests/*.test.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}

@@ -1,0 +1,9 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# Personal data and local test pages
+*.xlsx
+_*.html
+_*.js

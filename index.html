@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salary Calculator</title>
+<meta name="description" content="Salary and income tax calculator with editable tax profiles, social insurance, allowances, overtime and cash awards.">
+<link rel="stylesheet" href="dist/app.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div>
+      <h1>Salary Calculator</h1>
+      <p>Income tax &amp; social insurance &mdash; everything is editable and saved on this device.</p>
+    </div>
+    <button class="btn icon ghost" id="themeBtn" title="Toggle theme" aria-label="Toggle theme">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+    </button>
+  </header>
+
+  <main class="layout">
+    <!-- SALARY -->
+    <section class="card" aria-label="Salary">
+      <div class="card-body">
+        <div class="row between field">
+          <div class="seg" data-seg="mode">
+            <button data-v="gross">Gross &rarr; Net</button>
+            <button data-v="net">Net &rarr; Gross</button>
+          </div>
+          <select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select>
+        </div>
+
+        <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
+          <span class="label">Pro-rata</span>
+          <div class="spins">
+            <div class="spin">
+              <span class="spin-label">Month</span>
+              <input type="text" inputmode="numeric" data-bind="payPeriod.months" data-step="1" data-min="0" data-max="24" aria-label="Months">
+              <span class="spin-btns">
+                <button type="button" data-step-btn="1" data-target="payPeriod.months" aria-label="Increase months"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
+                <button type="button" data-step-btn="-1" data-target="payPeriod.months" aria-label="Decrease months"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
+              </span>
+            </div>
+            <div class="spin">
+              <span class="spin-label">Day</span>
+              <input type="text" inputmode="numeric" data-bind="payPeriod.days" data-step="1" data-min="-30" data-max="30" aria-label="Days">
+              <span class="spin-btns">
+                <button type="button" data-step-btn="1" data-target="payPeriod.days" aria-label="Increase days"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
+                <button type="button" data-step-btn="-1" data-target="payPeriod.days" aria-label="Decrease days"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
+          <div class="row">
+            <input class="big grow" id="amount" type="text" inputmode="decimal" placeholder="e.g. 30,000" data-bind="amount" data-step="100" data-swipe autocomplete="off">
+            <select class="period-select" data-bind="per" id="perSel" aria-label="Salary period"></select>
+          </div>
+          <div class="hint" id="amountHint"></div>
+        </div>
+
+        <details class="more" data-open="overtime">
+          <summary>Overtime <span class="count" data-count="overtime"></span></summary>
+          <div class="inner">
+            <div class="hint" id="otRate" style="margin-bottom:8px"></div>
+            <div class="list" data-list="overtime"></div>
+            <button class="btn" data-add="overtime">+ Add overtime</button>
+          </div>
+        </details>
+
+        <details class="more" data-open="extras">
+          <summary>Allowances &amp; bonuses <span class="count" data-count="incomes,cashAwards"></span></summary>
+          <div class="inner">
+            <div class="chips" data-presets="incomes"></div>
+            <div class="list" data-list="incomes" data-quiet></div>
+            <div class="list" data-list="cashAwards" data-quiet></div>
+            <div class="row wrap">
+              <button class="btn" data-add="incomes">+ Add allowance</button>
+              <button class="btn" data-add="cashAwards">+ Add cash award</button>
+            </div>
+          </div>
+        </details>
+
+        <details class="more" data-open="deductions">
+          <summary>Other deductions <span class="count" data-count="deductions"></span></summary>
+          <div class="inner">
+            <div class="chips" data-presets="deductions"></div>
+            <div class="list" data-list="deductions"></div>
+            <button class="btn" data-add="deductions">+ Add deduction</button>
+          </div>
+        </details>
+
+        <details class="more" data-open="options">
+          <summary>More options</summary>
+          <div class="inner">
+            <div class="field">
+              <label for="siBase">Social insurance base (monthly)</label>
+              <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase">
+              <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
+            </div>
+            <div class="field">
+              <label for="ovTax">Manual taxable amount</label>
+              <div class="row">
+                <input class="grow" id="ovTax" type="text" inputmode="decimal" placeholder="Auto-calculated if empty" data-bind="overrides.taxable">
+                <select class="period-select" data-bind="overrides.taxablePer" id="ovPer" aria-label="Taxable amount period"></select>
+              </div>
+              <div class="hint">Replaces the computed taxable income fed into the brackets.</div>
+            </div>
+            <div class="field">
+              <label for="jobSel">Job type</label>
+              <select id="jobSel" data-bind="jobType"></select>
+            </div>
+              <details class="more" data-open="settings">
+                <summary>Settings</summary>
+                <div class="inner">
+                  <div class="compact-grid">
+                    <label>Weeks / year<input type="text" inputmode="decimal" data-bind="schedule.weeksPerYear"></label>
+                    <label>Days / week<input type="text" inputmode="decimal" data-bind="schedule.daysPerWeek"></label>
+                    <label>Hours / day<input type="text" inputmode="decimal" data-bind="schedule.hoursPerDay"></label>
+                    <label title="OT hourly rate = monthly basic ÷ this">OT base hrs / mo<input type="text" inputmode="decimal" data-bind="schedule.otHoursBase"></label>
+                  </div>
+                  <div class="row wrap compact-actions">
+                    <button class="btn" id="exportBtn">Export</button>
+                    <label class="btn" for="importFile">Import</label>
+                    <input id="importFile" type="file" accept="application/json,.json" class="sr">
+                    <button class="btn danger" id="resetAll">Reset everything</button>
+                  </div>
+                </div>
+              </details>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <!-- RESULTS -->
+    <section class="card" aria-label="Results">
+      <nav class="tabs" role="tablist" data-tabs>
+        <button class="tab" role="tab" data-tab="summary">Summary</button>
+        <button class="tab" role="tab" data-tab="tax">Tax</button>
+        <button class="tab" role="tab" data-tab="periods">By period</button>
+        <button class="tab" role="tab" data-tab="employer">Employer cost</button>
+      </nav>
+
+      <div class="card-body">
+        <div class="panel" data-panel="summary"><div data-view="summary"></div></div>
+
+        <div class="panel" data-panel="periods" hidden>
+          <div data-view="periods"></div>
+        </div>
+
+        <div class="panel" data-panel="tax" hidden>
+          <div class="profile-bar">
+            <select class="profile-select grow" data-profile-select aria-label="Tax profile"></select>
+            <button class="btn" data-profile="edit" id="editProfileBtn">Edit</button>
+            <button class="btn" data-profile="new">+ New</button>
+            <button class="btn danger icon" data-profile="delete" id="deleteProfileBtn" title="Delete profile" aria-label="Delete profile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>
+            </button>
+          </div>
+
+          <div id="profileEditor" class="editor" hidden>
+            <div class="grid2">
+              <div class="field"><label>Profile name</label><input type="text" data-bind="@.name"></div>
+              <div class="field"><label for="currencySel">Currency</label>
+                <div class="row">
+                  <select id="currencySel" class="grow" aria-label="Currency"></select>
+                  <input id="currencyCustom" type="text" class="cur-code" maxlength="6" placeholder="Code" aria-label="Custom currency code" hidden>
+                </div>
+              </div>
+            </div>
+
+            <details class="more" data-open="brackets">
+              <summary>Income tax brackets (annual) <span class="count" data-count="@.tax.brackets"></span></summary>
+              <div class="inner">
+                <div class="table-wrap">
+                  <table class="edit-table">
+                    <thead><tr><th>Rate %</th><th>From</th><th>To</th><th title="Bracket is dropped when annual taxable income exceeds this">Excluded above</th><th></th></tr></thead>
+                    <tbody data-list="@.tax.brackets"></tbody>
+                  </table>
+                </div>
+                <div class="hint">Empty <b>To</b> = no limit. <b>Excluded above</b>: past this income, this bracket and those below stop applying. Leave empty for normal progressive tax.</div>
+                <div class="row" style="margin-top:8px"><button class="btn" data-add="@.tax.brackets">+ Add bracket</button><button class="btn ghost" data-reset="brackets">Egypt defaults</button></div>
+              </div>
+            </details>
+            <div id="bracketWarn"></div>
+
+            <details class="more" data-open="exemption">
+              <summary>Personal exemption (annual)</summary>
+              <div class="inner">
+                <input type="text" inputmode="decimal" data-bind="@.tax.exemption" style="max-width:200px" aria-label="Personal exemption (annual)">
+              </div>
+            </details>
+
+            <details class="more" data-open="levies">
+              <summary>Levies <span class="count" data-count="@.levies"></span></summary>
+              <div class="inner">
+                <div class="table-wrap">
+                  <table class="edit-table">
+                    <thead><tr><th>Name</th><th>Rate %</th><th>Of</th><th></th></tr></thead>
+                    <tbody data-list="@.levies"></tbody>
+                  </table>
+                </div>
+                <div class="row" style="margin-top:8px"><button class="btn" data-add="@.levies">+ Add levy</button></div>
+              </div>
+            </details>
+
+            <details class="more" data-open="si">
+              <summary>Social insurance</summary>
+              <div class="inner">
+                <div class="grid2">
+                  <div class="field"><label>Employee share %</label><input type="text" inputmode="decimal" data-bind="@.si.employeeRate"></div>
+                  <div class="field"><label>Employer share %</label><input type="text" inputmode="decimal" data-bind="@.si.employerRate"></div>
+                </div>
+                <span class="label">Monthly insurable salary caps by year</span>
+                <div class="table-wrap">
+                  <table class="edit-table">
+                    <thead><tr><th>Year</th><th>Min</th><th>Max</th><th></th></tr></thead>
+                    <tbody data-list="@.si.caps"></tbody>
+                  </table>
+                </div>
+                <div class="row" style="margin-top:8px"><button class="btn" data-add="@.si.caps">+ Add year</button><button class="btn ghost" data-reset="caps">Egypt defaults</button></div>
+              </div>
+            </details>
+
+            <details class="more" data-open="jobs">
+              <summary>Job types</summary>
+              <div class="inner">
+                <div class="table-wrap">
+                  <table class="edit-table">
+                    <thead><tr><th>Name</th><th>SI</th><th>Exemption</th><th>Tax</th><th>Flat %</th><th></th></tr></thead>
+                    <tbody data-list="@.jobTypes"></tbody>
+                  </table>
+                </div>
+                <div class="row" style="margin-top:8px"><button class="btn" data-add="@.jobTypes">+ Add job type</button><button class="btn ghost" data-reset="jobTypes">Egypt defaults</button></div>
+              </div>
+            </details>
+          </div>
+
+          <div data-view="tax"></div>
+        </div>
+
+        <div class="panel" data-panel="employer" hidden><div data-view="employer"></div></div>
+      </div>
+    </section>
+  </main>
+  <p class="foot">Estimates only. Rules are editable and may not reflect every legal case. Nothing leaves your device.</p>
+</div>
+<div class="toast" id="toast" role="status"></div>
+<script src="dist/app.js"></script>
+</body>
+</html>

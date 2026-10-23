@@ -1,0 +1,10 @@
+.app { max-width: 1240px; margin: 0 auto; padding: 20px 16px 48px; }
+.topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.topbar h1 { font-size: 1.35rem; margin: 0; letter-spacing: -.01em; }
+.topbar p { margin: 2px 0 0; color: var(--muted); font-size: .9rem; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 1fr); gap: 18px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; }
+.card-body { padding: 18px; }

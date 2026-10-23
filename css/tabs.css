@@ -1,0 +1,14 @@
+/* tabs */
+.tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; border-bottom: 1px solid var(--border); padding: 0 10px; }
+.tabs::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; background: none; border: 0; padding: 13px 10px 11px; color: var(--muted); cursor: pointer; border-bottom: 2px solid transparent; font-weight: 500; font-size: .92rem; }
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.tab .dot[hidden] { display: none; }
+.tab .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 5px; vertical-align: middle; }
+.panel[hidden] { display: none; }
+
+.seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--border); border-radius: 999px; padding: 3px; gap: 2px; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.seg::-webkit-scrollbar { display: none; }
+.seg button { flex: 0 0 auto; border: 0; background: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; color: var(--muted); font-size: .88rem; font-weight: 500; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
