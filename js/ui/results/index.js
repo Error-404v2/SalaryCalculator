@@ -39,7 +39,7 @@ export function renderResults(result, state, money, pay) {
 
   const active = state.ui.resTab;
   $$('[data-view]').forEach((host) => {
-    if (host.dataset.view !== active) return;
+    if (host.dataset.view !== active || !VIEWS[active]) return;
     host.innerHTML = result ? VIEWS[active](result, state, money, pay) : EMPTY;
   });
 }

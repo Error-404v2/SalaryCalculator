@@ -43,4 +43,23 @@ function sanitize(state) {
   return state;
 }
 
-export const hydrate = (saved) => sanitize(mergeShape(DEFAULT_STATE, upgradeV1(saved)));
+const MONTH = /^\d{4}-\d{2}$/;
+
+/** `espp.entries` is keyed by month, so it can't be merged against the (empty) default shape. */
+function restoreEntries(state, saved) {
+  const raw = saved?.espp?.entries;
+  const entries = {};
+  if (raw && typeof raw === 'object') {
+    for (const [month, row] of Object.entries(raw)) {
+      if (MONTH.test(month) && row && typeof row === 'object') entries[month] = { ...row };
+    }
+  }
+  state.espp.entries = entries;
+  state.history = (state.history ?? []).filter((h) => h && typeof h === 'object' && h.field);
+  return state;
+}
+
+export function hydrate(saved) {
+  const upgraded = upgradeV1(saved);
+  return sanitize(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded));
+}

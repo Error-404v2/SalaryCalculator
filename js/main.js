@@ -1,4 +1,4 @@
-import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput } from './core/index.js';
+import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport } from './core/index.js';
 import { toNumber } from './utils/number.js';
 import { createMoneyFormatter } from './utils/format.js';
 import * as store from './state/store.js';
@@ -11,6 +11,8 @@ import { initResults, renderResults } from './ui/results/index.js';
 import { initSettings, syncSettings } from './ui/settings.js';
 import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
+import { initEspp, renderEsppInputs, renderEsppTab, syncEsppCounts } from './ui/espp.js';
+import { initHistory, renderHistory } from './ui/history.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -47,6 +49,10 @@ function render(state) {
     impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] },
   });
   renderResults(result, input, money, pay);
+  renderEsppInputs(pay.result ?? result, money);
+  syncEsppCounts(state);
+  if (state.ui.inTab === 'history') renderHistory(state, money);
+  if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
 }
 
 function rebuild() {
@@ -65,5 +71,7 @@ initResults();
 initSettings(rebuild);
 initSteppers();
 initRateFetcher();
+initEspp(rebuild);
+initHistory(rebuild);
 store.subscribe(render);
 rebuild();

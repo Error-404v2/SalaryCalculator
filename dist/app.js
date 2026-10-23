@@ -14,7 +14,7 @@
     const next = toNumber(current) + delta;
     return Math.min(max, Math.max(min, Math.round(next * 100) / 100));
   }
-  var sum = (list, pick = (x) => x) => list.reduce((acc, x) => acc + pick(x), 0);
+  var sum = (list, pick2 = (x) => x) => list.reduce((acc, x) => acc + pick2(x), 0);
 
   // js/core/periods.js
   var PERIODS = [
@@ -137,7 +137,7 @@
       { name: "Bonus", amount: "", per: "year", taxable: true, insurable: false }
     ],
     deductions: [
-      { name: "Medical insurance", amount: "181.73", per: "month", pretax: false },
+      { name: "Medical insurance", amount: "", per: "month", pretax: false },
       { name: "Pension plan", amount: "", per: "month", pretax: true },
       { name: "Loan", amount: "", per: "month", pretax: false }
     ]
@@ -146,6 +146,7 @@
     incomes: { name: "", amount: "", per: "month", taxable: true, insurable: false },
     cashAwards: { name: "Cash Award", amount: "", currency: "USD", rate: "", per: "year", taxable: true },
     deductions: { name: "", amount: "", per: "month", pretax: false },
+    "espp.payrollTax": { date: "", gains: "", tax: "", rate: "" },
     "@.tax.brackets": { rate: "", min: "", max: "", exclusion: "" },
     "@.levies": { name: "", rate: "", base: "gross" },
     "@.si.caps": { year: "", min: "", max: "" },
@@ -209,6 +210,14 @@
       pretax: !!d.pretax
     }));
   }
+  function computeEspp(espp, parts) {
+    if (!espp?.enabled) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
+    const v = espp.variable ?? {};
+    const varBase = (v.allowances ? parts.taxableAllowances : 0) + (v.exempt ? parts.exemptAllowances : 0) + (v.overtime ? parts.overtimeAnnual : 0) + (v.cashAwards ? parts.cashAwardsAnnual : 0);
+    const constant = parts.baseAnnual * toNumber(espp.constPct) / 100;
+    const variable = varBase * toNumber(espp.varPct) / 100;
+    return { constant, variable, total: constant + variable, constBase: parts.baseAnnual, varBase };
+  }
   function computeLevies(levies, grossAnnual, taxableAnnual) {
     return levies.map((l) => {
       const rate = toNumber(l.rate);
@@ -252,7 +261,14 @@
     const incomeTax = flat ? taxableAnnual * marginalRate / 100 : progressive.total;
     const levies = computeLevies(profile.levies ?? [], grossAnnual, taxableAnnual);
     const leviesTotal = sum(levies, (l) => l.annual);
-    const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax;
+    const espp = computeEspp(input.espp, {
+      baseAnnual,
+      taxableAllowances: sum(incomes.filter((i) => i.taxable), (i) => i.annual),
+      exemptAllowances: sum(incomes.filter((i) => !i.taxable), (i) => i.annual),
+      overtimeAnnual,
+      cashAwardsAnnual: sum(cashAwards, (a) => a.annual)
+    });
+    const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total;
     const net = grossAnnual - totalDeductions;
     const employeeGovTake = si.employee + incomeTax + leviesTotal;
     const employerCost = grossAnnual + si.employer;
@@ -282,6 +298,7 @@
       bracketRows: progressive?.rows ?? [],
       levies,
       leviesTotal,
+      espp,
       totalDeductions,
       net,
       employeeGovTake,
@@ -331,6 +348,186 @@
       ...input,
       overtime: (input.overtime ?? []).map((o) => ({ ...o, hours: String(toNumber(o.hours) / factor) })),
       cashAwards: (input.cashAwards ?? []).map((a) => ({ ...a, amount: String(toNumber(a.amount) / factor) }))
+    };
+  }
+
+  // js/core/history.js
+  var HISTORY_FIELDS = [
+    { id: "salary", label: "Gross salary", unit: "money" },
+    { id: "transport", label: "Transportation", unit: "money" },
+    { id: "medical", label: "Medical insurance", unit: "money" },
+    { id: "esppConst", label: "ESPP % (constant)", unit: "pct" },
+    { id: "esppVar", label: "ESPP % (variable)", unit: "pct" }
+  ];
+  var historyField = (id) => HISTORY_FIELDS.find((f) => f.id === id);
+  var monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  function monthLabel(key2, style = "short") {
+    const [y, m] = key2.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: style, year: "numeric" });
+  }
+  var monthsOfYear = (year) => Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+  function valueAt(history, field, month, fallback = "") {
+    let best = null;
+    for (const entry of history ?? []) {
+      if (entry.field !== field || !entry.from || !isFilled(entry.value)) continue;
+      if (entry.from <= month && (!best || entry.from >= best.from)) best = entry;
+    }
+    return best ? best.value : fallback;
+  }
+  function groupHistory(history) {
+    const groups = new Map(HISTORY_FIELDS.map((f) => [f.id, []]));
+    (history ?? []).forEach((entry, index) => {
+      if (groups.has(entry.field)) groups.get(entry.field).push({ ...entry, index });
+    });
+    groups.forEach((list) => list.sort((a, b) => (b.from || "").localeCompare(a.from || "")));
+    return groups;
+  }
+
+  // js/core/espp.js
+  var DIVIDEND_MONTHS = /* @__PURE__ */ new Set([3, 6, 9, 12]);
+  var FEE_MONTHS = /* @__PURE__ */ new Set([1, 7]);
+  var monthNumber = (key2) => Number(key2.slice(5, 7));
+  var pick = (locked, forecast) => isFilled(locked) ? { value: toNumber(locked), locked: true } : { value: forecast, locked: false };
+  function buildLedger({ year, entries = {}, assumptions = {}, deductionFor }) {
+    const price = toNumber(assumptions.price);
+    const discount = toNumber(assumptions.discount) / 100;
+    const purchasePrice = price * (1 - discount);
+    const fx = toNumber(assumptions.fx);
+    const dividendPerShare = toNumber(assumptions.dividend);
+    const reinvestRate = toNumber(assumptions.reinvestRate) / 100;
+    const reinvestCap = toNumber(assumptions.reinvestCap);
+    const feeIn = toNumber(assumptions.feeIn);
+    let shares = 0;
+    const sharesHistory = [];
+    const rows = monthsOfYear(year).map((month, i) => {
+      const entry = entries[month] ?? {};
+      const m = monthNumber(month);
+      const deducted = pick(entry.deducted, deductionFor(month));
+      const deductedUsd = pick(entry.deductedUsd, fx > 0 ? deducted.value / fx : 0);
+      const eligibleShares = sharesHistory[i - 2] ?? 0;
+      const dividend = pick(entry.dividend, DIVIDEND_MONTHS.has(m) ? Math.floor(eligibleShares * dividendPerShare * 100) / 100 : 0);
+      const reinvestFee = dividend.value > 0 ? Math.min(dividend.value * reinvestRate, reinvestCap) : 0;
+      const feesIn = FEE_MONTHS.has(m) ? feeIn : 0;
+      const accredited = deductedUsd.value + dividend.value - reinvestFee - feesIn;
+      const previous = shares;
+      const accShares = pick(entry.shares, purchasePrice > 0 ? previous + accredited / purchasePrice : previous);
+      shares = accShares.value;
+      sharesHistory.push(shares);
+      const added = shares - previous;
+      const actualShare = added * price;
+      const untaxed = actualShare - accredited;
+      const hasActivity = deducted.value > 0 || accredited !== 0 || added !== 0;
+      return {
+        month,
+        deducted,
+        deductedUsd,
+        dividend,
+        reinvestFee,
+        feesIn,
+        accredited,
+        shares: accShares,
+        added,
+        actualShare,
+        untaxed,
+        hasActivity,
+        locked: deducted.locked || deductedUsd.locked || dividend.locked || accShares.locked
+      };
+    });
+    return { rows, price, purchasePrice, fx };
+  }
+  function summarize(ledger, { cutoff, assumptions = {}, payrollTaxUsd = 0 }) {
+    const rows = cutoff ? ledger.rows.filter((r) => r.month <= cutoff) : ledger.rows;
+    const last = rows.at(-1);
+    const shares = last ? last.shares.value : 0;
+    const deducted = sum(rows, (r) => r.deducted.value);
+    const deductedUsd = sum(rows, (r) => r.deductedUsd.value);
+    const untaxed = sum(rows, (r) => r.untaxed);
+    const dividends = sum(rows, (r) => r.dividend.value);
+    const fees = sum(rows, (r) => r.reinvestFee + r.feesIn);
+    const taxRate = toNumber(assumptions.taxRate) / 100;
+    const withdrawalFee = toNumber(assumptions.withdrawalFee);
+    const taxDueUsd = Math.max(0, taxRate * untaxed - payrollTaxUsd);
+    const marketValueUsd = shares * ledger.price;
+    const withdrawalUsd = Math.max(0, marketValueUsd - withdrawalFee - taxDueUsd);
+    const withdrawal = withdrawalUsd * ledger.fx;
+    return {
+      months: rows.length,
+      shares,
+      deducted,
+      deductedUsd,
+      untaxed,
+      dividends,
+      fees,
+      marketValueUsd,
+      taxDueUsd,
+      withdrawalUsd,
+      withdrawal,
+      profit: withdrawal - deducted,
+      netGainsUsd: untaxed - taxDueUsd - withdrawalFee
+    };
+  }
+  function payrollTax(events = []) {
+    return events.reduce(
+      (acc, e) => {
+        const rate = toNumber(e.rate);
+        const tax = toNumber(e.tax);
+        const gains = toNumber(e.gains);
+        acc.tax += tax;
+        acc.taxUsd += rate > 0 ? tax / rate : 0;
+        acc.gainsUsd += rate > 0 ? gains / rate : 0;
+        return acc;
+      },
+      { tax: 0, taxUsd: 0, gainsUsd: 0 }
+    );
+  }
+  function adjustedMonth(today, changeDay, offset = 0) {
+    const settledThisMonth = today.getDate() >= toNumber(changeDay || 1);
+    const shift = (settledThisMonth ? 0 : -1) + toNumber(offset);
+    const d = new Date(today.getFullYear(), today.getMonth() + shift, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  }
+
+  // js/core/esppForecast.js
+  function inputForMonth(input, month, forEspp = false) {
+    const h = input.history;
+    const amount = valueAt(h, "salary", month, input.amount);
+    const swap = (list, name, field) => list.map((it) => it.name?.toLowerCase().startsWith(name) ? { ...it, amount: valueAt(h, field, month, it.amount) } : it);
+    return {
+      ...input,
+      amount,
+      per: isFilled(valueAt(h, "salary", month, "")) ? "month" : input.per,
+      incomes: swap(input.incomes ?? [], "transport", "transport"),
+      deductions: swap(input.deductions ?? [], "medical", "medical"),
+      espp: {
+        ...input.espp,
+        enabled: forEspp || input.espp.enabled,
+        constPct: valueAt(h, "esppConst", month, input.espp.constPct),
+        varPct: valueAt(h, "esppVar", month, input.espp.varPct)
+      }
+    };
+  }
+  var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month, true)).espp.total / 12;
+  function esppReport(input, today = /* @__PURE__ */ new Date()) {
+    const espp = input.espp;
+    const year = Number(input.ui.esppYear || today.getFullYear());
+    const ledger = buildLedger({
+      year,
+      entries: espp.entries,
+      assumptions: espp.assumptions,
+      deductionFor: esppDeductionFor(input)
+    });
+    const payroll = payrollTax(espp.payrollTax);
+    const cutoff = adjustedMonth(today, espp.changeDay, espp.monthOffset);
+    const options = { assumptions: espp.assumptions, payrollTaxUsd: payroll.taxUsd };
+    return {
+      year,
+      ledger,
+      payroll,
+      cutoff,
+      currentMonth: monthKey(today),
+      toDate: summarize(ledger, { ...options, cutoff }),
+      forecast: summarize(ledger, options),
+      ready: toNumber(espp.assumptions.price) > 0 && toNumber(espp.assumptions.fx) > 0
     };
   }
 
@@ -403,12 +600,39 @@
     overtime: [],
     cashAwards: [],
     deductions: [],
+    /** ESPP: deducted after tax. `constPct` applies to basic, `varPct` to the parts ticked in `variable`. */
+    espp: {
+      enabled: false,
+      constPct: "",
+      varPct: "",
+      variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
+      symbol: "IBM",
+      assumptions: {
+        price: "",
+        fx: "",
+        discount: "15",
+        dividend: "",
+        reinvestRate: "2",
+        reinvestCap: "3",
+        feeIn: "6",
+        taxRate: "25",
+        withdrawalFee: ""
+      },
+      changeDay: "30",
+      monthOffset: "0",
+      entries: {},
+      payrollTax: []
+    },
+    /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
+    history: [],
     ui: {
+      inTab: "pay",
       resTab: "summary",
+      esppYear: "",
       period: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false }
     }
   });
 
@@ -489,7 +713,23 @@
     sortOvertime(state2.overtime);
     return state2;
   }
-  var hydrate = (saved) => sanitize(mergeShape(DEFAULT_STATE, upgradeV1(saved)));
+  var MONTH = /^\d{4}-\d{2}$/;
+  function restoreEntries(state2, saved) {
+    const raw = saved?.espp?.entries;
+    const entries = {};
+    if (raw && typeof raw === "object") {
+      for (const [month, row] of Object.entries(raw)) {
+        if (MONTH.test(month) && row && typeof row === "object") entries[month] = { ...row };
+      }
+    }
+    state2.espp.entries = entries;
+    state2.history = (state2.history ?? []).filter((h) => h && typeof h === "object" && h.field);
+    return state2;
+  }
+  function hydrate(saved) {
+    const upgraded = upgradeV1(saved);
+    return sanitize(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded));
+  }
 
   // js/state/store.js
   var PROFILE_PREFIX = "@";
@@ -547,16 +787,24 @@
   }
 
   // js/ui/tabs.js
+  var GROUPS = [
+    { nav: "[data-tabs]", key: "ui.resTab", panel: "data-panel" },
+    { nav: "[data-in-tabs]", key: "ui.inTab", panel: "data-in-panel" }
+  ];
   function initTabs() {
-    $("[data-tabs]").addEventListener("click", (e) => {
-      const tab = e.target.closest(".tab");
-      if (tab) set("ui.resTab", tab.dataset.tab);
+    GROUPS.forEach(({ nav, key: key2 }) => {
+      $$(nav).forEach((bar) => bar.addEventListener("click", (e) => {
+        const tab = e.target.closest(".tab");
+        if (tab) set(key2, tab.dataset.tab);
+      }));
     });
   }
-  function syncTabs(state2) {
-    const active = state2.ui.resTab;
-    $$("[data-tabs] .tab").forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === active)));
-    $$("[data-panel]").forEach((p) => p.hidden = p.dataset.panel !== active);
+  function syncTabs() {
+    GROUPS.forEach(({ nav, key: key2, panel }) => {
+      const active = get(key2);
+      $$(`${nav} .tab`).forEach((t) => t.setAttribute("aria-selected", String(t.dataset.tab === active)));
+      $$(`[${panel}]`).forEach((p) => p.hidden = p.getAttribute(panel) !== active);
+    });
   }
 
   // js/ui/form.js
@@ -633,22 +881,8 @@
     indexes.filter((n) => n !== removed).forEach((n) => openRows.add(key(path, n > removed ? n - 1 : n)));
   }
 
-  // js/services/exchangeRates.js
-  var SOURCES = [
-    {
-      name: "open.er-api.com",
-      url: (from) => `https://open.er-api.com/v6/latest/${from}`,
-      read: (data, from, to) => data.result === "success" ? data.rates?.[to] : void 0
-    },
-    {
-      name: "currency-api (jsDelivr)",
-      url: (from) => `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from.toLowerCase()}.json`,
-      read: (data, from, to) => data[from.toLowerCase()]?.[to.toLowerCase()]
-    }
-  ];
+  // js/services/http.js
   var TIMEOUT_MS = 8e3;
-  var CACHE_MS = 60 * 60 * 1e3;
-  var cache = /* @__PURE__ */ new Map();
   async function fetchJson(url) {
     const controller = new AbortController();
     const timer2 = setTimeout(() => controller.abort(), TIMEOUT_MS);
@@ -656,29 +890,57 @@
       const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.json();
+    } catch (err) {
+      throw err.name === "AbortError" ? new Error("timed out") : err;
     } finally {
       clearTimeout(timer2);
     }
   }
-  async function getRate(from, to) {
-    const key2 = `${from}>${to}`;
-    const hit = cache.get(key2);
-    if (hit && Date.now() - hit.at < CACHE_MS) return hit.value;
+  async function firstValid(sources3, read) {
     const errors = [];
-    for (const source of SOURCES) {
+    for (const source of sources3) {
       try {
-        const rate = Number(source.read(await fetchJson(source.url(from)), from, to));
-        if (Number.isFinite(rate) && rate > 0) {
-          const value = { rate, source: source.name };
-          cache.set(key2, { at: Date.now(), value });
-          return value;
-        }
-        errors.push(`${source.name}: no ${to} rate`);
+        const value = Number(read(source, await fetchJson(source.url)));
+        if (Number.isFinite(value) && value > 0) return { value, source: source.name };
+        errors.push(`${source.name}: no value`);
       } catch (err) {
-        errors.push(`${source.name}: ${err.name === "AbortError" ? "timed out" : err.message}`);
+        errors.push(`${source.name}: ${err.message}`);
       }
     }
     throw new Error(errors.join("; "));
+  }
+  function memo(ttlMs) {
+    const cache = /* @__PURE__ */ new Map();
+    return async (key2, load) => {
+      const hit = cache.get(key2);
+      if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+      const value = await load();
+      cache.set(key2, { at: Date.now(), value });
+      return value;
+    };
+  }
+
+  // js/services/exchangeRates.js
+  var cached = memo(60 * 60 * 1e3);
+  function sources(from, to, date) {
+    const f = from.toLowerCase();
+    const list = [{
+      name: "currency-api (jsDelivr)",
+      url: `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${date || "latest"}/v1/currencies/${f}.json`,
+      read: (data) => data[f]?.[to.toLowerCase()]
+    }];
+    if (!date) {
+      list.unshift({
+        name: "open.er-api.com",
+        url: `https://open.er-api.com/v6/latest/${from}`,
+        read: (data) => data.result === "success" ? data.rates?.[to] : void 0
+      });
+    }
+    return list;
+  }
+  async function getRate(from, to, date = "") {
+    const { value, source } = await cached(`${from}>${to}@${date}`, () => firstValid(sources(from, to, date), (s, data) => s.read(data)));
+    return { rate: value, source };
   }
 
   // js/ui/rateFetcher.js
@@ -776,6 +1038,12 @@
     ${text("deductions", i, "name", it.name, "Name")}${num("deductions", i, "amount", it.amount, "Amount")}
     ${select("deductions", i, "per", periodOptions(it.per))}${removeBtn("deductions", i)}
     ${advanced("deductions", i, check("deductions", i, "pretax", it.pretax, "Before tax (reduces taxable income)"))}</div>`,
+    "espp.payrollTax": (e, i) => {
+      const p = "espp.payrollTax";
+      return `<tr><td><input type="date" data-path="${p}.${i}.date" value="${escapeHtml(e.date)}" aria-label="Payroll date"></td>
+      <td>${num(p, i, "gains", e.gains, "gains")}</td><td>${num(p, i, "tax", e.tax, "tax")}</td>
+      <td>${num(p, i, "rate", e.rate, "rate")}</td><td>${removeBtn(p, i)}</td></tr>`;
+    },
     "@.tax.brackets": (b, i) => {
       const p = "@.tax.brackets";
       return `<tr><td>${num(p, i, "rate", b.rate, "%")}</td><td>${num(p, i, "min", b.min, "0")}</td>
@@ -919,8 +1187,8 @@
       const btn = e.target.closest("button");
       if (!btn) return;
       if (btn.dataset.adv) return handleAdvancedToggle(btn);
-      const { add, del, preset, reset, i } = btn.dataset;
-      if (add) ACTIONS.add(add);
+      const { add: add2, del, preset, reset, i } = btn.dataset;
+      if (add2) ACTIONS.add(add2);
       else if (del) ACTIONS.del(del, Number(i));
       else if (preset) ACTIONS.preset(preset, Number(i));
       else if (reset) ACTIONS.reset(reset);
@@ -929,6 +1197,9 @@
 
   // js/ui/collapsibles.js
   function initCollapsibles() {
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("summary [data-stop]")) e.stopPropagation();
+    }, true);
     $$("details[data-open]").forEach((el) => {
       el.addEventListener("toggle", () => {
         const path = `ui.open.${el.dataset.open}`;
@@ -1106,6 +1377,7 @@
       line(`Income tax${taxNote}`, negative(at(r.incomeTax)), "", COLORS.tax),
       ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), "", COLORS.tax)),
       ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), "", COLORS.other)),
+      r.espp.total ? line("ESPP", negative(at(r.espp.total)), "", COLORS.other) : "",
       line("Total deductions", negative(at(r.totalDeductions)), "strong sep"),
       line("Net pay", at(r.net), "strong net-line")
     ];
@@ -1121,7 +1393,7 @@
       { color: COLORS.net, value: Math.max(r.net, 0), label: "Net pay" },
       { color: COLORS.tax, value: r.incomeTax + r.leviesTotal, label: "Taxes" },
       { color: COLORS.si, value: r.si.employee, label: "Social insurance" },
-      { color: COLORS.other, value: r.preTax + r.postTax, label: "Other deductions" }
+      { color: COLORS.other, value: r.preTax + r.postTax + r.espp.total, label: "Other deductions" }
     ];
     const takeHome = r.grossAnnual ? r.net / r.grossAnnual : 0;
     const taxTile = `<div class="stat"><div class="k">Avg. income tax</div>
@@ -1149,7 +1421,7 @@
       ["Gross", r.grossAnnual],
       ["Social ins.", r.si.employee],
       ["Taxes", r.incomeTax + r.leviesTotal],
-      ["Other", r.preTax + r.postTax],
+      ["Other", r.preTax + r.postTax + r.espp.total],
       ["Net", r.net]
     ];
     const rows = PERIODS.map((p) => {
@@ -1223,7 +1495,7 @@
       { color: COLORS.tax, value: r.incomeTax + r.leviesTotal, label: "Taxes" },
       { color: COLORS.si, value: r.si.employee, label: "Your SI" },
       { color: COLORS.employer, value: r.si.employer, label: "Employer SI" },
-      { color: COLORS.other, value: r.preTax + r.postTax, label: "Other deductions" }
+      { color: COLORS.other, value: r.preTax + r.postTax + r.espp.total, label: "Other deductions" }
     ];
     return `<div class="stats">
       ${stat("Employer cost / month", monthly(r.employerCost))}
@@ -1269,7 +1541,7 @@
     $("#otRate").innerHTML = otRateLine(pay.result, money);
     const active = state2.ui.resTab;
     $$("[data-view]").forEach((host) => {
-      if (host.dataset.view !== active) return;
+      if (host.dataset.view !== active || !VIEWS[active]) return;
       host.innerHTML = result ? VIEWS[active](result, state2, money, pay) : EMPTY;
     });
   }
@@ -1374,6 +1646,262 @@
     });
   }
 
+  // js/services/stockPrice.js
+  var cached2 = memo(15 * 60 * 1e3);
+  var sources2 = (symbol) => [{
+    name: "Alpha Vantage (demo)",
+    url: `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=demo`
+  }];
+  async function getStockPrice(symbol) {
+    const clean = String(symbol || "").trim().toUpperCase();
+    if (!clean) throw new Error("No symbol set");
+    const { value, source } = await cached2(clean, () => firstValid(sources2(clean), (_, data) => {
+      if (data.Information || data.Note) throw new Error("demo key only covers a few symbols, such as IBM");
+      return data["Global Quote"]?.["05. price"];
+    }));
+    return { price: value, source };
+  }
+
+  // js/ui/espp.js
+  var LOCKABLE = [
+    { key: "deducted", label: "Deducted", decimals: 2 },
+    { key: "deductedUsd", label: "Deducted USD", decimals: 2 },
+    { key: "dividend", label: "Dividend", decimals: 2 },
+    { key: "shares", label: "ACC. Shares", decimals: 5 }
+  ];
+  var fixed = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "";
+  var usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
+  function renderEsppInputs(result, money) {
+    const tile2 = $("#esppTile");
+    if (!tile2) return;
+    const e = result?.espp;
+    const on = getState().espp.enabled;
+    tile2.innerHTML = on && e ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
+       <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
+       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Turn ESPP on to deduct a % of pay into shares.</div>';
+    $("#esppFields").hidden = !on;
+  }
+  function tile(label, a, b, tone = "") {
+    return `<div class="etile ${tone}"><div class="k">${label}</div>
+    <div class="pair"><div><b>${a.v}</b><small>${a.k}</small></div><div><b>${b.v}</b><small>${b.k}</small></div></div></div>`;
+  }
+  function topTiles(rep, money) {
+    const label = monthLabel(rep.cutoff);
+    return `<div class="etiles">
+    ${tile("Withdrawal", { v: money(rep.toDate.withdrawal), k: `to ${label}` }, { v: money(rep.forecast.withdrawal), k: `${rep.year} forecast` }, "w")}
+    ${tile("Profit", { v: money(rep.toDate.profit), k: `to ${label}` }, { v: money(rep.forecast.profit), k: `${rep.year} forecast` }, "p")}
+    ${tile("Shares", { v: formatNumber2(rep.toDate.shares), k: `to ${label}` }, { v: formatNumber2(rep.forecast.shares), k: `${rep.year} forecast` }, "s")}
+  </div>`;
+  }
+  var formatNumber2 = (v) => (Number(v) || 0).toFixed(2);
+  function cell(row, col) {
+    const field = row[col.key];
+    const shown = fixed(field.value, col.decimals);
+    return `<td class="lock${field.locked ? " on" : ""}">
+    <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${col.key}"
+      value="${field.locked ? escapeHtml(shown) : ""}" placeholder="${shown}" aria-label="${col.label} ${row.month}"
+      title="${field.locked ? "Locked actual \u2014 clear to forecast" : "Forecast \u2014 type the actual to lock it"}"></td>`;
+  }
+  function ledgerTable(rep) {
+    const rows = rep.ledger.rows.map((r) => {
+      const cls = [r.month > rep.cutoff ? "future" : "", r.month === rep.cutoff ? "active" : ""].join(" ");
+      return `<tr class="${cls}"><td><b>${monthLabel(r.month).replace(" " + rep.year, "")}</b></td>
+      ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
+      <td class="r muted-cell">${fixed(r.reinvestFee, 3)}</td><td class="r muted-cell">${fixed(r.feesIn)}</td>
+      <td class="r">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
+      <td class="r">${fixed(r.untaxed)}</td><td class="r">${fixed(r.actualShare)}</td></tr>`;
+    }).join("");
+    const t = rep.forecast;
+    return `<div class="table-wrap espp-table"><table class="edit-table">
+    <thead><tr><th>Month</th><th class="y">Deducted</th><th class="y">Deducted USD</th><th class="y">Dividend</th>
+      <th class="r">Reinvest fee</th><th class="r">Fees in</th><th class="r">Accredited</th><th class="y">ACC. Shares</th>
+      <th class="r">Un-taxed</th><th class="r">Actual share</th></tr></thead>
+    <tbody>${rows}
+      <tr class="total"><td>Total</td><td class="r">${fixed(t.deducted)}</td><td class="r">${fixed(t.deductedUsd)}</td>
+        <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
+        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
+    </tbody></table></div>
+    <p class="hint">Yellow columns: leave blank to forecast, type the actual value to lock it. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+  }
+  function breakdown(rep, money) {
+    const r = (label, a, b) => `<tr><td>${label}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`;
+    const d = rep.toDate, f = rep.forecast;
+    return `<div class="table-wrap"><table>
+    <thead><tr><th></th><th class="r">To ${monthLabel(rep.cutoff)}</th><th class="r">${rep.year} forecast</th></tr></thead>
+    <tbody>
+      ${r("Deducted from pay", money(d.deducted), money(f.deducted))}
+      ${r("Shares held", fixed(d.shares, 5), fixed(f.shares, 5))}
+      ${r("Market value", usd(d.marketValueUsd), usd(f.marketValueUsd))}
+      ${r("Un-taxed gains", usd(d.untaxed), usd(f.untaxed))}
+      ${r("Tax still due", usd(d.taxDueUsd), usd(f.taxDueUsd))}
+      ${r("Dividends", usd(d.dividends), usd(f.dividends))}
+      ${r("Fees", usd(d.fees), usd(f.fees))}
+      <tr class="total"><td>Withdrawal</td><td class="r">${money(d.withdrawal)}</td><td class="r">${money(f.withdrawal)}</td></tr>
+      ${r("Profit vs. deducted", money(d.profit), money(f.profit))}
+    </tbody></table></div>`;
+  }
+  function renderEsppTab(rep, money) {
+    const host = $('[data-view="espp"]');
+    if (!host || host.contains(document.activeElement)) return;
+    const a = getState().espp.assumptions;
+    const warn = rep.ready ? "" : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
+    host.innerHTML = `${warn}${topTiles(rep, money)}
+    <div class="row between" style="margin:4px 0 10px">
+      <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1].map((y) => `<button data-v="${y}" aria-pressed="${y === rep.year}">${y}</button>`).join("")}</div>
+      <span class="hint">Price ${a.price ? usd(a.price) : "\u2014"} \xB7 1 USD = ${a.fx || "\u2014"}</span>
+    </div>
+    ${breakdown(rep, money)}
+    <div class="spacer"></div>
+    ${ledgerTable(rep)}`;
+  }
+  async function fetchLive(kind, button) {
+    const input = $(`[data-bind="espp.assumptions.${kind}"]`);
+    button.classList.add("loading");
+    button.disabled = true;
+    try {
+      const value = kind === "price" ? (await getStockPrice(getState().espp.symbol)).price : (await getRate("USD", activeProfile().currency)).rate;
+      set(`espp.assumptions.${kind}`, String(Number(value.toFixed(4))));
+      input.classList.add("rate-ok");
+      input.classList.remove("rate-error");
+      input.title = "Live value";
+    } catch (err) {
+      input.classList.add("rate-error");
+      input.classList.remove("rate-ok");
+      input.title = `Could not fetch (${err.message}). Enter it manually.`;
+      toast("Live value unavailable \u2014 enter it manually");
+    } finally {
+      button.classList.remove("loading");
+      button.disabled = false;
+    }
+  }
+  function initEspp(onChanged) {
+    document.addEventListener("click", (e) => {
+      const live = e.target.closest("[data-espp-live]");
+      if (live) return fetchLive(live.dataset.esppLive, live);
+      const year = e.target.closest("[data-espp-year] button");
+      if (year) set("ui.esppYear", year.dataset.v);
+    });
+    document.addEventListener("input", (e) => {
+      const month = e.target.dataset.esppEntry;
+      if (month) {
+        const key2 = e.target.dataset.key;
+        update((s) => {
+          const row = { ...s.espp.entries[month] ?? {} };
+          if (e.target.value.trim()) row[key2] = e.target.value.trim();
+          else delete row[key2];
+          if (Object.keys(row).length) s.espp.entries[month] = row;
+          else delete s.espp.entries[month];
+        });
+        return;
+      }
+      const bind = e.target.dataset.bind ?? "";
+      if (bind === "espp.assumptions.price" || bind === "espp.assumptions.fx") e.target.classList.remove("rate-ok", "rate-error");
+    });
+    document.addEventListener("focusout", (e) => {
+      if (e.target.dataset.esppEntry) setTimeout(onChanged);
+    });
+  }
+  function syncEsppCounts(state2) {
+    const locked = Object.keys(state2.espp.entries).length;
+    $$("[data-espp-locked]").forEach((b) => b.textContent = locked ? String(locked) : "");
+  }
+
+  // js/ui/history.js
+  var CURRENT = {
+    salary: (s) => s.per === "month" ? s.amount : "",
+    transport: (s) => s.incomes.find((i) => i.name?.toLowerCase().startsWith("transport"))?.amount ?? "",
+    medical: (s) => s.deductions.find((d) => d.name?.toLowerCase().startsWith("medical"))?.amount ?? "",
+    esppConst: (s) => s.espp.constPct,
+    esppVar: (s) => s.espp.varPct
+  };
+  var removeBtn2 = (i) => `<button class="btn icon ghost danger" data-hist-del="${i}" aria-label="Remove" title="Remove">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
+  function entryRow(e, money) {
+    const field = historyField(e.field);
+    const shown = field.unit === "pct" ? `${escapeHtml(e.value)}%` : money(Number(e.value) || 0);
+    return `<div class="hist-row">
+    <input type="month" value="${escapeHtml(e.from)}" data-hist="${e.index}" data-key="from" aria-label="Effective from">
+    <input type="text" inputmode="decimal" value="${escapeHtml(e.value)}" data-hist="${e.index}" data-key="value" aria-label="${escapeHtml(field.label)}">
+    <span class="hint">${shown}</span>${removeBtn2(e.index)}</div>`;
+  }
+  function renderHistory(state2, money) {
+    const host = $("#historyList");
+    if (!host || host.contains(document.activeElement)) return;
+    const now = monthKey(/* @__PURE__ */ new Date());
+    const groups = groupHistory(state2.history);
+    host.innerHTML = HISTORY_FIELDS.map((f) => {
+      const list = groups.get(f.id);
+      const current = valueAt(state2.history, f.id, now, "");
+      const badge = current !== "" ? `<span class="hint">now ${f.unit === "pct" ? `${escapeHtml(current)}%` : money(Number(current) || 0)}</span>` : "";
+      return `<details class="more" data-hist-group="${f.id}"${list.length ? " open" : ""}>
+      <summary>${escapeHtml(f.label)} <span class="count">${list.length || ""}</span>${badge}</summary>
+      <div class="inner">
+        ${list.map((e) => entryRow(e, money)).join("") || '<div class="hint">No dated values yet.</div>'}
+        <div class="row wrap" style="margin-top:6px">
+          <button class="btn sm" data-hist-add="${f.id}">+ Add value</button>
+          <button class="btn sm ghost" data-hist-snap="${f.id}" title="Store today's value from the Pay tab, effective this month">Save current</button>
+        </div>
+      </div></details>`;
+    }).join("");
+  }
+  function fillPay(month) {
+    const h = getState().history;
+    const has = (field) => valueAt(h, field, month, "") !== "";
+    if (!["salary", "transport", "medical", "esppConst", "esppVar"].some(has)) return toast(`No history values for ${monthLabel(month)}`);
+    update((s) => {
+      if (has("salary")) {
+        s.amount = valueAt(h, "salary", month);
+        s.per = "month";
+        s.mode = "gross";
+      }
+      const setNamed = (list, prefix, field, blank) => {
+        if (!has(field)) return list;
+        const i = list.findIndex((it) => it.name?.toLowerCase().startsWith(prefix));
+        if (i >= 0) list[i] = { ...list[i], amount: valueAt(h, field, month) };
+        else list.push({ ...clone(blank), amount: valueAt(h, field, month) });
+        return list;
+      };
+      setNamed(s.incomes, "transport", "transport", { name: "Transportation", per: "month", taxable: true, insurable: false });
+      setNamed(s.deductions, "medical", "medical", { name: "Medical insurance", per: "month", pretax: false });
+      if (has("esppConst")) s.espp.constPct = valueAt(h, "esppConst", month);
+      if (has("esppVar")) s.espp.varPct = valueAt(h, "esppVar", month);
+      if (has("esppConst") || has("esppVar")) s.espp.enabled = true;
+      s.ui.inTab = "pay";
+    });
+    toast(`Pay tab filled with ${monthLabel(month)} values`);
+  }
+  function add(field, value = "") {
+    const from = monthKey(/* @__PURE__ */ new Date());
+    update((s) => s.history.push({ field, from, value: String(value ?? "") }));
+  }
+  function initHistory(onChanged) {
+    const picker = $("#histMonth");
+    picker.value = monthKey(/* @__PURE__ */ new Date());
+    $("#histFill").addEventListener("click", () => {
+      fillPay(picker.value || monthKey(/* @__PURE__ */ new Date()));
+      onChanged();
+    });
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-hist-add],[data-hist-snap],[data-hist-del]");
+      if (!btn) return;
+      if (btn.dataset.histAdd) add(btn.dataset.histAdd);
+      else if (btn.dataset.histSnap) {
+        const value = CURRENT[btn.dataset.histSnap](getState());
+        if (value === "") return toast("Nothing to save \u2014 set it on the Pay tab first");
+        add(btn.dataset.histSnap, value);
+        toast(`Saved ${historyField(btn.dataset.histSnap).label} from ${monthLabel(monthKey(/* @__PURE__ */ new Date()))}`);
+      } else update((s) => s.history.splice(Number(btn.dataset.histDel), 1));
+      onChanged();
+    });
+    document.addEventListener("input", (e) => {
+      const i = e.target.dataset.hist;
+      if (i !== void 0) set(`history.${i}.${e.target.dataset.key}`, e.target.value);
+    });
+    document.addEventListener("change", (e) => {
+      if (e.target.dataset.hist !== void 0) onChanged();
+    });
+  }
+
   // js/main.js
   function compute(input) {
     const amount = toNumber(input.amount);
@@ -1404,6 +1932,10 @@
       impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] }
     });
     renderResults(result, input, money, pay);
+    renderEsppInputs(pay.result ?? result, money);
+    syncEsppCounts(state2);
+    if (state2.ui.inTab === "history") renderHistory(state2, money);
+    if (state2.ui.resTab === "espp") renderEsppTab(esppReport(input), money);
   }
   function rebuild() {
     const state2 = getState();
@@ -1420,6 +1952,8 @@
   initSettings(rebuild);
   initSteppers();
   initRateFetcher();
+  initEspp(rebuild);
+  initHistory(rebuild);
   subscribe(render);
   rebuild();
 })();

@@ -781,6 +781,186 @@ input.rate-error {
   border-color: var(--danger) !important;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent);
 }
+.sum-toggle {
+  margin-left: 10px;
+  font-weight: 500;
+  font-size: .8rem;
+  color: var(--muted);
+}
+.quick-tile {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+}
+.quick-tile > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.quick-tile span {
+  font-size: .7rem;
+  color: var(--muted);
+}
+.quick-tile b {
+  font-size: .92rem;
+  color: var(--danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.quick-tile .tot b {
+  color: var(--text);
+}
+.quick-tile .hint {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.compact-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.compact-grid label .hint {
+  font-size: .68rem;
+  margin: 0;
+  display: inline;
+}
+.compact-grid .row {
+  gap: 4px;
+}
+.compact-grid .row .btn.live {
+  height: 32px;
+  width: 32px;
+  padding: 0;
+  flex: 0 0 auto;
+}
+.check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 12px;
+}
+@media (max-width: 420px) {
+  .check-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.hist-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto 34px;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.hist-row input {
+  height: 34px;
+  font-size: .88rem;
+}
+.hist-row .hint {
+  margin: 0;
+  white-space: nowrap;
+}
+details[data-hist-group] > summary .hint {
+  margin: 0 0 0 auto;
+  padding-right: 10px;
+  font-weight: 500;
+}
+@media (max-width: 420px) {
+  .hist-row {
+    grid-template-columns: 1fr 1fr 34px;
+  }
+  .hist-row .hint {
+    display: none;
+  }
+}
+.etiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+@media (max-width: 640px) {
+  .etiles {
+    grid-template-columns: 1fr;
+  }
+}
+.etile {
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  min-width: 0;
+}
+.etile .k {
+  font-size: .76rem;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.etile .pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.etile .pair > div {
+  min-width: 0;
+}
+.etile b {
+  display: block;
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.etile small {
+  font-size: .68rem;
+  color: var(--muted);
+}
+.etile.w {
+  border-left: 3px solid var(--c-tax);
+}
+.etile.p {
+  border-left: 3px solid var(--pos);
+}
+.etile.p b {
+  color: var(--pos);
+}
+.etile.s {
+  border-left: 3px solid var(--c-net);
+}
+.espp-table th.y {
+  background: color-mix(in srgb, #f5c400 22%, var(--surface-2));
+  color: var(--text);
+}
+.espp-table td.lock input {
+  min-width: 74px;
+  text-align: right;
+}
+.espp-table td.lock input::placeholder {
+  color: var(--muted);
+  opacity: .9;
+}
+.espp-table td.lock.on input {
+  background: color-mix(in srgb, #f5c400 18%, var(--surface));
+  border-color: color-mix(in srgb, #f5c400 55%, var(--border));
+  font-weight: 600;
+}
+.espp-table tr.future td {
+  opacity: .55;
+}
+.espp-table .muted-cell {
+  color: var(--muted);
+}
+.hist-fill {
+  gap: 6px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+.hist-fill input[type=month] {
+  height: 32px;
+  max-width: 170px;
+  font-size: .88rem;
+}
 
 /* css/tables.css */
 .table-wrap {

@@ -11,7 +11,7 @@ export function renderEmployer(r, state, money) {
     { color: COLORS.tax, value: r.incomeTax + r.leviesTotal, label: 'Taxes' },
     { color: COLORS.si, value: r.si.employee, label: 'Your SI' },
     { color: COLORS.employer, value: r.si.employer, label: 'Employer SI' },
-    { color: COLORS.other, value: r.preTax + r.postTax, label: 'Other deductions' },
+    { color: COLORS.other, value: r.preTax + r.postTax + r.espp.total, label: 'Other deductions' },
   ];
 
   return `<div class="stats">

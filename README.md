@@ -41,6 +41,10 @@ Collapsible sections, in this order:
 
 Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the right of a single line, with a faded preview of the first options on its left. Clicking it expands the options: the *taxable* / *counts toward SI base* flags, a cash award's period and taxable flag, and a deduction's before-tax flag.
 
+5. **ESPP:** an *On* switch, a tile with this month's constant, variable and total deduction, and the two percentages. *Constant %* applies to basic salary; *Variable %* applies to whatever is ticked under More options → Settings → *ESPP: what counts as variable*. ESPP comes out of net pay after tax.
+
+**History tab** (input card): dated values for gross salary, transportation, medical insurance and the two ESPP percentages. Each value applies from its month until the next one. *Save current* stores today's Pay-tab value; *Fill Pay tab* loads the values in force for any chosen month. The ESPP ledger uses the value in force for each month.
+
 **Results tabs**
 
 - **Summary:** annual / monthly / daily / hourly view. Earnings are shown in green and deductions in red. One tile shows the average income tax with the max bracket under it.
@@ -54,6 +58,12 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 
   Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket.
 - **By period:** a table of every period.
+- **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
+  - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares): blank means forecast; type the actual value to lock it.
+  - Forecast rules: USD at the set rate, shares bought at price × (1 − discount), quarterly dividends (Mar/Jun/Sep/Dec) on shares held two months earlier, reinvest fee capped, an entry fee each Jan and Jul.
+  - **Withdrawal** = (shares × price − withdrawal fee − tax still due) × USD rate, where tax still due = tax % × un-taxed gains − tax already paid through payroll (*Payroll tax events*).
+  - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
+  - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it.
 - **Employer cost:** the real tax rate, including employer social insurance.
 
 ### How the net effect of overtime and cash awards is calculated
@@ -78,12 +88,16 @@ js/
     solver.js        net → gross bisection
     impacts.js       net effect of overtime and cash awards
     proRata.js       month/day pro-rata input adjustment
+    history.js       dated values (value in force for a month)
+    espp.js          ESPP ledger, summary, payroll tax, adjusted month
+    esppForecast.js  ESPP report from state + history
   data/              Egypt 2026 profile, presets, currencies
   state/             store ("@." paths = active profile), migration, localStorage
   ui/                tabs, form bindings, collapsibles, row templates, lists,
                      tax profiles, settings, swipe stepper, advanced toggles
     results/         one renderer per results tab
-  services/          exchangeRates.js (free, key-less live FX with fallback + cache)
+  services/          http.js (timeouts, fallbacks, cache), exchangeRates.js (live + dated FX),
+                     stockPrice.js (key-less share price)
   utils/             number, format, dom, object helpers
 tests/               node:test unit tests for core/
 ```

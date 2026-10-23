@@ -13,7 +13,7 @@ export const PRESETS = {
     { name: 'Bonus', amount: '', per: 'year', taxable: true, insurable: false },
   ],
   deductions: [
-    { name: 'Medical insurance', amount: '181.73', per: 'month', pretax: false },
+    { name: 'Medical insurance', amount: '', per: 'month', pretax: false },
     { name: 'Pension plan', amount: '', per: 'month', pretax: true },
     { name: 'Loan', amount: '', per: 'month', pretax: false },
   ],
@@ -23,6 +23,7 @@ export const BLANK_ROWS = {
   incomes: { name: '', amount: '', per: 'month', taxable: true, insurable: false },
   cashAwards: { name: 'Cash Award', amount: '', currency: 'USD', rate: '', per: 'year', taxable: true },
   deductions: { name: '', amount: '', per: 'month', pretax: false },
+  'espp.payrollTax': { date: '', gains: '', tax: '', rate: '' },
   '@.tax.brackets': { rate: '', min: '', max: '', exclusion: '' },
   '@.levies': { name: '', rate: '', base: 'gross' },
   '@.si.caps': { year: '', min: '', max: '' },

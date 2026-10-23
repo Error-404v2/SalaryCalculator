@@ -43,6 +43,7 @@ function breakdownLines(r, state, at) {
     line(`Income tax${taxNote}`, negative(at(r.incomeTax)), '', COLORS.tax),
     ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), '', COLORS.tax)),
     ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), '', COLORS.other)),
+    r.espp.total ? line('ESPP', negative(at(r.espp.total)), '', COLORS.other) : '',
     line('Total deductions', negative(at(r.totalDeductions)), 'strong sep'),
     line('Net pay', at(r.net), 'strong net-line'),
   ];
@@ -59,7 +60,7 @@ export function renderSummary(full, state, money, pay) {
     { color: COLORS.net, value: Math.max(r.net, 0), label: 'Net pay' },
     { color: COLORS.tax, value: r.incomeTax + r.leviesTotal, label: 'Taxes' },
     { color: COLORS.si, value: r.si.employee, label: 'Social insurance' },
-    { color: COLORS.other, value: r.preTax + r.postTax, label: 'Other deductions' },
+    { color: COLORS.other, value: r.preTax + r.postTax + r.espp.total, label: 'Other deductions' },
   ];
   const takeHome = r.grossAnnual ? r.net / r.grossAnnual : 0;
   const taxTile = `<div class="stat"><div class="k">Avg. income tax</div>

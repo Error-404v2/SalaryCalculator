@@ -6,7 +6,7 @@ export function renderPeriods(full, state, money, pay) {
     ['Gross', r.grossAnnual],
     ['Social ins.', r.si.employee],
     ['Taxes', r.incomeTax + r.leviesTotal],
-    ['Other', r.preTax + r.postTax],
+    ['Other', r.preTax + r.postTax + r.espp.total],
     ['Net', r.net],
   ];
   const rows = PERIODS.map((p) => {

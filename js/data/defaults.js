@@ -53,11 +53,31 @@ export const DEFAULT_STATE = Object.freeze({
   overtime: [],
   cashAwards: [],
   deductions: [],
+  /** ESPP: deducted after tax. `constPct` applies to basic, `varPct` to the parts ticked in `variable`. */
+  espp: {
+    enabled: false,
+    constPct: '',
+    varPct: '',
+    variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
+    symbol: 'IBM',
+    assumptions: {
+      price: '', fx: '', discount: '15', dividend: '', reinvestRate: '2', reinvestCap: '3',
+      feeIn: '6', taxRate: '25', withdrawalFee: '',
+    },
+    changeDay: '30',
+    monthOffset: '0',
+    entries: {},
+    payrollTax: [],
+  },
+  /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
+  history: [],
   ui: {
+    inTab: 'pay',
     resTab: 'summary',
+    esppYear: '',
     period: 'month',
     theme: '',
     taxEdit: false,
-    open: { overtime: false, extras: false, deductions: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false },
+    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false },
   },
 });
