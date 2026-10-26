@@ -5,10 +5,13 @@ import { renderPeriods } from './periods.js';
 import { renderTaxDetail } from './taxDetail.js';
 import { renderEmployer } from './employer.js';
 
+/** The Tax tab ends with the By period table. */
+const renderTax = (...args) =>
+  `${renderTaxDetail(...args)}<div class="section-title" style="margin-top:18px">By period</div>${renderPeriods(...args)}`;
+
 const VIEWS = {
   summary: renderSummary,
-  periods: renderPeriods,
-  tax: renderTaxDetail,
+  tax: renderTax,
   employer: renderEmployer,
 };
 

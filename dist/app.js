@@ -786,6 +786,7 @@
     if (!isPeriod(state2.per)) state2.per = DEFAULT_STATE.per;
     if (!isPeriod(state2.overrides.taxablePer)) state2.overrides.taxablePer = "month";
     if (!isPeriod(state2.ui.period)) state2.ui.period = DEFAULT_STATE.ui.period;
+    if (state2.ui.resTab === "periods") state2.ui.resTab = "tax";
     [...state2.incomes, ...state2.deductions, ...state2.cashAwards].forEach((item) => {
       if (!isItemPeriod(item.per)) item.per = "month";
     });
@@ -1598,10 +1599,10 @@
   }
 
   // js/ui/results/index.js
+  var renderTax = (...args) => `${renderTaxDetail(...args)}<div class="section-title" style="margin-top:18px">By period</div>${renderPeriods(...args)}`;
   var VIEWS = {
     summary: renderSummary,
-    periods: renderPeriods,
-    tax: renderTaxDetail,
+    tax: renderTax,
     employer: renderEmployer
   };
   var EMPTY = '<div class="empty" style="padding:40px 16px">Enter a salary to see the breakdown.</div>';

@@ -4,6 +4,7 @@ import {
   saveMonth, hasMonth, groupRows, monthSnapshot, monthsInHistory, companionEntries, setEntry, moveRow, removeRow, freeMonth,
   nearestFirst, removeMonth, monthsOfYear,
 } from '../js/core/history.js';
+import { hydrate } from '../js/state/migrate.js';
 
 const H = [
   { field: 'salary', from: '2026-01', value: '10000' },
@@ -70,6 +71,11 @@ test('nearestFirst orders months by distance, ties go to the later month', () =>
 test('removeMonth drops every entry of that month only', () => {
   const r = removeMonth(H, '2026-01');
   assert.deepEqual(r, [{ field: 'salary', from: '2026-03', value: '12000' }]);
+});
+
+test('a saved By period tab opens the Tax tab, which now holds that table', () => {
+  assert.equal(hydrate({ ui: { resTab: 'periods' } }).ui.resTab, 'tax');
+  assert.equal(hydrate({ ui: { resTab: 'espp' } }).ui.resTab, 'espp');
 });
 
 test('monthsOfYear lists twelve months', () => {

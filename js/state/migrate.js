@@ -36,6 +36,7 @@ function sanitize(state) {
   if (!isPeriod(state.per)) state.per = DEFAULT_STATE.per;
   if (!isPeriod(state.overrides.taxablePer)) state.overrides.taxablePer = 'month';
   if (!isPeriod(state.ui.period)) state.ui.period = DEFAULT_STATE.ui.period;
+  if (state.ui.resTab === 'periods') state.ui.resTab = 'tax';
   [...state.incomes, ...state.deductions, ...state.cashAwards].forEach((item) => {
     if (!isItemPeriod(item.per)) item.per = 'month';
   });
