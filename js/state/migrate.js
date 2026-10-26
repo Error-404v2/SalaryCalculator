@@ -38,6 +38,7 @@ function sanitize(state) {
   if (!isPeriod(state.overrides.taxablePer)) state.overrides.taxablePer = 'month';
   if (!isPeriod(state.ui.period)) state.ui.period = DEFAULT_STATE.ui.period;
   if (state.ui.resTab === 'periods') state.ui.resTab = 'tax';
+  if (state.ui.resTab === 'espp') state.ui.resTab = 'summary';
   [...state.incomes, ...state.deductions, ...state.cashAwards].forEach((item) => {
     if (!isItemPeriod(item.per)) item.per = 'month';
   });
@@ -47,22 +48,14 @@ function sanitize(state) {
 
 const MONTH = /^\d{4}-\d{2}$/;
 
-/** `espp.entries` is keyed by month, so it can't be merged against the (empty) default shape. */
-function restoreEntries(state, saved) {
-  const raw = saved?.espp?.entries;
-  const entries = {};
-  if (raw && typeof raw === 'object') {
-    for (const [month, row] of Object.entries(raw)) {
-      if (MONTH.test(month) && row && typeof row === 'object') entries[month] = { ...row };
-    }
-  }
-  state.espp.entries = entries;
+/** Old per-field history is only read to be converted into saved months; keep just well-formed entries. */
+function restoreHistory(state) {
   state.history = (state.history ?? []).filter((h) => h && typeof h === 'object' && h.field);
   return state;
 }
 
 /**
- * Saved months are keyed by month, so (like ESPP entries) they are restored by hand. Data saved before months
+ * Saved months are keyed by month, so they are restored by hand. Data saved before months
  * existed only has the per-field history; it is converted once, using the Pay tab as the starting point.
  */
 function restoreMonths(state, saved) {
@@ -88,5 +81,5 @@ function grossMonths(state) {
 
 export function hydrate(saved) {
   const upgraded = upgradeV1(saved);
-  return grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded)));
+  return grossMonths(sanitize(restoreMonths(restoreHistory(mergeShape(DEFAULT_STATE, upgraded)), upgraded)));
 }

@@ -75,25 +75,6 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 @media (max-width: 420px) { .check-grid { grid-template-columns: 1fr; } }
 
 
-/* ESPP tab */
-.etiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-@media (max-width: 640px) { .etiles { grid-template-columns: 1fr; } }
-.etile { border-radius: var(--radius-sm); padding: 10px 12px; border: 1px solid var(--border); background: var(--surface-2); min-width: 0; }
-.etile .k { font-size: .76rem; font-weight: 600; margin-bottom: 4px; }
-.etile .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.etile .pair > div { min-width: 0; }
-.etile b { display: block; font-size: 1.05rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.etile small { font-size: .68rem; color: var(--muted); }
-.etile.w { border-left: 3px solid var(--c-tax); }
-.etile.p { border-left: 3px solid var(--pos); }
-.etile.p b { color: var(--pos); }
-.etile.s { border-left: 3px solid var(--c-net); }
-.espp-table th.y { background: color-mix(in srgb, #f5c400 22%, var(--surface-2)); color: var(--text); }
-.espp-table td.lock input { min-width: 74px; text-align: right; }
-.espp-table td.lock input::placeholder { color: var(--muted); opacity: .9; }
-.espp-table td.lock.on input { background: color-mix(in srgb, #f5c400 18%, var(--surface)); border-color: color-mix(in srgb, #f5c400 55%, var(--border)); font-weight: 600; }
-.espp-table tr.future td { opacity: .55; }
-.espp-table .muted-cell { color: var(--muted); }
 
 
 

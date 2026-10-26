@@ -1,4 +1,4 @@
-import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport } from './core/index.js';
+import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput } from './core/index.js';
 import { toNumber } from './utils/number.js';
 import { createMoneyFormatter } from './utils/format.js';
 import * as store from './state/store.js';
@@ -11,7 +11,7 @@ import { initResults, renderResults } from './ui/results/index.js';
 import { initSettings, syncSettings } from './ui/settings.js';
 import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
-import { initEspp, renderEsppInputs, renderEsppTab, resetEsppAdded } from './ui/espp.js';
+import { initEspp, renderEsppInputs, resetEsppAdded } from './ui/espp.js';
 import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab } from './ui/history.js';
 import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
@@ -64,7 +64,6 @@ function render(state) {
     renderHistory(input, money, pay);
     syncCollapsibles(state);
   }
-  if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
 }
 
 function rebuild() {

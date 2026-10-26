@@ -97,7 +97,8 @@ test('editing a month and saving it changes that month only', () => {
 
 test('a saved By period tab opens the Tax tab, which now holds that table', () => {
   assert.equal(hydrate({ ui: { resTab: 'periods' } }).ui.resTab, 'tax');
-  assert.equal(hydrate({ ui: { resTab: 'espp' } }).ui.resTab, 'espp');
+  assert.equal(hydrate({ ui: { resTab: 'employer' } }).ui.resTab, 'employer');
+  assert.equal(hydrate({ ui: { resTab: 'espp' } }).ui.resTab, 'summary', 'no ESPP tab in this version');
 });
 
 test('a fresh start has no history and no saved month', () => {
