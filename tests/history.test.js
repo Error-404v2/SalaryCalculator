@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   saveMonth, hasMonth, groupRows, monthSnapshot, monthsInHistory, companionEntries, setEntry, moveRow, removeRow, freeMonth,
-  nearestFirst, removeMonth, monthsOfYear,
+  nearestFirst, removeMonth, monthsOfYear, monthValues, savedMonths, valueAt,
 } from '../js/core/history.js';
 import { hydrate } from '../js/state/migrate.js';
 
@@ -71,6 +71,27 @@ test('nearestFirst orders months by distance, ties go to the later month', () =>
 test('removeMonth drops every entry of that month only', () => {
   const r = removeMonth(H, '2026-01');
   assert.deepEqual(r, [{ field: 'salary', from: '2026-03', value: '12000' }]);
+});
+
+test('monthValues fills unset fields from earlier months', () => {
+  assert.deepEqual(monthValues(H, '2026-03'), { salary: '12000', transport: '1000', medical: '', esppConst: '5', esppVar: '3' });
+  assert.deepEqual(monthValues(H, '2025-12'), { salary: '', transport: '', medical: '', esppConst: '', esppVar: '' });
+});
+
+test('savedMonths lists each month with the fields saved in it', () => {
+  assert.deepEqual(savedMonths(H), [
+    { month: '2026-03', fields: ['salary'] },
+    { month: '2026-01', fields: ['salary', 'transport', 'esppConst', 'esppVar'] },
+  ]);
+});
+
+test('editing a month and saving it changes that month only', () => {
+  const edited = { ...monthValues(H, '2026-03'), salary: '12500', medical: '400' };
+  const r = saveMonth(H, '2026-03', edited);
+  assert.equal(valueAt(r.history, 'salary', '2026-03'), '12500');
+  assert.equal(valueAt(r.history, 'medical', '2026-03'), '400');
+  assert.equal(valueAt(r.history, 'salary', '2026-01'), '10000');
+  assert.equal(r.history.filter((e) => e.from === '2026-01').length, 4);
 });
 
 test('a saved By period tab opens the Tax tab, which now holds that table', () => {

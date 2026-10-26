@@ -78,6 +78,22 @@ export function monthSnapshot(history, month) {
   });
 }
 
+/**
+ * The editable values of a saved month, field id → value. A field set in that month shows its own value;
+ * an unset field shows the value inherited from an earlier month (or '' when there is none).
+ */
+export function monthValues(history, month) {
+  return Object.fromEntries(monthSnapshot(history, month).map((f) => [f.id, f.value]));
+}
+
+/** Months that are saved, plus the field ids set exactly in each, newest first. */
+export function savedMonths(history) {
+  return monthsInHistory(history).map((month) => ({
+    month,
+    fields: HISTORY_FIELDS.filter((f) => (history ?? []).some((e) => e.field === f.id && e.from === month && isFilled(e.value))).map((f) => f.id),
+  }));
+}
+
 /** True when `month` already holds a filled value, so saving it again would override something. */
 export const hasMonth = (history, month) =>
   (history ?? []).some((e) => e.from === month && historyField(e.field) && isFilled(e.value));

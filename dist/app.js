@@ -371,13 +371,6 @@
     { id: "esppVar", label: "ESPP % (variable)", unit: "pct" }
   ];
   var historyField = (id) => HISTORY_FIELDS.find((f) => f.id === id);
-  var HISTORY_GROUPS = [
-    { id: "salary", label: "Gross salary", fields: ["salary"] },
-    { id: "transport", label: "Transportation", fields: ["transport"] },
-    { id: "medical", label: "Medical insurance", fields: ["medical"] },
-    { id: "espp", label: "ESPP %", fields: ["esppConst", "esppVar"] }
-  ];
-  var historyGroup = (id) => HISTORY_GROUPS.find((g) => g.id === id);
   var monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   function monthLabel(key2, style = "short") {
     const [y, m] = key2.split("-").map(Number);
@@ -411,55 +404,28 @@
     }
     return [...months].sort((a, b) => b.localeCompare(a));
   }
+  function monthSnapshot(history, month) {
+    return HISTORY_FIELDS.map((field) => {
+      const entry = entryAt(history, field.id, month);
+      return { ...field, value: entry ? entry.value : "", from: entry ? entry.from : "", exact: !!entry && entry.from === month };
+    });
+  }
+  function monthValues(history, month) {
+    return Object.fromEntries(monthSnapshot(history, month).map((f) => [f.id, f.value]));
+  }
+  function savedMonths(history) {
+    return monthsInHistory(history).map((month) => ({
+      month,
+      fields: HISTORY_FIELDS.filter((f) => (history ?? []).some((e) => e.field === f.id && e.from === month && isFilled(e.value))).map((f) => f.id)
+    }));
+  }
   var hasMonth = (history, month) => (history ?? []).some((e) => e.from === month && historyField(e.field) && isFilled(e.value));
-  function groupRows(history, fields) {
-    const rows = /* @__PURE__ */ new Map();
-    for (const entry of history ?? []) {
-      if (!fields.includes(entry.field)) continue;
-      const from = entry.from ?? "";
-      const row = rows.get(from) ?? { from, values: {} };
-      row.values[entry.field] = entry.value;
-      rows.set(from, row);
-    }
-    return [...rows.values()].sort((a, b) => b.from.localeCompare(a.from));
-  }
-  function setEntry(history, field, from, value) {
-    const list = history ?? [];
-    const text2 = String(value ?? "");
-    if (!list.some((e) => e.field === field && e.from === from)) return [...list, { field, from, value: text2 }];
-    return list.map((e) => e.field === field && e.from === from ? { ...e, value: text2 } : e);
-  }
-  var removeRow = (history, fields, from) => (history ?? []).filter((e) => !(fields.includes(e.field) && e.from === from));
   var removeMonth = (history, month) => (history ?? []).filter((e) => e.from !== month);
-  function moveRow(history, fields, from, to) {
-    const list = history ?? [];
-    if (!to || to === from) return { history: list, ok: false };
-    if (list.some((e) => fields.includes(e.field) && e.from === to)) return { history: list, ok: false };
-    return { history: list.map((e) => fields.includes(e.field) && e.from === from ? { ...e, from: to } : e), ok: true };
-  }
   function saveMonth(history, month, values) {
     const all = history ?? [];
     const kept = all.filter((e) => !(e.from === month && historyField(e.field)));
     const added = HISTORY_FIELDS.filter((f) => isFilled(values?.[f.id])).map((f) => ({ field: f.id, from: month, value: String(values[f.id]) }));
     return { history: [...kept, ...added], replaced: all.length - kept.length, saved: added.length };
-  }
-  function freeMonth(history, fields, start) {
-    const used = new Set((history ?? []).filter((e) => fields.includes(e.field)).map((e) => e.from));
-    let [year, month] = start.split("-").map(Number);
-    let key2 = start;
-    while (used.has(key2)) {
-      month -= 1;
-      if (month === 0) {
-        year -= 1;
-        month = 12;
-      }
-      key2 = `${year}-${String(month).padStart(2, "0")}`;
-    }
-    return key2;
-  }
-  function companionEntries(history, field, from, current = {}) {
-    if (field !== "salary") return [];
-    return ["transport", "medical"].filter((f) => !(history ?? []).some((e) => e.field === f && e.from === from)).map((f) => ({ field: f, from, value: String(current[f] ?? "") }));
   }
 
   // js/core/espp.js
@@ -708,10 +674,11 @@
       inTab: "pay",
       resTab: "summary",
       esppYear: "",
+      histMonth: "",
       period: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true }
     }
   });
 
@@ -1267,8 +1234,8 @@
       const btn = e.target.closest("button");
       if (!btn) return;
       if (btn.dataset.adv) return handleAdvancedToggle(btn);
-      const { add: add2, del, preset, reset, i } = btn.dataset;
-      if (add2) ACTIONS.add(add2);
+      const { add, del, preset, reset, i } = btn.dataset;
+      if (add) ACTIONS.add(add);
       else if (del) ACTIONS.del(del, Number(i));
       else if (preset) ACTIONS.preset(preset, Number(i));
       else if (reset) ACTIONS.reset(reset);
@@ -1280,12 +1247,12 @@
     document.addEventListener("click", (e) => {
       if (e.target.closest("summary [data-stop]")) e.stopPropagation();
     }, true);
-    $$("details[data-open]").forEach((el) => {
-      el.addEventListener("toggle", () => {
-        const path = `ui.open.${el.dataset.open}`;
-        if (get(path) !== el.open) set(path, el.open);
-      });
-    });
+    document.addEventListener("toggle", (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLDetailsElement) || !el.dataset.open) return;
+      const path = `ui.open.${el.dataset.open}`;
+      if (get(path) !== el.open) set(path, el.open);
+    }, true);
   }
   function syncCollapsibles(state2) {
     $$("details[data-open]").forEach((el) => {
@@ -1325,10 +1292,10 @@
   var CUSTOM = "__custom";
   var normalizeCode = (value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   function renderCurrency(profile, forceCustom = false) {
-    const select2 = $("#currencySel");
+    const select3 = $("#currencySel");
     const input = $("#currencyCustom");
     const custom = forceCustom || !CURRENCIES.includes(profile.currency);
-    select2.innerHTML = optionList(
+    select3.innerHTML = optionList(
       [...CURRENCIES.map((c) => ({ value: c, label: c })), { value: CUSTOM, label: "Custom\u2026" }],
       custom ? CUSTOM : profile.currency
     );
@@ -1895,174 +1862,156 @@
     esppVar: (s) => s.espp.varPct
   };
   var currentValues = (s) => Object.fromEntries(HISTORY_FIELDS.map((f) => [f.id, CURRENT[f.id](s)]));
-  var openMonths = /* @__PURE__ */ new Set();
-  var fmt = (field, value, money) => value === "" ? "\u2014" : field.unit === "pct" ? `${escapeHtml(value)}%` : money(Number(value) || 0);
-  var removeBtn2 = (group, from) => `<button class="btn icon ghost danger" data-hist-del="${group}" data-from="${escapeHtml(from)}" aria-label="Remove" title="Remove">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
-  function groupRow(group, row, money) {
-    const inputs = group.fields.map((id) => {
-      const field = historyField(id);
-      return `<input type="text" inputmode="decimal" value="${escapeHtml(row.values[id] ?? "")}" placeholder="${field.unit === "pct" ? "%" : "Amount"}"
-      data-hist-value="${id}" data-from="${escapeHtml(row.from)}" aria-label="${escapeHtml(field.label)}" title="${escapeHtml(field.label)}">`;
+  var draft = null;
+  var draftMonth = "";
+  var confirmDelete = false;
+  var fmt = (field, value, money) => value === "" ? "\u2014" : field.unit === "pct" ? `${escapeHtml(value)}%` : money(toNumber(value));
+  function selectedMonth(state2, months) {
+    const chosen = state2.ui.histMonth;
+    if (chosen && (months.some((m) => m.month === chosen) || chosen === draftMonth)) return chosen;
+    return months[0]?.month ?? "";
+  }
+  function savedList(state2, months, active, money) {
+    const now = monthKey(/* @__PURE__ */ new Date());
+    const rows = months.map(({ month, fields }) => {
+      const salary = valueAt(state2.history, "salary", month);
+      const tag = month === now ? ' <span class="hint">now</span>' : "";
+      return `<button type="button" class="month-item${month === active ? " on" : ""}" data-hist-pick="${month}">
+      <span>${escapeHtml(monthLabel(month, "long"))}${tag}</span>
+      <span class="hint">${salary ? money(toNumber(salary)) : "\u2014"} \xB7 ${fields.length} saved</span></button>`;
     }).join("");
-    const shown = group.fields.map((id) => fmt(historyField(id), row.values[id] ?? "", money)).join(" \xB7 ");
-    return `<div class="hist-row cols-${group.fields.length}">
-    <input type="month" value="${escapeHtml(row.from)}" data-hist-month="${group.id}" data-from="${escapeHtml(row.from)}" aria-label="Effective from">
-    ${inputs}<span class="hint">${shown}</span>${removeBtn2(group.id, row.from)}</div>`;
+    return `<details class="more" data-open="histSaved">
+    <summary>Saved months <span class="count">${months.length || ""}</span></summary>
+    <div class="inner month-list">${rows || '<div class="hint">No saved months yet. Use <b>Save Month</b> on the Pay tab, or + New.</div>'}</div>
+  </details>`;
+  }
+  function editor(state2, month, money) {
+    if (draftMonth !== month) {
+      draft = monthValues(state2.history, month);
+      draftMonth = month;
+      confirmDelete = false;
+    }
+    const own = new Set(savedMonths(state2.history).find((m) => m.month === month)?.fields ?? []);
+    const field = (id, label, unit) => {
+      const inherited = !own.has(id) && draft[id] !== "";
+      return `<label class="hist-field${inherited ? " inherited" : ""}" title="${inherited ? "Carried over from an earlier month" : ""}">
+      <span>${label}</span>
+      <input type="text" inputmode="decimal" data-hist-edit="${id}" value="${escapeHtml(draft[id] ?? "")}" placeholder="${unit === "pct" ? "%" : "Amount"}">
+      <small>${fmt(historyField(id), draft[id] ?? "", money)}</small></label>`;
+    };
+    const isSaved = savedMonths(state2.history).some((m) => m.month === month);
+    const actions = confirmDelete ? `<span class="confirm">Delete ${escapeHtml(monthLabel(month, "long"))}?
+         <button class="btn sm danger" data-hist-act="delete-yes">Delete</button>
+         <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span>` : `<button class="btn sm primary" data-hist-act="save">Save</button>
+       ${isSaved ? '<button class="btn sm ghost danger" data-hist-act="delete">Delete month</button>' : ""}`;
+    return `<div class="hist-editor">
+    <div class="hist-head"><b>${escapeHtml(monthLabel(month, "long"))}</b>${isSaved ? "" : '<span class="hint">not saved yet</span>'}</div>
+    ${field("salary", "Gross salary", "money")}
+    ${field("transport", "Transportation", "money")}
+    ${field("medical", "Medical insurance", "money")}
+    <div class="hist-pair">${field("esppConst", "ESPP constant %", "pct")}${field("esppVar", "ESPP variable %", "pct")}</div>
+    <div class="row wrap hist-actions">${actions}</div>
+  </div>`;
   }
   function monthSummary(state2, month, money) {
-    const input = { ...inputForMonth(state2, month), profile: activeProfile() };
-    if (!toNumber(input.amount)) return '<div class="hint">No gross salary saved for this month.</div>';
+    const base = { ...state2, history: draftHistory(state2, month), profile: activeProfile() };
+    const input = { ...inputForMonth(base, month), profile: activeProfile() };
+    if (!toNumber(input.amount)) return '<div class="hint">Add a gross salary to see this month\u2019s figures.</div>';
     const r = withImpacts(input, calculate(input));
-    const at = (annual) => money(annual / 12);
-    return `<div class="hero"><div class="k">Net pay \xB7 ${escapeHtml(monthLabel(month, "long"))}</div>
-      <div class="v">${at(r.net)}</div></div>
-    <div class="stats three">
-      ${stat("Gross", at(r.grossAnnual), "pos")}
-      ${stat("Deductions", at(r.totalDeductions), "neg")}
-    </div>
-    <div class="split"><div class="lines">${breakdownLines(r, input, at)}</div></div>`;
+    return `<div class="lines compact">${breakdownLines(r, input, (annual) => money(annual / 12))}</div>`;
   }
-  var DELETE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg>';
-  function monthBlock(state2, month, money) {
-    const name = escapeHtml(monthLabel(month, "long"));
-    return `<details class="month" data-month="${month}"${openMonths.has(month) ? " open" : ""}>
-    <summary><span class="month-name">${name}</span>
-      <button class="btn icon ghost danger" data-hist-delmonth="${month}" aria-label="Delete ${name}" title="Delete month">${DELETE_ICON}</button></summary>
-    <div class="inner">${monthSummary(state2, month, money)}</div></details>`;
-  }
-  function groupBlock(state2, group, money) {
-    const rows = groupRows(state2.history, group.fields);
-    const now = monthKey(/* @__PURE__ */ new Date());
-    const current = group.fields.some((id) => valueAt(state2.history, id, now) !== "") ? `<span class="hint">now ${group.fields.map((id) => fmt(historyField(id), valueAt(state2.history, id, now), money)).join(" \xB7 ")}</span>` : "";
-    return `<details class="more" data-hist-group="${group.id}"${rows.length ? " open" : ""}>
-    <summary>${escapeHtml(group.label)} <span class="count">${rows.length || ""}</span>${current}</summary>
-    <div class="inner">
-      ${rows.map((r) => groupRow(group, r, money)).join("") || '<div class="hint">No dated values yet.</div>'}
-      <div class="row wrap" style="margin-top:6px">
-        <button class="btn sm" data-hist-add="${group.id}">+ Add value</button>
-        <button class="btn sm ghost" data-hist-snap="${group.id}" title="Store today's value from the Pay tab, effective this month">Save current</button>
-      </div>
-    </div></details>`;
-  }
+  var draftHistory = (state2, month) => draft && draftMonth === month ? saveMonth(state2.history, month, draft).history : state2.history;
   function renderHistory(state2, money) {
     const host = $("#historyList");
     if (!host) return;
     const focused = document.activeElement;
     if (host.contains(focused) && focused.tagName === "INPUT") return;
-    const months = monthsInHistory(state2.history);
-    const saved = `<div class="section-title">Saved months <span class="count">${months.length || ""}</span></div>
-    ${months.map((m) => monthBlock(state2, m, money)).join("") || '<div class="hint">No saved months yet. Use <b>Save Month</b> on the Pay tab.</div>'}`;
-    host.innerHTML = `${saved}<div class="section-title">Dated values</div>${HISTORY_GROUPS.map((g) => groupBlock(state2, g, money)).join("")}`;
+    const months = savedMonths(state2.history);
+    const active = selectedMonth(state2, months);
+    host.innerHTML = `${savedList(state2, months, active, money)}
+    <div class="row hist-new">
+      <input type="month" id="histNewMonth" value="${monthKey(/* @__PURE__ */ new Date())}" aria-label="Month to add">
+      <button class="btn sm" data-hist-act="new">+ New month</button>
+    </div>
+    ${active ? `${editor(state2, active, money)}<div class="section-title">Summary</div><div id="histSummary">${monthSummary(state2, active, money)}</div>` : ""}`;
+    lastMoney = money;
   }
-  function fillPay(month) {
-    const h = getState().history;
-    const has = (field) => valueAt(h, field, month, "") !== "";
-    if (!["salary", "transport", "medical", "esppConst", "esppVar"].some(has)) return toast(`No history values for ${monthLabel(month)}`);
-    update((s) => {
-      if (has("salary")) {
-        s.amount = valueAt(h, "salary", month);
-        s.per = "month";
-        s.mode = "gross";
-      }
-      const setNamed = (list, prefix, field, blank) => {
-        if (!has(field)) return list;
-        const i = list.findIndex((it) => it.name?.toLowerCase().startsWith(prefix));
-        if (i >= 0) list[i] = { ...list[i], amount: valueAt(h, field, month) };
-        else list.push({ ...blank, amount: valueAt(h, field, month) });
-        return list;
-      };
-      setNamed(s.incomes, "transport", "transport", { name: "Transportation", per: "month", taxable: true, insurable: false });
-      setNamed(s.deductions, "medical", "medical", { name: "Medical insurance", per: "month", pretax: false });
-      if (has("esppConst")) s.espp.constPct = valueAt(h, "esppConst", month);
-      if (has("esppVar")) s.espp.varPct = valueAt(h, "esppVar", month);
-      s.ui.inTab = "pay";
-    });
-    toast(`Pay tab filled with ${monthLabel(month)} values`);
+  var lastMoney = String;
+  function refreshSummary() {
+    const host = $("#histSummary");
+    if (host && draftMonth) host.innerHTML = monthSummary(getState(), draftMonth, lastMoney);
   }
-  function add(groupId) {
-    const group = historyGroup(groupId);
-    update((s) => {
-      const from = freeMonth(s.history, group.fields, monthKey(/* @__PURE__ */ new Date()));
-      const extra = companionEntries(s.history, groupId === "salary" ? "salary" : "", from, currentValues(s));
-      s.history.push(...group.fields.map((field) => ({ field, from, value: "" })), ...extra);
-    });
+  function select2(month) {
+    set("ui.histMonth", month);
   }
-  function snapshotCurrent(groupId) {
-    const group = historyGroup(groupId);
-    const from = monthKey(/* @__PURE__ */ new Date());
-    const now = currentValues(getState());
-    if (group.fields.every((id) => now[id] === "")) return toast("Nothing to save \u2014 set it on the Pay tab first");
+  function save(onChanged) {
+    const month = draftMonth;
+    const result = saveMonth(getState().history, month, draft);
+    if (!result.saved) return toast("Enter at least one value to save");
     update((s) => {
-      const extra = companionEntries(s.history, groupId === "salary" ? "salary" : "", from, now);
-      let next = s.history;
-      for (const id of group.fields) if (now[id] !== "") next = setEntry(next, id, from, now[id]);
-      s.history = [...next, ...extra];
+      s.history = result.history;
+      s.ui.histMonth = month;
     });
-    toast(`Saved ${group.label} for ${monthLabel(from)}`);
+    draftMonth = "";
+    toast(`${result.replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
+    onChanged();
   }
-  function deleteMonth(month) {
-    if (!confirm(`Delete everything saved for ${monthLabel(month, "long")}?`)) return;
-    update((s) => {
-      s.history = removeMonth(s.history, month);
-    });
-    openMonths.delete(month);
-    toast(`Deleted ${monthLabel(month, "long")}`);
+  function addMonth(onChanged) {
+    const month = $("#histNewMonth")?.value || monthKey(/* @__PURE__ */ new Date());
+    if (savedMonths(getState().history).some((m) => m.month === month)) {
+      select2(month);
+      toast(`${monthLabel(month, "long")} is already saved \u2014 opened it`);
+      return onChanged();
+    }
+    draft = { ...currentValues(getState()) };
+    draftMonth = month;
+    confirmDelete = false;
+    select2(month);
+    onChanged();
   }
   function initHistory(onChanged) {
-    $("#histFill")?.addEventListener("click", () => {
-      fillPay(monthKey(/* @__PURE__ */ new Date()));
-      onChanged();
-    });
-    document.addEventListener("toggle", (e) => {
-      const month = e.target.dataset?.month;
-      if (month) e.target.open ? openMonths.add(month) : openMonths.delete(month);
-    }, true);
     document.addEventListener("click", (e) => {
-      const del = e.target.closest("[data-hist-delmonth]");
-      if (del) {
-        e.preventDefault();
-        deleteMonth(del.dataset.histDelmonth);
+      const pick2 = e.target.closest("[data-hist-pick]");
+      if (pick2) {
+        select2(pick2.dataset.histPick);
         return onChanged();
       }
-      const btn = e.target.closest("[data-hist-add],[data-hist-snap],[data-hist-del]");
-      if (!btn) return;
-      if (btn.dataset.histAdd) add(btn.dataset.histAdd);
-      else if (btn.dataset.histSnap) snapshotCurrent(btn.dataset.histSnap);
-      else {
-        const group = historyGroup(btn.dataset.histDel);
+      const act = e.target.closest("[data-hist-act]")?.dataset.histAct;
+      if (!act) return;
+      if (act === "save") return save(onChanged);
+      if (act === "new") return addMonth(onChanged);
+      if (act === "delete") confirmDelete = true;
+      else if (act === "delete-no") confirmDelete = false;
+      else if (act === "delete-yes") {
+        const month = draftMonth;
         update((s) => {
-          s.history = removeRow(s.history, group.fields, btn.dataset.from);
+          s.history = removeMonth(s.history, month);
+          s.ui.histMonth = "";
         });
+        draftMonth = "";
+        toast(`Deleted ${monthLabel(month, "long")}`);
       }
       onChanged();
     });
     document.addEventListener("input", (e) => {
-      const t = e.target;
-      if (t.dataset.histValue) update((s) => {
-        s.history = setEntry(s.history, t.dataset.histValue, t.dataset.from, t.value);
-      });
+      const id = e.target.dataset.histEdit;
+      if (!id || !draft) return;
+      draft[id] = e.target.value;
+      const small = e.target.parentElement.querySelector("small");
+      if (small) small.innerHTML = fmt(historyField(id), e.target.value, lastMoney);
+      refreshSummary();
     });
     document.addEventListener("change", (e) => {
-      const t = e.target;
-      if (t.dataset.histMonth) {
-        const group = historyGroup(t.dataset.histMonth);
-        const moved = moveRow(getState().history, group.fields, t.dataset.from, t.value);
-        if (moved.ok) update((s) => {
-          s.history = moved.history;
-        });
-        else toast(t.value ? `${monthLabel(t.value)} already has a value here` : "Pick a month");
-        onChanged();
-      } else if (t.dataset.histValue) onChanged();
+      if (e.target.dataset.histEdit) onChanged();
     });
   }
 
   // js/ui/saveMonth.js
   function initSaveMonth(onChanged) {
     const panel = $("#saveMonthPanel");
-    const select2 = $("#saveMonthSel");
+    const select3 = $("#saveMonthSel");
     const picker = $("#saveMonthPick");
-    function save(month) {
+    function save2(month) {
       const state2 = getState();
       if (hasMonth(state2.history, month) && !confirm(`${monthLabel(month, "long")} is already saved. Override it with the Pay tab values?`)) return;
       const result = saveMonth(state2.history, month, currentValues(state2));
@@ -2077,23 +2026,23 @@
     $("#saveMonthBtn").addEventListener("click", () => {
       const now = monthKey(/* @__PURE__ */ new Date());
       const months = nearestFirst(monthsInHistory(getState().history), now);
-      select2.innerHTML = [
+      select3.innerHTML = [
         '<option value="custom">Custom\u2026</option>',
         ...months.map((m) => `<option value="${m}">${monthLabel(m, "long")}</option>`)
       ].join("");
-      select2.value = "custom";
+      select3.value = "custom";
       picker.value = now;
       picker.hidden = true;
       panel.hidden = false;
     });
-    select2.addEventListener("change", () => {
-      if (select2.value === "custom") {
+    select3.addEventListener("change", () => {
+      if (select3.value === "custom") {
         picker.hidden = false;
         picker.showPicker?.();
-      } else save(select2.value);
+      } else save2(select3.value);
     });
     picker.addEventListener("change", () => {
-      if (picker.value) save(picker.value);
+      if (picker.value) save2(picker.value);
     });
     $("#saveMonthCancel").addEventListener("click", () => {
       panel.hidden = true;
@@ -2132,7 +2081,10 @@
     renderResults(result, input, money, pay);
     renderEsppInputs(pay.result ?? result, money);
     syncEsppCounts(state2);
-    if (state2.ui.inTab === "history") renderHistory(state2, money);
+    if (state2.ui.inTab === "history") {
+      renderHistory(state2, money);
+      syncCollapsibles(state2);
+    }
     if (state2.ui.resTab === "espp") renderEsppTab(esppReport(input), money);
   }
   function rebuild() {

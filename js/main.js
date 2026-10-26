@@ -52,7 +52,10 @@ function render(state) {
   renderResults(result, input, money, pay);
   renderEsppInputs(pay.result ?? result, money);
   syncEsppCounts(state);
-  if (state.ui.inTab === 'history') renderHistory(state, money);
+  if (state.ui.inTab === 'history') {
+    renderHistory(state, money);
+    syncCollapsibles(state);
+  }
   if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
 }
 
