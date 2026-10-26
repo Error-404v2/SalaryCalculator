@@ -77,10 +77,11 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 
 /* History */
 .hist-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto 34px; gap: 6px; align-items: center; margin-bottom: 6px; }
+.hist-row.cols-2 { grid-template-columns: 150px minmax(0, 1fr) minmax(0, 1fr) auto 34px; }
 .hist-row input { height: 34px; font-size: .88rem; }
 .hist-row .hint { margin: 0; white-space: nowrap; }
 details[data-hist-group] > summary .hint { margin: 0 0 0 auto; padding-right: 10px; font-weight: 500; }
-@media (max-width: 420px) { .hist-row { grid-template-columns: 1fr 1fr 34px; } .hist-row .hint { display: none; } }
+@media (max-width: 420px) { .hist-row, .hist-row.cols-2 { grid-template-columns: 1fr 1fr 34px; } .hist-row .hint { display: none; } }
 
 /* ESPP tab */
 .etiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
@@ -104,3 +105,18 @@ details[data-hist-group] > summary .hint { margin: 0 0 0 auto; padding-right: 10
 
 .hist-fill { gap: 6px; margin-bottom: 12px; align-items: center; }
 .hist-fill input[type="month"] { height: 32px; max-width: 170px; font-size: .88rem; }
+
+/* Saved months */
+details.month { border-bottom: 1px solid var(--border); }
+details.month > summary { cursor: pointer; padding: 6px 2px; font-weight: 600; }
+.snap-row { display: grid; grid-template-columns: 1fr auto minmax(70px, auto); gap: 8px; align-items: baseline; padding: 2px 0; }
+.snap-row small { color: var(--muted); font-size: .7rem; text-align: right; }
+.snap-row.inherited span, .snap-row.inherited b { color: var(--muted); font-weight: 500; }
+
+/* Save Month (Pay tab) and saved-month summaries */
+.save-month { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.save-month select, .save-month input[type="month"] { height: 34px; font-size: .9rem; max-width: 220px; }
+.section-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-weight: 600; }
+details.month > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+details.month > summary .btn.icon { color: var(--danger); }
+.save-month[hidden] { display: none; }

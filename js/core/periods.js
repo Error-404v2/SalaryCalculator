@@ -7,7 +7,18 @@ export const PERIODS = [
   { id: 'hour', label: 'Hourly', unit: 'hour' },
 ];
 
+/** Periods an allowance, bonus or deduction can be entered in. The results views only use PERIODS. */
+export const ITEM_PERIODS = [
+  { id: 'year', label: 'Annual' },
+  { id: 'half', label: 'Bi-annual' },
+  { id: 'quarter', label: 'Quarterly' },
+  { id: 'month', label: 'Monthly' },
+  { id: 'day', label: 'Daily' },
+  { id: 'hour', label: 'Hourly' },
+];
+
 export const isPeriod = (id) => PERIODS.some((p) => p.id === id);
+export const isItemPeriod = (id) => ITEM_PERIODS.some((p) => p.id === id);
 
 export const findPeriod = (id) => PERIODS.find((p) => p.id === id) ?? PERIODS[1];
 
@@ -17,6 +28,8 @@ export function periodsPerYear(periodId, schedule = {}) {
   const hours = toNumber(schedule.hoursPerDay) || 8;
   const table = {
     year: 1,
+    half: 2,
+    quarter: 4,
     month: 12,
     day: weeks * days,
     hour: weeks * days * hours,

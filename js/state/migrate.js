@@ -1,6 +1,6 @@
 import { DEFAULT_PROFILE, DEFAULT_STATE } from '../data/defaults.js';
 import { OT_TYPES } from '../data/presets.js';
-import { isPeriod } from '../core/periods.js';
+import { isPeriod, isItemPeriod } from '../core/periods.js';
 import { sortOvertime } from '../core/overtime.js';
 import { mergeShape } from '../utils/object.js';
 
@@ -37,7 +37,7 @@ function sanitize(state) {
   if (!isPeriod(state.overrides.taxablePer)) state.overrides.taxablePer = 'month';
   if (!isPeriod(state.ui.period)) state.ui.period = DEFAULT_STATE.ui.period;
   [...state.incomes, ...state.deductions, ...state.cashAwards].forEach((item) => {
-    if (!isPeriod(item.per)) item.per = 'month';
+    if (!isItemPeriod(item.per)) item.per = 'month';
   });
   sortOvertime(state.overtime);
   return state;

@@ -43,7 +43,7 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 
 5. **ESPP:** an *On* switch, a tile with this month's constant, variable and total deduction, and the two percentages. *Constant %* applies to basic salary; *Variable %* applies to whatever is ticked under More options → Settings → *ESPP: what counts as variable*. ESPP comes out of net pay after tax.
 
-**History tab** (input card): dated values for gross salary, transportation, medical insurance and the two ESPP percentages. Each value applies from its month until the next one. *Save current* stores today's Pay-tab value; *Fill Pay tab* loads the values in force for any chosen month. The ESPP ledger uses the value in force for each month.
+**History tab** (input card): dated values for gross salary, transportation, medical insurance and ESPP % (the constant and variable percentages share one row per month). A *Saved months* list sits on top: open a month to see every value in force for it. Adding a gross salary also adds Transportation and Medical for that month from the Pay tab. *Save Month* asks which month, and asks before overriding one that exists, then stores all Pay-tab values under it. Each value applies from its month until the next one. *Save current* stores today's Pay-tab value; *Fill Pay tab* loads the values in force for any chosen month. The ESPP ledger uses the value in force for each month.
 
 **Results tabs**
 

@@ -26,7 +26,7 @@ function notices(r, at, period, money) {
   return html;
 }
 
-function breakdownLines(r, state, at) {
+export function breakdownLines(r, state, at) {
   const sub = (label, annual, netAnnual) =>
     line(`${label}${netAnnual !== undefined ? ` <span class="hint">net ${at(netAnnual)}</span>` : ''}`, positive(at(annual)), 'sub');
   const earnings = [
