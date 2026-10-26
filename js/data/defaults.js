@@ -55,7 +55,6 @@ export const DEFAULT_STATE = Object.freeze({
   deductions: [],
   /** ESPP: deducted after tax. `constPct` applies to basic, `varPct` to the parts ticked in `variable`. */
   espp: {
-    enabled: false,
     constPct: '',
     varPct: '',
     variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },

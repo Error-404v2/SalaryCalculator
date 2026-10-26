@@ -237,7 +237,7 @@
     }));
   }
   function computeEspp(espp, parts) {
-    if (!espp?.enabled) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
+    if (!(toNumber(espp?.constPct) > 0 || toNumber(espp?.varPct) > 0)) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
     const v = espp.variable ?? {};
     const varBase = (v.allowances ? parts.taxableAllowances : 0) + (v.exempt ? parts.exemptAllowances : 0) + (v.overtime ? parts.overtimeAnnual : 0) + (v.cashAwards ? parts.cashAwardsAnnual : 0);
     const constant = parts.baseAnnual * toNumber(espp.constPct) / 100;
@@ -548,7 +548,7 @@
   }
 
   // js/core/esppForecast.js
-  function inputForMonth(input, month, forEspp = false) {
+  function inputForMonth(input, month) {
     const h = input.history;
     const amount = valueAt(h, "salary", month, input.amount);
     const swap = (list, name, field) => list.map((it) => it.name?.toLowerCase().startsWith(name) ? { ...it, amount: valueAt(h, field, month, it.amount) } : it);
@@ -560,13 +560,12 @@
       deductions: swap(input.deductions ?? [], "medical", "medical"),
       espp: {
         ...input.espp,
-        enabled: forEspp || input.espp.enabled,
         constPct: valueAt(h, "esppConst", month, input.espp.constPct),
         varPct: valueAt(h, "esppVar", month, input.espp.varPct)
       }
     };
   }
-  var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month, true)).espp.total / 12;
+  var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
   function esppReport(input, today = /* @__PURE__ */ new Date()) {
     const espp = input.espp;
     const year = Number(input.ui.esppYear || today.getFullYear());
@@ -662,7 +661,6 @@
     deductions: [],
     /** ESPP: deducted after tax. `constPct` applies to basic, `varPct` to the parts ticked in `variable`. */
     espp: {
-      enabled: false,
       constPct: "",
       varPct: "",
       variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
@@ -1737,11 +1735,9 @@
     const tile2 = $("#esppTile");
     if (!tile2) return;
     const e = result?.espp;
-    const on = getState().espp.enabled;
-    tile2.innerHTML = on && e ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
+    tile2.innerHTML = e?.total ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
        <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
-       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Turn ESPP on to deduct a % of pay into shares.</div>';
-    $("#esppFields").hidden = !on;
+       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
   }
   function tile(label, a, b, tone = "") {
     return `<div class="etile ${tone}"><div class="k">${label}</div>

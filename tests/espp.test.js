@@ -79,19 +79,29 @@ test('history: latest value on or before the month wins', () => {
 test('ESPP deduction: constant % of basic + variable % of ticked extras, after tax', () => {
   const base = { ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000' };
   const off = calculate(base);
-  const on = calculate({ ...base, espp: { ...base.espp, enabled: true, constPct: '10', varPct: '5' } });
+  const on = calculate({ ...base, espp: { ...base.espp, constPct: '10', varPct: '5' } });
   near(on.espp.constant / 12, 1000);
   near(on.espp.variable / 12, 50);
   near(on.incomeTax, off.incomeTax);
   near(off.net - on.net, on.espp.total);
-  const noVar = calculate({ ...base, espp: { ...base.espp, enabled: true, constPct: '10', varPct: '5', variable: { allowances: false } } });
+  const noVar = calculate({ ...base, espp: { ...base.espp, constPct: '10', varPct: '5', variable: { allowances: false } } });
   assert.equal(noVar.espp.variable, 0);
+});
+
+test('ESPP is on only while a percentage is above 0', () => {
+  const base = { ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000' };
+  const at = (constPct, varPct) => calculate({ ...base, espp: { ...base.espp, constPct, varPct } }).espp.total;
+  assert.equal(at('', ''), 0);
+  assert.equal(at('0', '0'), 0);
+  assert.ok(at('5', '') > 0);
+  assert.ok(at('', '5') >= 0);
+  assert.ok(at('0', '5') >= 0 && at('0', '0') === 0);
 });
 
 test('ESPP months use history: salary rise changes the forecast deduction', () => {
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
-    espp: { ...structuredClone(DEFAULT_STATE.espp), enabled: true, constPct: '10', assumptions: A },
+    espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '10', assumptions: A },
     history: [{ field: 'salary', from: '2030-07', value: '20000' }],
     ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
   };

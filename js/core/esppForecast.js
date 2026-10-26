@@ -4,7 +4,7 @@ import { valueAt, monthKey } from './history.js';
 import { buildLedger, summarize, payrollTax, adjustedMonth } from './espp.js';
 
 /** History-tracked values applied onto the calculator input for one month. */
-export function inputForMonth(input, month, forEspp = false) {
+export function inputForMonth(input, month) {
   const h = input.history;
   const amount = valueAt(h, 'salary', month, input.amount);
   const swap = (list, name, field) => list.map((it) =>
@@ -17,7 +17,6 @@ export function inputForMonth(input, month, forEspp = false) {
     deductions: swap(input.deductions ?? [], 'medical', 'medical'),
     espp: {
       ...input.espp,
-      enabled: forEspp || input.espp.enabled,
       constPct: valueAt(h, 'esppConst', month, input.espp.constPct),
       varPct: valueAt(h, 'esppVar', month, input.espp.varPct),
     },
@@ -25,7 +24,7 @@ export function inputForMonth(input, month, forEspp = false) {
 }
 
 /** Monthly ESPP deduction for `month`, in the profile currency. */
-export const esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month, true)).espp.total / 12;
+export const esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
 
 export function esppReport(input, today = new Date()) {
   const espp = input.espp;

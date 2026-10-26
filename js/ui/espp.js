@@ -21,13 +21,11 @@ export function renderEsppInputs(result, money) {
   const tile = $('#esppTile');
   if (!tile) return;
   const e = result?.espp;
-  const on = store.getState().espp.enabled;
-  tile.innerHTML = on && e
+  tile.innerHTML = e?.total
     ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
        <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
        <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>`
-    : '<div class="hint">Turn ESPP on to deduct a % of pay into shares.</div>';
-  $('#esppFields').hidden = !on;
+    : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
 }
 
 // ---------- ESPP tab ----------
