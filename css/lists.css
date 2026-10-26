@@ -61,7 +61,6 @@ input.rate-ok { border-color: var(--pos) !important; box-shadow: 0 0 0 2px color
 input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px color-mix(in srgb, var(--danger) 25%, transparent); }
 
 /* ESPP: compact block on the Pay tab */
-.sum-toggle { margin-left: 10px; font-weight: 500; font-size: .8rem; color: var(--muted); }
 .quick-tile { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; padding: 8px 10px; background: var(--accent-soft); border-radius: var(--radius-sm); }
 .quick-tile > div { display: flex; flex-direction: column; min-width: 0; }
 .quick-tile span { font-size: .7rem; color: var(--muted); }
@@ -99,7 +98,16 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 
 
 /* Save Month (Pay tab) */
-.save-month { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.save-month select, .save-month input[type="month"] { height: 34px; font-size: .9rem; max-width: 220px; }
 .section-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-weight: 600; }
-.save-month[hidden] { display: none; }
+
+/* ESPP: first entry of Other deductions, each % on its own line, banner below */
+.item.espp-item { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 8px; grid-template-columns: none; text-align: left; }
+.espp-item[hidden] { display: none; }
+.espp-head { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+.espp-head b { font-size: .9rem; }
+.espp-pcts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.espp-field { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 500; min-width: 0; }
+.espp-field .hint { margin: 0; display: inline; font-weight: 400; }
+.espp-field input { height: 36px; }
+.espp-item .quick-tile { margin: 2px 0 0; }
+.chip[hidden], .btn[hidden] { display: none; }

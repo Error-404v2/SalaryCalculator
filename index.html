@@ -22,10 +22,26 @@
   <main class="layout">
     <!-- SALARY -->
     <section class="card" aria-label="Salary">
-      <nav class="tabs" role="tablist" data-in-tabs>
+      <nav class="tabs has-actions" role="tablist" data-in-tabs>
         <button class="tab" role="tab" data-tab="pay">Pay</button>
         <button class="tab" role="tab" data-tab="history">History</button>
+        <span class="tab-actions">
+          <button type="button" class="btn sm primary" id="saveMonthBtn" title="Store the Pay tab under a month you choose">Save Month</button>
+          <button type="button" class="btn sm" id="fillPayBtn" title="Copy this month into the Pay tab" hidden>Fill Pay</button>
+        </span>
       </nav>
+      <div class="save-month" id="saveMonthPanel" hidden>
+        <div class="save-row">
+          <button class="btn sm primary" id="saveMonthGo">Done</button>
+          <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
+          <span class="save-slot"><select id="saveMonthSel" aria-label="Month to save to"></select><span id="saveMonthPickHost" hidden></span></span>
+        </div>
+        <span class="confirm" id="saveMonthAsk" hidden>
+          <span id="saveMonthAskText"></span>
+          <button class="btn sm danger" id="saveMonthYes">Override</button>
+          <button class="btn sm ghost" id="saveMonthNo">No</button>
+        </span>
+      </div>
       <div class="card-body" data-in-panel="pay">
         <div class="row between field">
           <div class="seg" data-seg="mode">
@@ -34,21 +50,6 @@
           </div>
           <select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select>
         </div>
-
-        <div class="row between field" style="justify-content:flex-start">
-          <button class="btn sm primary" id="saveMonthBtn" title="Store the Pay tab values under a month you choose">Save Month</button>
-        </div>
-        <div class="save-month" id="saveMonthPanel" hidden>
-          <select id="saveMonthSel" aria-label="Month to save to"></select>
-          <input type="month" id="saveMonthPick" aria-label="Custom month" hidden>
-          <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
-          <span class="confirm" id="saveMonthAsk" hidden>
-            <span id="saveMonthAskText"></span>
-            <button class="btn sm danger" id="saveMonthYes">Override</button>
-            <button class="btn sm ghost" id="saveMonthNo">No</button>
-          </span>
-        </div>
-
         <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
           <span class="label">Pro-rata</span>
           <div class="spins">
@@ -71,10 +72,11 @@
           </div>
         </div>
 
+        <div id="payFormHome"><div id="payForm">
         <div class="field">
           <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
           <div class="row">
-            <input class="big grow" id="amount" type="text" inputmode="decimal" placeholder="e.g. 30,000" data-bind="amount" data-step="100" data-swipe autocomplete="off">
+            <input class="big grow" id="amount" type="text" inputmode="decimal" placeholder="e.g. 30,000" data-bind="amount" data-money data-step="100" data-swipe autocomplete="off">
             <select class="period-select" data-bind="per" id="perSel" aria-label="Salary period"></select>
           </div>
           <div class="hint" id="amountHint"></div>
@@ -103,24 +105,23 @@
         </details>
 
         <details class="more" data-open="deductions">
-          <summary>Other deductions <span class="count" data-count="deductions"></span></summary>
+          <summary>Other deductions <span class="count" data-deduction-count></span></summary>
           <div class="inner">
             <div class="chips" data-presets="deductions"></div>
-            <div class="list" data-list="deductions"></div>
-            <button class="btn" data-add="deductions">+ Add deduction</button>
-          </div>
-        </details>
-
-        <details class="more" data-open="espp">
-          <summary>ESPP <span class="count" data-espp-locked></span>
-            <label class="check sum-toggle" data-stop><input type="checkbox" data-bind="espp.enabled"> On</label></summary>
-          <div class="inner">
-            <div class="quick-tile" id="esppTile"></div>
-            <div id="esppFields" class="compact-grid two">
-              <label>Constant % <span class="hint">of basic</span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
-              <label>Variable % <span class="hint">of extras</span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
+            <div class="item espp-item" id="esppBlock" hidden>
+              <div class="espp-head"><b>ESPP</b><button type="button" class="btn icon ghost danger" data-espp-remove aria-label="Remove ESPP" title="Remove ESPP">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+              <div class="espp-pcts">
+                <label class="espp-field"><span>Constant % <span class="hint">of basic</span></span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
+                <label class="espp-field"><span>Variable % <span class="hint">of extras</span></span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
+              </div>
+              <div class="quick-tile" id="esppTile"></div>
             </div>
-            <div class="hint">Taken from net pay after tax. Ledger, forecast and withdrawal are on the <b>ESPP</b> tab.</div>
+            <div class="list" data-list="deductions" data-quiet></div>
+            <div class="row wrap">
+              <button class="btn" data-add="deductions">+ Add deduction</button>
+              <button class="btn" data-espp-show id="esppAddBtn">+ Add ESPP</button>
+            </div>
           </div>
         </details>
 
@@ -133,13 +134,13 @@
             </div>
             <div class="field">
               <label for="siBase">Social insurance base (monthly)</label>
-              <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase">
+              <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase" data-money>
               <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
             </div>
             <div class="field">
               <label for="ovTax">Manual taxable amount</label>
               <div class="row">
-                <input class="grow" id="ovTax" type="text" inputmode="decimal" placeholder="Auto-calculated if empty" data-bind="overrides.taxable">
+                <input class="grow" id="ovTax" type="text" inputmode="decimal" placeholder="Auto-calculated if empty" data-bind="overrides.taxable" data-money>
                 <select class="period-select" data-bind="overrides.taxablePer" id="ovPer" aria-label="Taxable amount period"></select>
               </div>
               <div class="hint">Replaces the computed taxable income fed into the brackets.</div>
@@ -173,10 +174,12 @@
               </details>
           </div>
         </details>
+        </div></div>
       </div>
 
       <div class="card-body" data-in-panel="history" hidden>
         <div id="historyList"></div>
+        <div id="payFormSlot"></div>
       </div>
     </section>
 
@@ -231,7 +234,7 @@
             <details class="more" data-open="exemption">
               <summary>Personal exemption (annual)</summary>
               <div class="inner">
-                <input type="text" inputmode="decimal" data-bind="@.tax.exemption" style="max-width:200px" aria-label="Personal exemption (annual)">
+                <input type="text" inputmode="decimal" data-bind="@.tax.exemption" data-money style="max-width:200px" aria-label="Personal exemption (annual)">
               </div>
             </details>
 

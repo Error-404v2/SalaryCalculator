@@ -49,9 +49,12 @@ function annualizeDeductions(deductions, schedule) {
   }));
 }
 
-/** ESPP comes out of net pay (after tax): constant % of basic + variable % of the chosen variable parts. */
+/**
+ * ESPP comes out of net pay (after tax): constant % of basic + variable % of the chosen variable parts.
+ * It is active whenever either percentage is above 0.
+ */
 function computeEspp(espp, parts) {
-  if (!espp?.enabled) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
+  if (!(toNumber(espp?.constPct) > 0 || toNumber(espp?.varPct) > 0)) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
   const v = espp.variable ?? {};
   const varBase = (v.allowances ? parts.taxableAllowances : 0) + (v.exempt ? parts.exemptAllowances : 0)
     + (v.overtime ? parts.overtimeAnnual : 0) + (v.cashAwards ? parts.cashAwardsAnnual : 0);

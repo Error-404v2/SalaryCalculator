@@ -26,11 +26,13 @@ function notices(r, at, period, money) {
   return html;
 }
 
-export function breakdownLines(r, state, at) {
+/** `entered` tags the lines that come straight from the user's inputs (class "entered"), for highlighting. */
+export function breakdownLines(r, state, at, { net = true, entered = false } = {}) {
+  const mine = entered ? ' entered' : '';
   const sub = (label, annual, netAnnual) =>
-    line(`${label}${netAnnual !== undefined ? ` <span class="hint">net ${at(netAnnual)}</span>` : ''}`, positive(at(annual)), 'sub');
+    line(`${label}${netAnnual !== undefined ? ` <span class="hint">net ${at(netAnnual)}</span>` : ''}`, positive(at(annual)), `sub${mine}`);
   const earnings = [
-    line('Basic salary', positive(at(r.baseAnnual))),
+    line('Basic salary', positive(at(r.baseAnnual)), mine.trim()),
     ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? '' : ' <span class="hint">(exempt)</span>'), it.annual)),
     ...r.overtime.filter((o) => o.annual).map((o) => sub(escapeHtml(o.label), o.annual, o.netAnnual)),
     ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.netAnnual)),
@@ -42,10 +44,10 @@ export function breakdownLines(r, state, at) {
     line(`Social insurance <span class="hint">${siNote}</span>`, negative(at(r.si.employee)), 'sep', COLORS.si),
     line(`Income tax${taxNote}`, negative(at(r.incomeTax)), '', COLORS.tax),
     ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), '', COLORS.tax)),
-    ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), '', COLORS.other)),
-    r.espp.total ? line('ESPP', negative(at(r.espp.total)), '', COLORS.other) : '',
+    ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
+    r.espp.total ? line('ESPP', negative(at(r.espp.total)), mine.trim(), COLORS.other) : '',
     line('Total deductions', negative(at(r.totalDeductions)), 'strong sep'),
-    line('Net pay', at(r.net), 'strong net-line'),
+    net ? line('Net pay', at(r.net), 'strong net-line') : '',
   ];
   return [...earnings, ...deductions].join('');
 }

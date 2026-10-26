@@ -3,6 +3,7 @@ import { OT_TYPES } from '../data/presets.js';
 import { isPeriod, isItemPeriod } from '../core/periods.js';
 import { sortOvertime } from '../core/overtime.js';
 import { mergeShape } from '../utils/object.js';
+import { monthsFromHistory, grossPay } from '../core/months.js';
 
 /** v1 stored tax rules at the root; v2 keeps them inside named profiles. */
 function upgradeV1(saved) {
@@ -60,7 +61,32 @@ function restoreEntries(state, saved) {
   return state;
 }
 
+/**
+ * Saved months are keyed by month, so (like ESPP entries) they are restored by hand. Data saved before months
+ * existed only has the per-field history; it is converted once, using the Pay tab as the starting point.
+ */
+function restoreMonths(state, saved) {
+  const raw = saved?.months;
+  const months = {};
+  if (raw && typeof raw === 'object') {
+    for (const [month, pay] of Object.entries(raw)) {
+      if (MONTH.test(month) && pay && typeof pay === 'object' && 'amount' in pay) months[month] = pay;
+    }
+  }
+  state.months = Object.keys(months).length || raw ? months : monthsFromHistory(state.history, state);
+  return state;
+}
+
+/** Months saved in Net → Gross mode (before months always stored gross) are converted once. */
+function grossMonths(state) {
+  const context = { ...state, profile: state.profiles.find((p) => p.id === state.profileId) ?? state.profiles[0] };
+  for (const [month, pay] of Object.entries(state.months)) {
+    if (pay.mode === 'net') state.months[month] = grossPay(pay, context);
+  }
+  return state;
+}
+
 export function hydrate(saved) {
   const upgraded = upgradeV1(saved);
-  return sanitize(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded));
+  return grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded)));
 }

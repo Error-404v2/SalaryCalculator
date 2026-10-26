@@ -163,8 +163,7 @@
       { name: "Bonus", amount: "", per: "once", taxable: true, insurable: false }
     ],
     deductions: [
-      { name: "Medical insurance", amount: "", per: "month", pretax: false },
-      { name: "Pension plan", amount: "", per: "month", pretax: true },
+      { name: "Medical insurance", amount: "230.8", per: "month", pretax: false },
       { name: "Loan", amount: "", per: "month", pretax: false }
     ]
   };
@@ -237,7 +236,7 @@
     }));
   }
   function computeEspp(espp, parts) {
-    if (!espp?.enabled) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
+    if (!(toNumber(espp?.constPct) > 0 || toNumber(espp?.varPct) > 0)) return { constant: 0, variable: 0, total: 0, constBase: 0, varBase: 0 };
     const v = espp.variable ?? {};
     const varBase = (v.allowances ? parts.taxableAllowances : 0) + (v.exempt ? parts.exemptAllowances : 0) + (v.overtime ? parts.overtimeAnnual : 0) + (v.cashAwards ? parts.cashAwardsAnnual : 0);
     const constant = parts.baseAnnual * toNumber(espp.constPct) / 100;
@@ -385,7 +384,6 @@
     { id: "esppConst", label: "ESPP % (constant)", unit: "pct" },
     { id: "esppVar", label: "ESPP % (variable)", unit: "pct" }
   ];
-  var historyField = (id) => HISTORY_FIELDS.find((f) => f.id === id);
   var monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   function monthLabel(key2, style = "short") {
     const [y, m] = key2.split("-").map(Number);
@@ -400,47 +398,108 @@
     const at = monthIndex(from);
     return [...months].sort((a, b) => Math.abs(monthIndex(a) - at) - Math.abs(monthIndex(b) - at) || b.localeCompare(a));
   }
-  function entryAt(history, field, month) {
-    let best = null;
-    for (const entry of history ?? []) {
-      if (entry.field !== field || !entry.from || !isFilled(entry.value)) continue;
-      if (entry.from <= month && (!best || entry.from >= best.from)) best = entry;
+
+  // js/utils/object.js
+  var clone = (value) => structuredClone(value);
+  function mergeShape(base, over) {
+    if (Array.isArray(base)) return Array.isArray(over) ? over : clone(base);
+    if (base && typeof base === "object") {
+      const out = {};
+      for (const key2 of Object.keys(base)) {
+        out[key2] = over && typeof over === "object" && key2 in over ? mergeShape(base[key2], over[key2]) : clone(base[key2]);
+      }
+      return out;
     }
-    return best;
+    return over === void 0 ? base : over;
   }
-  function valueAt(history, field, month, fallback = "") {
-    const best = entryAt(history, field, month);
-    return best ? best.value : fallback;
+  var getPath = (obj, path) => path.split(".").reduce((o, k) => o == null ? o : o[k], obj);
+  function setPath(obj, path, value) {
+    const keys = path.split(".");
+    const last = keys.pop();
+    keys.reduce((o, k) => o[k], obj)[last] = value;
   }
-  function monthsInHistory(history) {
-    const months = /* @__PURE__ */ new Set();
-    for (const entry of history ?? []) {
-      if (historyField(entry.field) && entry.from) months.add(entry.from);
+
+  // js/core/months.js
+  var PAY_KEYS = ["amount", "per", "mode", "payPeriod", "jobType", "overrides", "incomes", "overtime", "cashAwards", "deductions", "espp"];
+  var ESPP_KEYS = ["constPct", "varPct", "variable"];
+  var PAY_PATHS = [...PAY_KEYS.filter((k) => k !== "espp"), ...ESPP_KEYS.map((k) => `espp.${k}`)];
+  var isPayPath = (path) => PAY_PATHS.some((p) => path === p || path.startsWith(`${p}.`));
+  function snapshotPay(state2) {
+    const pay = {};
+    for (const key2 of PAY_KEYS) {
+      if (key2 === "espp") pay.espp = Object.fromEntries(ESPP_KEYS.map((k) => [k, clone(state2.espp?.[k] ?? "")]));
+      else pay[key2] = clone(state2[key2]);
     }
-    return [...months].sort((a, b) => b.localeCompare(a));
+    return pay;
   }
-  function monthSnapshot(history, month) {
-    return HISTORY_FIELDS.map((field) => {
-      const entry = entryAt(history, field.id, month);
-      return { ...field, value: entry ? entry.value : "", from: entry ? entry.from : "", exact: !!entry && entry.from === month };
-    });
+  function grossPay(pay, context) {
+    if (pay.mode !== "net" || !(toNumber(pay.amount) > 0)) return { ...clone(pay), mode: "gross" };
+    const input = { ...context, ...withPay(context, pay) };
+    const solved = solveForNet(input, toAnnual(pay.amount, pay.per, input.schedule));
+    const gross = fromAnnual(solved.baseAnnual, pay.per, input.schedule);
+    return { ...clone(pay), mode: "gross", amount: String(Math.round(gross * 100) / 100) };
   }
-  function monthValues(history, month) {
-    return Object.fromEntries(monthSnapshot(history, month).map((f) => [f.id, f.value]));
+  function withPay(state2, pay) {
+    if (!pay) return state2;
+    const next = { ...state2 };
+    for (const key2 of PAY_KEYS) {
+      if (!(key2 in pay)) continue;
+      next[key2] = key2 === "espp" ? { ...state2.espp, ...clone(pay.espp) } : clone(pay[key2]);
+    }
+    return next;
   }
-  function savedMonths(history) {
-    return monthsInHistory(history).map((month) => ({
-      month,
-      fields: HISTORY_FIELDS.filter((f) => (history ?? []).some((e) => e.field === f.id && e.from === month && isFilled(e.value))).map((f) => f.id)
-    }));
+  function applyPay(state2, pay) {
+    for (const key2 of PAY_KEYS) {
+      if (!(key2 in pay)) continue;
+      if (key2 === "espp") Object.assign(state2.espp, clone(pay.espp));
+      else state2[key2] = clone(pay[key2]);
+    }
+    return state2;
   }
-  var hasMonth = (history, month) => (history ?? []).some((e) => e.from === month && historyField(e.field) && isFilled(e.value));
-  var removeMonth = (history, month) => (history ?? []).filter((e) => e.from !== month);
-  function saveMonth(history, month, values) {
-    const all = history ?? [];
-    const kept = all.filter((e) => !(e.from === month && historyField(e.field)));
-    const added = HISTORY_FIELDS.filter((f) => isFilled(values?.[f.id])).map((f) => ({ field: f.id, from: month, value: String(values[f.id]) }));
-    return { history: [...kept, ...added], replaced: all.length - kept.length, saved: added.length };
+  var monthList = (months) => Object.keys(months ?? {}).sort((a, b) => b.localeCompare(a));
+  function monthInForce(months, month) {
+    return monthList(months).find((m) => m <= month) ?? "";
+  }
+  var putMonth = (months, month, pay) => ({ ...months ?? {}, [month]: clone(pay) });
+  function dropMonth(months, month) {
+    const next = { ...months ?? {} };
+    delete next[month];
+    return next;
+  }
+  var moveMonth = (months, from, to, pay) => putMonth(from && from !== to ? dropMonth(months, from) : months, to, pay);
+  function monthChoices(months, now, lastCustom = "") {
+    const choices = nearestFirst(monthList(months), now).map((month) => ({ month, saved: true }));
+    if (lastCustom && !months?.[lastCustom]) choices.push({ month: lastCustom, saved: false });
+    return choices;
+  }
+  var FIELD_TO_ITEM = { transport: ["incomes", "transport", "Transportation"], medical: ["deductions", "medical", "Medical insurance"] };
+  function monthsFromHistory(history, base) {
+    const entries = (history ?? []).filter((e) => e && e.from && HISTORY_FIELDS.some((f) => f.id === e.field) && isFilled(e.value));
+    const froms = [...new Set(entries.map((e) => e.from))].sort();
+    const months = {};
+    for (const month of froms) {
+      const pay = snapshotPay(base);
+      const latest = (field) => entries.filter((e) => e.field === field && e.from <= month).sort((a, b) => a.from.localeCompare(b.from)).at(-1);
+      const salary = latest("salary");
+      if (salary) {
+        pay.amount = salary.value;
+        pay.per = "month";
+        pay.mode = "gross";
+      }
+      for (const [field, [list, prefix, name]] of Object.entries(FIELD_TO_ITEM)) {
+        const entry = latest(field);
+        if (!entry) continue;
+        const i = pay[list].findIndex((it) => it.name?.toLowerCase().startsWith(prefix));
+        if (i >= 0) pay[list][i] = { ...pay[list][i], amount: entry.value };
+        else pay[list].push(list === "incomes" ? { name, amount: entry.value, per: "month", taxable: true, insurable: false } : { name, amount: entry.value, per: "month", pretax: false });
+      }
+      const c = latest("esppConst");
+      const v = latest("esppVar");
+      if (c) pay.espp.constPct = c.value;
+      if (v) pay.espp.varPct = v.value;
+      months[month] = pay;
+    }
+    return months;
   }
 
   // js/core/espp.js
@@ -548,25 +607,11 @@
   }
 
   // js/core/esppForecast.js
-  function inputForMonth(input, month, forEspp = false) {
-    const h = input.history;
-    const amount = valueAt(h, "salary", month, input.amount);
-    const swap = (list, name, field) => list.map((it) => it.name?.toLowerCase().startsWith(name) ? { ...it, amount: valueAt(h, field, month, it.amount) } : it);
-    return {
-      ...input,
-      amount,
-      per: isFilled(valueAt(h, "salary", month, "")) ? "month" : input.per,
-      incomes: swap(input.incomes ?? [], "transport", "transport"),
-      deductions: swap(input.deductions ?? [], "medical", "medical"),
-      espp: {
-        ...input.espp,
-        enabled: forEspp || input.espp.enabled,
-        constPct: valueAt(h, "esppConst", month, input.espp.constPct),
-        varPct: valueAt(h, "esppVar", month, input.espp.varPct)
-      }
-    };
+  function inputForMonth(input, month) {
+    const saved = monthInForce(input.months, month);
+    return saved ? withPay(input, input.months[saved]) : input;
   }
-  var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month, true)).espp.total / 12;
+  var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
   function esppReport(input, today = /* @__PURE__ */ new Date()) {
     const espp = input.espp;
     const year = Number(input.ui.esppYear || today.getFullYear());
@@ -604,6 +649,11 @@
     };
   }
   var formatPercent = (ratio) => `${(ratio * 100).toFixed(1)}%`;
+  var grouped = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
+  function groupDigits(value) {
+    const raw = String(value ?? "").replace(/,/g, "").trim();
+    return /^-?\d+(\.\d+)?$/.test(raw) ? grouped.format(Number(raw)) : String(value ?? "");
+  }
 
   // js/data/defaults.js
   var EGYPT_BRACKETS_2026 = [
@@ -662,7 +712,6 @@
     deductions: [],
     /** ESPP: deducted after tax. `constPct` applies to basic, `varPct` to the parts ticked in `variable`. */
     espp: {
-      enabled: false,
       constPct: "",
       varPct: "",
       variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
@@ -685,6 +734,8 @@
     },
     /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
     history: [],
+    /** Saved months: "YYYY-MM" → a full copy of the Pay tab inputs for that month (see core/months.js). */
+    months: {},
     ui: {
       inTab: "pay",
       resTab: "summary",
@@ -693,29 +744,9 @@
       period: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true }
     }
   });
-
-  // js/utils/object.js
-  var clone = (value) => structuredClone(value);
-  function mergeShape(base, over) {
-    if (Array.isArray(base)) return Array.isArray(over) ? over : clone(base);
-    if (base && typeof base === "object") {
-      const out = {};
-      for (const key2 of Object.keys(base)) {
-        out[key2] = over && typeof over === "object" && key2 in over ? mergeShape(base[key2], over[key2]) : clone(base[key2]);
-      }
-      return out;
-    }
-    return over === void 0 ? base : over;
-  }
-  var getPath = (obj, path) => path.split(".").reduce((o, k) => o == null ? o : o[k], obj);
-  function setPath(obj, path, value) {
-    const keys = path.split(".");
-    const last = keys.pop();
-    keys.reduce((o, k) => o[k], obj)[last] = value;
-  }
 
   // js/state/storage.js
   var STORAGE_KEY = "salary-calc-v1";
@@ -788,33 +819,66 @@
     state2.history = (state2.history ?? []).filter((h) => h && typeof h === "object" && h.field);
     return state2;
   }
+  function restoreMonths(state2, saved) {
+    const raw = saved?.months;
+    const months = {};
+    if (raw && typeof raw === "object") {
+      for (const [month, pay] of Object.entries(raw)) {
+        if (MONTH.test(month) && pay && typeof pay === "object" && "amount" in pay) months[month] = pay;
+      }
+    }
+    state2.months = Object.keys(months).length || raw ? months : monthsFromHistory(state2.history, state2);
+    return state2;
+  }
+  function grossMonths(state2) {
+    const context = { ...state2, profile: state2.profiles.find((p) => p.id === state2.profileId) ?? state2.profiles[0] };
+    for (const [month, pay] of Object.entries(state2.months)) {
+      if (pay.mode === "net") state2.months[month] = grossPay(pay, context);
+    }
+    return state2;
+  }
   function hydrate(saved) {
     const upgraded = upgradeV1(saved);
-    return sanitize(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded));
+    return grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded)));
   }
 
   // js/state/store.js
   var PROFILE_PREFIX = "@";
   var listeners = /* @__PURE__ */ new Set();
   var state = hydrate(loadSaved());
+  var scope = null;
   var getState = () => state;
+  var view = () => scope ? withPay(state, scope.pay) : state;
+  var scopeMonth = () => scope?.month ?? "";
+  var scopePay = () => scope?.pay ?? null;
+  var scopeDirty = () => !!scope && JSON.stringify(scope.pay) !== JSON.stringify(scope.base);
+  function setScope(month, pay, base = pay) {
+    scope = month ? { month, pay: clone(pay), base: clone(base) } : null;
+    commit();
+  }
+  function markScopeSaved() {
+    if (scope) scope.base = clone(scope.pay);
+  }
   var activeIndex = () => Math.max(0, state.profiles.findIndex((p) => p.id === state.profileId));
   var activeProfile = () => state.profiles[activeIndex()];
   function resolve(path) {
     if (path === PROFILE_PREFIX) return `profiles.${activeIndex()}`;
     return path.startsWith(`${PROFILE_PREFIX}.`) ? `profiles.${activeIndex()}${path.slice(1)}` : path;
   }
-  var get = (path) => getPath(state, resolve(path));
+  var scoped = (path) => !!scope && isPayPath(path);
+  var get = (path) => scoped(path) ? getPath(scope.pay, path) : getPath(state, resolve(path));
   function subscribe(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);
   }
   function commit() {
     saveDebounced(state);
-    listeners.forEach((fn) => fn(state));
+    const current = view();
+    listeners.forEach((fn) => fn(current));
   }
   function set(path, value) {
-    setPath(state, resolve(path), value);
+    if (scoped(path)) setPath(scope.pay, path, value);
+    else setPath(state, resolve(path), value);
     commit();
   }
   function update(mutator) {
@@ -824,6 +888,7 @@
   function replace(next) {
     const theme = state.ui.theme;
     state = hydrate(next);
+    scope = null;
     if (!next?.ui?.theme) state.ui.theme = theme;
     commit();
   }
@@ -876,20 +941,18 @@
   function initBindings() {
     document.addEventListener("input", (e) => {
       const path = e.target.dataset.bind;
-      if (path) set(path, readValue(e.target));
+      if (path) set(path, e.target.hasAttribute("data-money") ? e.target.value.replace(/,/g, "") : readValue(e.target));
     });
-    $$("[data-seg]").forEach((seg) => {
-      seg.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-v]");
-        if (btn) set(seg.dataset.seg, btn.dataset.v);
-      });
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-seg] button[data-v]");
+      if (btn) set(btn.closest("[data-seg]").dataset.seg, btn.dataset.v);
     });
   }
   function syncBindings(state2) {
     $$("[data-bind]").forEach((el) => {
       const value = get(el.dataset.bind);
       if (el.type === "checkbox") el.checked = !!value;
-      else if (document.activeElement !== el) el.value = value ?? "";
+      else if (document.activeElement !== el) el.value = el.hasAttribute("data-money") ? groupDigits(value) : value ?? "";
     });
     $$("[data-seg]").forEach((seg) => {
       const value = get(seg.dataset.seg);
@@ -921,20 +984,20 @@
   var CHEVRON = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var isAdvancedOpen = (path, index) => openRows.has(key(path, index));
   function advanced(path, index, innerHtml, label = "Advanced") {
-    const open = isAdvancedOpen(path, index);
-    return `<div class="adv${open ? " open" : ""}">
-    <div class="adv-body"${open ? "" : " inert"}>${innerHtml}</div>
-    <button type="button" class="adv-toggle" data-adv="${path}" data-i="${index}" aria-expanded="${open}">${label}${CHEVRON}</button></div>`;
+    const open3 = isAdvancedOpen(path, index);
+    return `<div class="adv${open3 ? " open" : ""}">
+    <div class="adv-body"${open3 ? "" : " inert"}>${innerHtml}</div>
+    <button type="button" class="adv-toggle" data-adv="${path}" data-i="${index}" aria-expanded="${open3}">${label}${CHEVRON}</button></div>`;
   }
   function handleAdvancedToggle(button) {
     const path = button.dataset.adv;
     const index = Number(button.dataset.i);
-    const open = !openRows.delete(key(path, index));
-    if (open) openRows.add(key(path, index));
+    const open3 = !openRows.delete(key(path, index));
+    if (open3) openRows.add(key(path, index));
     const wrap = button.closest(".adv");
-    wrap.classList.toggle("open", open);
-    button.setAttribute("aria-expanded", String(open));
-    wrap.querySelector(".adv-body").toggleAttribute("inert", !open);
+    wrap.classList.toggle("open", open3);
+    button.setAttribute("aria-expanded", String(open3));
+    wrap.querySelector(".adv-body").toggleAttribute("inert", !open3);
   }
   function shiftAdvancedAfterRemove(path, removed) {
     const prefix = `${path}:`;
@@ -1058,8 +1121,8 @@
   // js/ui/rows.js
   var removeBtn = (path, i) => `<button class="btn icon ghost danger" data-del="${path}" data-i="${i}" aria-label="Remove" title="Remove">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
-  var text = (path, i, key2, value, placeholder = "", { numeric = false, disabled = false, cls = "" } = {}) => `<input type="text" class="${cls}"${numeric ? ' inputmode="decimal"' : ""}${disabled ? " disabled" : ""} data-path="${path}.${i}.${key2}"
-    value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder || key2)}">`;
+  var text = (path, i, key2, value, placeholder = "", { numeric = false, disabled = false, cls = "", money = false } = {}) => `<input type="text" class="${cls}"${numeric ? ' inputmode="decimal"' : ""}${money ? " data-money" : ""}${disabled ? " disabled" : ""} data-path="${path}.${i}.${key2}"
+    value="${escapeHtml(money ? groupDigits(value) : value)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder || key2)}">`;
   var num = (path, i, key2, value, placeholder, extra = {}) => text(path, i, key2, value, placeholder, { ...extra, numeric: true });
   var check = (path, i, key2, value, label) => `<label class="check"><input type="checkbox" data-path="${path}.${i}.${key2}"${value ? " checked" : ""} aria-label="${escapeHtml(label || key2)}"> ${label}</label>`;
   var select = (path, i, key2, optionsHtml, cls = "") => `<select class="${cls}" data-path="${path}.${i}.${key2}" aria-label="${key2}">${optionsHtml}</select>`;
@@ -1068,7 +1131,7 @@
   var LEVY_BASES = [{ value: "gross", label: "Gross" }, { value: "taxable", label: "Taxable" }];
   var ROW_TEMPLATES = {
     incomes: (it, i) => `<div class="item income">
-    ${text("incomes", i, "name", it.name, "Name")}${num("incomes", i, "amount", it.amount, "Amount")}
+    ${text("incomes", i, "name", it.name, "Name")}${num("incomes", i, "amount", it.amount, "Amount", { money: true })}
     ${select("incomes", i, "per", periodOptions(it.per, itemPeriods("incomes", it)))}${removeBtn("incomes", i)}
     ${advanced("incomes", i, `${check("incomes", i, "taxable", it.taxable, "Taxable")}${check("incomes", i, "insurable", it.insurable, "Counts toward SI base")}`)}</div>`,
     overtime: (it, i, ctx2) => {
@@ -1090,14 +1153,14 @@
       const impact = ctx2.impacts.cashAwards[i];
       const net = impact && impact.annual > 0 ? `<div class="impact"><span>${ctx2.money(impact.annual * ctx2.factor)} gross / yr</span><b>${ctx2.money(impact.netAnnual * ctx2.factor)} net / yr</b></div>` : "";
       return `<div class="item award">
-      ${text("cashAwards", i, "name", it.name, "Name")}${num("cashAwards", i, "amount", it.amount, "Amount")}
+      ${text("cashAwards", i, "name", it.name, "Name")}${num("cashAwards", i, "amount", it.amount, "Amount", { money: true })}
       ${select("cashAwards", i, "currency", optionList(currencies, it.currency))}${removeBtn("cashAwards", i)}
       ${foreign ? rateRow : ""}
       ${advanced("cashAwards", i, `${select("cashAwards", i, "per", periodOptions(it.per, itemPeriods("cashAwards", it)), "xs-select")}${check("cashAwards", i, "taxable", it.taxable, "Taxable")}`)}
       ${net}</div>`;
     },
     deductions: (it, i) => `<div class="item income">
-    ${text("deductions", i, "name", it.name, "Name")}${num("deductions", i, "amount", it.amount, "Amount")}
+    ${text("deductions", i, "name", it.name, "Name")}${num("deductions", i, "amount", it.amount, "Amount", { money: true })}
     ${select("deductions", i, "per", periodOptions(it.per, itemPeriods("deductions", it)))}${removeBtn("deductions", i)}
     ${advanced("deductions", i, check("deductions", i, "pretax", it.pretax, "Before tax (reduces taxable income)"))}</div>`,
     "espp.payrollTax": (e, i) => {
@@ -1155,10 +1218,11 @@
     });
   }
   var renderAllLists = () => Object.keys(ROW_TEMPLATES).forEach(renderList);
+  var ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button>';
   function renderPresets() {
     $$("[data-presets]").forEach((host) => {
       const kind = host.dataset.presets;
-      host.innerHTML = PRESETS[kind].map((p, i) => `<button class="chip" data-preset="${kind}" data-i="${i}">+ ${escapeHtml(p.name)}</button>`).join("");
+      host.innerHTML = PRESETS[kind].map((p, i) => `${kind === "deductions" && p.name === "Loan" ? ESPP_CHIP : ""}<button class="chip" data-preset="${kind}" data-i="${i}">+ ${escapeHtml(p.name)}</button>`).join("");
     });
   }
   function focusFirstEmpty(path) {
@@ -1169,7 +1233,7 @@
     const host = $(`[data-list="${path}"]`);
     if (host?.contains(document.activeElement)) document.activeElement.blur();
     renderList(path);
-    if (AFFECTS_SELECTS.includes(path)) fillSelects(getState());
+    if (AFFECTS_SELECTS.includes(path)) fillSelects(view());
   }
   function newRow(path) {
     if (path === "overtime") {
@@ -1227,7 +1291,10 @@
     renderAllLists();
     document.addEventListener("input", (e) => {
       const path = e.target.dataset.path;
-      if (path && e.target.tagName !== "SELECT") set(path, e.target.type === "checkbox" ? e.target.checked : e.target.value);
+      if (path && e.target.tagName !== "SELECT") {
+        const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+        set(path, e.target.hasAttribute("data-money") ? String(value).replace(/,/g, "") : value);
+      }
     });
     document.addEventListener("change", (e) => {
       const path = e.target.dataset.path ?? "";
@@ -1239,7 +1306,7 @@
         return refresh("overtime");
       }
       if (/^cashAwards\.\d+\.currency$/.test(path)) return refresh("cashAwards");
-      if (AFFECTS_SELECTS.some((src) => path.startsWith(`${src}.`))) fillSelects(getState());
+      if (AFFECTS_SELECTS.some((src) => path.startsWith(`${src}.`))) fillSelects(view());
     });
     document.addEventListener("focusout", (e) => {
       const host = e.target.closest?.("[data-list]");
@@ -1271,8 +1338,8 @@
   }
   function syncCollapsibles(state2) {
     $$("details[data-open]").forEach((el) => {
-      const open = !!state2.ui.open[el.dataset.open];
-      if (el.open !== open) el.open = open;
+      const open3 = !!state2.ui.open[el.dataset.open];
+      if (el.open !== open3) el.open = open3;
     });
   }
 
@@ -1307,10 +1374,10 @@
   var CUSTOM = "__custom";
   var normalizeCode = (value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
   function renderCurrency(profile, forceCustom = false) {
-    const select3 = $("#currencySel");
+    const select2 = $("#currencySel");
     const input = $("#currencyCustom");
     const custom = forceCustom || !CURRENCIES.includes(profile.currency);
-    select3.innerHTML = optionList(
+    select2.innerHTML = optionList(
       [...CURRENCIES.map((c) => ({ value: c, label: c })), { value: CUSTOM, label: "Custom\u2026" }],
       custom ? CUSTOM : profile.currency
     );
@@ -1423,10 +1490,11 @@
     }
     return html;
   }
-  function breakdownLines(r, state2, at) {
-    const sub = (label, annual, netAnnual) => line(`${label}${netAnnual !== void 0 ? ` <span class="hint">net ${at(netAnnual)}</span>` : ""}`, positive(at(annual)), "sub");
+  function breakdownLines(r, state2, at, { net = true, entered = false } = {}) {
+    const mine = entered ? " entered" : "";
+    const sub = (label, annual, netAnnual) => line(`${label}${netAnnual !== void 0 ? ` <span class="hint">net ${at(netAnnual)}</span>` : ""}`, positive(at(annual)), `sub${mine}`);
     const earnings = [
-      line("Basic salary", positive(at(r.baseAnnual))),
+      line("Basic salary", positive(at(r.baseAnnual)), mine.trim()),
       ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? "" : ' <span class="hint">(exempt)</span>'), it.annual)),
       ...r.overtime.filter((o) => o.annual).map((o) => sub(escapeHtml(o.label), o.annual, o.netAnnual)),
       ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.netAnnual)),
@@ -1438,10 +1506,10 @@
       line(`Social insurance <span class="hint">${siNote}</span>`, negative(at(r.si.employee)), "sep", COLORS.si),
       line(`Income tax${taxNote}`, negative(at(r.incomeTax)), "", COLORS.tax),
       ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), "", COLORS.tax)),
-      ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), "", COLORS.other)),
-      r.espp.total ? line("ESPP", negative(at(r.espp.total)), "", COLORS.other) : "",
+      ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
+      r.espp.total ? line("ESPP", negative(at(r.espp.total)), mine.trim(), COLORS.other) : "",
       line("Total deductions", negative(at(r.totalDeductions)), "strong sep"),
-      line("Net pay", at(r.net), "strong net-line")
+      net ? line("Net pay", at(r.net), "strong net-line") : ""
     ];
     return [...earnings, ...deductions].join("");
   }
@@ -1650,8 +1718,9 @@
   function applyStep(input, direction, multiplier = 1) {
     const step = Number(input.dataset.step) || 1;
     const delta = direction * step * multiplier;
-    input.value = String(stepValue(input.value, delta, limitOf(input, "min", 0), limitOf(input, "max", Infinity)));
-    set(input.dataset.bind, input.value);
+    const next = String(stepValue(input.value, delta, limitOf(input, "min", 0), limitOf(input, "max", Infinity)));
+    set(input.dataset.bind, next);
+    input.value = input.hasAttribute("data-money") && document.activeElement !== input ? groupDigits(next) : next;
   }
   function enableDrag(input) {
     let startY = 0;
@@ -1733,15 +1802,25 @@
   ];
   var fixed = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "";
   var usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
-  function renderEsppInputs(result, money) {
-    const tile2 = $("#esppTile");
-    if (!tile2) return;
+  var esppAdded = false;
+  var hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0;
+  var esppShown = (s) => esppAdded || hasEsppPct(s);
+  function renderEsppInputs(result, money, state2) {
+    const block = $("#esppBlock");
+    if (!block) return;
+    const shown = esppShown(state2);
+    block.hidden = !shown;
+    $$("[data-espp-show]").forEach((b) => b.hidden = shown);
+    const count = state2.deductions.length + (shown ? 1 : 0);
+    $$("[data-deduction-count]").forEach((b) => b.textContent = count ? String(count) : "");
+    if (!shown) return;
     const e = result?.espp;
-    const on = getState().espp.enabled;
-    tile2.innerHTML = on && e ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
+    $("#esppTile").innerHTML = e?.total ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
        <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
-       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Turn ESPP on to deduct a % of pay into shares.</div>';
-    $("#esppFields").hidden = !on;
+       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
+  }
+  function resetEsppAdded() {
+    esppAdded = false;
   }
   function tile(label, a, b, tone = "") {
     return `<div class="etile ${tone}"><div class="k">${label}</div>
@@ -1838,6 +1917,18 @@
   }
   function initEspp(onChanged) {
     document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-espp-show]")) {
+        esppAdded = true;
+        onChanged();
+        $("#esppBlock input")?.focus();
+        return;
+      }
+      if (e.target.closest("[data-espp-remove]")) {
+        esppAdded = false;
+        set("espp.constPct", "");
+        set("espp.varPct", "");
+        return onChanged();
+      }
       const live = e.target.closest("[data-espp-live]");
       if (live) return fetchLive(live.dataset.esppLive, live);
       const year = e.target.closest("[data-espp-year] button");
@@ -1863,216 +1954,401 @@
       if (e.target.dataset.esppEntry) setTimeout(onChanged);
     });
   }
-  function syncEsppCounts(state2) {
-    const locked = Object.keys(state2.espp.entries).length;
-    $$("[data-espp-locked]").forEach((b) => b.textContent = locked ? String(locked) : "");
+
+  // js/ui/monthPicker.js
+  var SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var CHEVRON2 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var open = { id: "", year: 0 };
+  var handlers = /* @__PURE__ */ new Map();
+  var onMonthPick = (id, fn) => handlers.set(id, fn);
+  var backHandlers = /* @__PURE__ */ new Map();
+  var closeHandlers = /* @__PURE__ */ new Map();
+  var onMonthClose = (id, fn) => closeHandlers.set(id, fn);
+  var onMonthBack = (id, fn) => backHandlers.set(id, fn);
+  function openMonthPicker(id) {
+    const root = document.querySelector(`.mpick[data-mpick="${id}"]`);
+    if (!root) return;
+    open.id = id;
+    open.year = Number(root.dataset.value.slice(0, 4));
+    refill(root);
+    root.querySelector(".mpick-pop").hidden = false;
+    root.querySelector(".mpick-btn").setAttribute("aria-expanded", "true");
+  }
+  function popHtml(year, value, saved) {
+    const now = monthKey(/* @__PURE__ */ new Date());
+    const cells = SHORT.map((name, i) => {
+      const key2 = `${year}-${String(i + 1).padStart(2, "0")}`;
+      const cls = ["mpick-cell", key2 === value ? "on" : "", saved.includes(key2) ? "has" : "", key2 === now ? "now" : ""].join(" ");
+      return `<button type="button" class="${cls}" data-mp-pick="${key2}" aria-label="${monthLabel(key2, "long")}">${name}</button>`;
+    }).join("");
+    return `<div class="mpick-year">
+      <button type="button" class="btn icon ghost" data-mp-year="-1" aria-label="Previous year">\u2039</button>
+      <b>${year}</b>
+      <button type="button" class="btn icon ghost" data-mp-year="1" aria-label="Next year">\u203A</button>
+    </div><div class="mpick-grid">${cells}</div>`;
+  }
+  function monthPickerHtml(id, value, saved = []) {
+    const shown = value || monthKey(/* @__PURE__ */ new Date());
+    const isOpen = open.id === id;
+    const year = isOpen ? open.year : Number(shown.slice(0, 4));
+    return `<div class="mpick" data-mpick="${id}" data-value="${shown}" data-saved="${saved.join(",")}">
+    <button type="button" class="mpick-btn" data-mp-toggle="${id}" aria-haspopup="true" aria-expanded="${isOpen}">
+      <span>${monthLabel(shown, "long")}</span>${CHEVRON2}</button>
+    <div class="mpick-pop"${isOpen ? "" : " hidden"}>${popHtml(year, shown, saved)}</div>
+  </div>`;
+  }
+  function closeAll({ notify = true } = {}) {
+    const was = open.id;
+    open.id = "";
+    if (notify && was) setTimeout(() => closeHandlers.get(was)?.());
+    $$(".mpick-pop").forEach((p) => p.hidden = true);
+    $$(".mpick-btn").forEach((b) => b.setAttribute("aria-expanded", "false"));
+  }
+  function refill(root) {
+    const back = backHandlers.has(root.dataset.mpick) ? '<button type="button" class="mpick-back" data-mp-back>\u2039 Back to list</button>' : "";
+    root.querySelector(".mpick-pop").innerHTML = popHtml(open.year, root.dataset.value, root.dataset.saved.split(",").filter(Boolean)) + back;
+  }
+  function initMonthPickers() {
+    document.addEventListener("click", (e) => {
+      const root = e.target.closest(".mpick");
+      if (!root) return closeAll();
+      const id = root.dataset.mpick;
+      if (e.target.closest("[data-mp-toggle]")) {
+        const wasOpen = open.id === id;
+        closeAll({ notify: wasOpen });
+        if (wasOpen) return;
+        open.id = id;
+        open.year = Number(root.dataset.value.slice(0, 4));
+        refill(root);
+        root.querySelector(".mpick-pop").hidden = false;
+        root.querySelector(".mpick-btn").setAttribute("aria-expanded", "true");
+        return;
+      }
+      if (e.target.closest("[data-mp-back]")) {
+        closeAll({ notify: false });
+        return backHandlers.get(id)?.();
+      }
+      const step = e.target.closest("[data-mp-year]");
+      if (step) {
+        open.year += Number(step.dataset.mpYear);
+        return refill(root);
+      }
+      const pick2 = e.target.closest("[data-mp-pick]");
+      if (pick2) {
+        closeAll({ notify: false });
+        handlers.get(id)?.(pick2.dataset.mpPick);
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeAll();
+    });
   }
 
   // js/ui/history.js
-  var CURRENT = {
-    salary: (s) => s.per === "month" ? s.amount : "",
-    transport: (s) => s.incomes.find((i) => i.name?.toLowerCase().startsWith("transport"))?.amount ?? "",
-    medical: (s) => s.deductions.find((d) => d.name?.toLowerCase().startsWith("medical"))?.amount ?? "",
-    esppConst: (s) => s.espp.constPct,
-    esppVar: (s) => s.espp.varPct
-  };
-  var currentValues = (s) => Object.fromEntries(HISTORY_FIELDS.map((f) => [f.id, CURRENT[f.id](s)]));
-  var draft = null;
-  var draftMonth = "";
-  var confirmDelete = false;
-  var fmt = (field, value, money) => value === "" ? "\u2014" : field.unit === "pct" ? `${escapeHtml(value)}%` : money(toNumber(value));
-  function selectedMonth(state2, months) {
-    const chosen = state2.ui.histMonth;
-    if (chosen && (months.some((m) => m.month === chosen) || chosen === draftMonth)) return chosen;
-    return months[0]?.month ?? "";
+  var drafts = /* @__PURE__ */ new Map();
+  var askDelete = "";
+  var movingFrom = "";
+  var CHEVRON3 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
+  var isSaved = (state2, month) => !!state2.months[month];
+  var withProfile = (state2) => ({ ...state2, profile: activeProfile() });
+  var finalPay = (state2, pay) => toNumber(pay?.amount) > 0 ? calculate({ ...withPay(withProfile(state2), pay), profile: activeProfile() }).net / 12 : 0;
+  var isDirty = (month) => month === scopeMonth() ? scopeDirty() : drafts.has(month);
+  function stash() {
+    const month = scopeMonth();
+    if (!month) return;
+    if (scopeDirty()) drafts.set(month, scopePay());
+    else drafts.delete(month);
   }
-  function savedList(state2, months, active, money) {
-    const now = monthKey(/* @__PURE__ */ new Date());
-    const rows = months.map(({ month, fields }) => {
-      const salary = valueAt(state2.history, "salary", month);
-      const tag = month === now ? ' <span class="hint">now</span>' : "";
-      return `<button type="button" class="month-item${month === active ? " on" : ""}" data-hist-pick="${month}">
-      <span>${escapeHtml(monthLabel(month, "long"))}${tag}</span>
-      <span class="hint">${salary ? money(toNumber(salary)) : "\u2014"} \xB7 ${fields.length} saved</span></button>`;
-    }).join("");
-    return `<details class="more" data-open="histSaved">
-    <summary>Saved months <span class="count">${months.length || ""}</span></summary>
-    <div class="inner month-list">${rows || '<div class="hint">No saved months yet. Use <b>Save Month</b> on the Pay tab, or + New.</div>'}</div>
-  </details>`;
+  function contentFor(state2, month) {
+    const saved = state2.months[month];
+    if (saved) return { pay: drafts.get(month) ?? saved, base: saved };
+    const before = monthInForce(state2.months, month);
+    const start = before ? state2.months[before] : grossPay(snapshotPay(state2), withProfile(state2));
+    return { pay: drafts.get(month) ?? start, base: start };
   }
-  function editor(state2, month, money) {
-    if (draftMonth !== month) {
-      draft = monthValues(state2.history, month);
-      draftMonth = month;
-      confirmDelete = false;
+  function open2(month) {
+    if (month === scopeMonth()) return;
+    movingFrom = "";
+    const current = scopeMonth();
+    const state2 = getState();
+    if (current && !isSaved(state2, current) && !isSaved(state2, month)) {
+      const pay2 = scopePay();
+      drafts.delete(current);
+      update((s) => {
+        s.ui.histMonth = month;
+      });
+      setScope(month, pay2, contentFor(state2, month).base);
+      return;
     }
-    const own = new Set(savedMonths(state2.history).find((m) => m.month === month)?.fields ?? []);
-    const field = (id, label, unit) => {
-      const inherited = !own.has(id) && draft[id] !== "";
-      return `<label class="hist-field${inherited ? " inherited" : ""}" title="${inherited ? "Carried over from an earlier month" : ""}">
-      <span>${label}</span>
-      <input type="text" inputmode="decimal" data-hist-edit="${id}" value="${escapeHtml(draft[id] ?? "")}" placeholder="${unit === "pct" ? "%" : "Amount"}">
-      <small>${fmt(historyField(id), draft[id] ?? "", money)}</small></label>`;
-    };
-    const isSaved = savedMonths(state2.history).some((m) => m.month === month);
-    const actions = confirmDelete ? `<span class="confirm">Delete ${escapeHtml(monthLabel(month, "long"))}?
-         <button class="btn sm danger" data-hist-act="delete-yes">Delete</button>
-         <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span>` : `<button class="btn sm primary" data-hist-act="save">Save</button>
-       ${isSaved ? '<button class="btn sm ghost danger" data-hist-act="delete">Delete month</button>' : ""}`;
-    return `<div class="hist-editor">
-    <div class="hist-head"><b>${escapeHtml(monthLabel(month, "long"))}</b>${isSaved ? "" : '<span class="hint">not saved yet</span>'}</div>
-    ${field("salary", "Gross salary", "money")}
-    ${field("transport", "Transportation", "money")}
-    ${field("medical", "Medical insurance", "money")}
-    <div class="hist-pair">${field("esppConst", "ESPP constant %", "pct")}${field("esppVar", "ESPP variable %", "pct")}</div>
-    <div class="row wrap hist-actions">${actions}</div>
+    stash();
+    askDelete = "";
+    const { pay, base } = contentFor(getState(), month);
+    update((s) => {
+      s.ui.histMonth = month;
+    });
+    setScope(month, pay, base);
+  }
+  function pickMonth(month) {
+    const state2 = getState();
+    const current = scopeMonth();
+    if (!current || month === current) return open2(month);
+    if (isSaved(state2, month)) return open2(month);
+    const pay = scopePay();
+    const origin = movingFrom || (isSaved(state2, current) ? current : "");
+    drafts.delete(current);
+    update((s) => {
+      s.ui.histMonth = month;
+    });
+    setScope(month, pay, contentFor(state2, month).base);
+    movingFrom = origin;
+  }
+  function nextFreeMonth(state2) {
+    const now = monthKey(/* @__PURE__ */ new Date());
+    if (!state2.months[now]) return now;
+    const [y, m] = monthList(state2.months)[0].split("-").map(Number);
+    return monthKey(new Date(y, m, 1));
+  }
+  function syncHistoryScope() {
+    const s = getState();
+    if (s.ui.inTab !== "history") {
+      stash();
+      if (scopeMonth()) setScope("");
+      return;
+    }
+    const month = s.ui.histMonth && (isSaved(s, s.ui.histMonth) || drafts.has(s.ui.histMonth)) ? s.ui.histMonth : monthList(s.months)[0] ?? monthKey(/* @__PURE__ */ new Date());
+    open2(month);
+  }
+  function placePayForm(state2) {
+    const form = $("#payForm");
+    const target = state2.ui.inTab === "history" && scopeMonth() ? $("#payFormSlot") : $("#payFormHome");
+    if (form && target && form.parentElement !== target) target.appendChild(form);
+  }
+  function monthRow(state2, month, active, money) {
+    const name = escapeHtml(monthLabel(month, "long"));
+    if (askDelete === month) {
+      return `<div class="month-row ask"><span>Delete ${name}?</span>
+      <span class="row"><button class="btn sm danger" data-hist-act="delete-yes">Delete</button>
+      <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span></div>`;
+    }
+    const pay = month === active ? scopePay() : drafts.get(month) ?? state2.months[month];
+    const moved = month === active && movingFrom ? `<span class="tag">from ${escapeHtml(monthLabel(movingFrom))}</span>` : "";
+    const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : "");
+    const now = month === monthKey(/* @__PURE__ */ new Date()) ? '<span class="hint">now</span>' : "";
+    return `<div class="month-row${month === active ? " on" : ""}">
+    <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
+      <span class="hint" title="Net pay">${finalPay(state2, pay) ? money(finalPay(state2, pay)) : "\u2014"}</span></button>
+    <button type="button" class="btn icon ghost danger" data-hist-del="${month}" aria-label="${isSaved(state2, month) ? "Delete" : "Discard"} ${name}"
+      title="${isSaved(state2, month) ? "Delete month" : "Discard"}">${RED_MINUS}</button>
   </div>`;
   }
-  function monthSummary(state2, month, money) {
-    const base = { ...state2, history: draftHistory(state2, month), profile: activeProfile() };
-    const input = { ...inputForMonth(base, month), profile: activeProfile() };
-    if (!toNumber(input.amount)) return '<div class="hint">Add a gross salary to see this month\u2019s figures.</div>';
-    const r = withImpacts(input, calculate(input));
-    return `<div class="lines compact">${breakdownLines(r, input, (annual) => money(annual / 12))}</div>`;
+  function savedList(state2, active, money) {
+    const months = /* @__PURE__ */ new Set([...monthList(state2.months), ...drafts.keys()]);
+    if (movingFrom) months.delete(movingFrom);
+    if (active) months.add(active);
+    const rows = [...months].sort((a, b) => b.localeCompare(a)).map((m) => monthRow(state2, m, active, money)).join("");
+    return `<details class="more" data-open="histSaved">
+    <summary>Saved months <span class="count">${monthList(state2.months).length || ""}</span></summary>
+    <div class="inner month-list">
+      <button type="button" class="month-item add" data-hist-act="new">+ New month</button>
+      ${rows}
+    </div>
+  </details>`;
   }
-  var draftHistory = (state2, month) => draft && draftMonth === month ? saveMonth(state2.history, month, draft).history : state2.history;
-  function renderHistory(state2, money) {
+  function monthSummary(state2, money, pay) {
+    const r = pay.result;
+    if (!r) return '<div class="hint">Enter a gross salary below to see this month\u2019s figures.</div>';
+    const at = (annual) => money(fromAnnual(annual, "month", state2.schedule, pay.factor));
+    return `<div class="hist-net"><span>Net pay</span><b>${at(r.net)}</b></div>
+    <div class="lines compact">${breakdownLines(r, state2, at, { net: false, entered: true })}</div>`;
+  }
+  function renderHistory(state2, money, pay) {
     const host = $("#historyList");
     if (!host) return;
     const focused = document.activeElement;
     if (host.contains(focused) && focused.tagName === "INPUT") return;
-    const months = savedMonths(state2.history);
-    const active = selectedMonth(state2, months);
-    host.innerHTML = `${savedList(state2, months, active, money)}
-    <div class="row hist-new">
-      <input type="month" id="histNewMonth" value="${monthKey(/* @__PURE__ */ new Date())}" aria-label="Month to add">
-      <button class="btn sm" data-hist-act="new">+ New month</button>
+    const month = scopeMonth();
+    const saved = isSaved(state2, month);
+    const dirty = !saved || scopeDirty();
+    host.innerHTML = `${savedList(state2, month, money)}
+    <div class="row hist-bar">
+      ${monthPickerHtml("hist", month, monthList(state2.months))}
+      <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
     </div>
-    ${active ? `${editor(state2, active, money)}<div class="section-title">Summary</div><div id="histSummary">${monthSummary(state2, active, money)}</div>` : ""}`;
-    lastMoney = money;
+    <details class="hist-summary" data-open="histSummary">
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON3}</summary>
+      ${monthSummary(state2, money, pay)}
+    </details>`;
   }
-  var lastMoney = String;
-  function refreshSummary() {
-    const host = $("#histSummary");
-    if (host && draftMonth) host.innerHTML = monthSummary(getState(), draftMonth, lastMoney);
-  }
-  function select2(month) {
-    set("ui.histMonth", month);
-  }
-  function save(onChanged) {
-    const month = draftMonth;
-    const result = saveMonth(getState().history, month, draft);
-    if (!result.saved) return toast("Enter at least one value to save");
+  function save() {
+    const month = scopeMonth();
+    const pay = scopePay();
+    if (!toNumber(pay?.amount)) return toast("Enter a gross salary to save this month");
+    const replaced = isSaved(getState(), month);
+    const gross = grossPay(pay, withProfile(getState()));
+    const from = movingFrom;
+    movingFrom = "";
+    markScopeSaved();
+    drafts.delete(month);
     update((s) => {
-      s.history = result.history;
-      s.ui.histMonth = month;
+      s.months = moveMonth(s.months, from, month, gross);
     });
-    draftMonth = "";
-    toast(`${result.replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
-    onChanged();
+    toast(from ? `Moved ${monthLabel(from, "long")} to ${monthLabel(month, "long")}` : `${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
   }
-  function addMonth(onChanged) {
-    const month = $("#histNewMonth")?.value || monthKey(/* @__PURE__ */ new Date());
-    if (savedMonths(getState().history).some((m) => m.month === month)) {
-      select2(month);
-      toast(`${monthLabel(month, "long")} is already saved \u2014 opened it`);
-      return onChanged();
-    }
-    draft = { ...currentValues(getState()) };
-    draftMonth = month;
-    confirmDelete = false;
-    select2(month);
-    onChanged();
+  function showTab(tab, month = "") {
+    stash();
+    update((s) => {
+      s.ui.inTab = tab;
+      if (month) s.ui.histMonth = month;
+    });
+    syncHistoryScope();
+  }
+  function fillPay() {
+    const month = scopeMonth();
+    const pay = scopePay();
+    if (!pay) return;
+    update((s) => applyPay(s, pay));
+    drafts.delete(month);
+    showTab("pay");
+    toast(`Pay tab filled with ${monthLabel(month, "long")}`);
+  }
+  function remove(month) {
+    const saved = isSaved(getState(), month);
+    drafts.delete(month);
+    askDelete = "";
+    if (saved) update((s) => {
+      s.months = dropMonth(s.months, month);
+    });
+    toast(`${saved ? "Deleted" : "Discarded"} ${monthLabel(month, "long")}`);
+    if (scopeMonth() !== month) return;
+    setScope("");
+    open2(monthList(getState().months)[0] ?? monthKey(/* @__PURE__ */ new Date()));
+  }
+  function syncHistoryBar(state2) {
+    $("#fillPayBtn").hidden = state2.ui.inTab !== "history" || !scopeMonth();
   }
   function initHistory(onChanged) {
+    syncHistoryScope();
+    onMonthPick("hist", (month) => {
+      pickMonth(month);
+      onChanged();
+    });
+    $("#fillPayBtn").addEventListener("click", () => {
+      fillPay();
+      onChanged();
+    });
     document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-in-tabs] .tab")) {
+        syncHistoryScope();
+        return onChanged();
+      }
       const pick2 = e.target.closest("[data-hist-pick]");
       if (pick2) {
-        select2(pick2.dataset.histPick);
+        open2(pick2.dataset.histPick);
+        return onChanged();
+      }
+      const del = e.target.closest("[data-hist-del]");
+      if (del) {
+        const month = del.dataset.histDel;
+        if (isSaved(getState(), month)) askDelete = month;
+        else remove(month);
         return onChanged();
       }
       const act = e.target.closest("[data-hist-act]")?.dataset.histAct;
       if (!act) return;
-      if (act === "save") return save(onChanged);
-      if (act === "new") return addMonth(onChanged);
-      if (act === "delete") confirmDelete = true;
-      else if (act === "delete-no") confirmDelete = false;
-      else if (act === "delete-yes") {
-        const month = draftMonth;
-        update((s) => {
-          s.history = removeMonth(s.history, month);
-          s.ui.histMonth = "";
-        });
-        draftMonth = "";
-        toast(`Deleted ${monthLabel(month, "long")}`);
-      }
+      if (act === "save") save();
+      else if (act === "new") open2(nextFreeMonth(getState()));
+      else if (act === "delete-yes") remove(askDelete);
+      else if (act === "delete-no") askDelete = "";
       onChanged();
-    });
-    document.addEventListener("input", (e) => {
-      const id = e.target.dataset.histEdit;
-      if (!id || !draft) return;
-      draft[id] = e.target.value;
-      const small = e.target.parentElement.querySelector("small");
-      if (small) small.innerHTML = fmt(historyField(id), e.target.value, lastMoney);
-      refreshSummary();
-    });
-    document.addEventListener("change", (e) => {
-      if (e.target.dataset.histEdit) onChanged();
     });
   }
 
   // js/ui/saveMonth.js
-  function initSaveMonth(onChanged) {
+  var CUSTOM2 = "custom";
+  function initSaveMonth(onChanged, onSaved) {
     const panel = $("#saveMonthPanel");
-    const select3 = $("#saveMonthSel");
-    const picker = $("#saveMonthPick");
+    const select2 = $("#saveMonthSel");
+    const pickHost = $("#saveMonthPickHost");
     const ask = $("#saveMonthAsk");
+    let custom = "";
     let pending = "";
     function close() {
       panel.hidden = true;
       ask.hidden = true;
       pending = "";
     }
+    const chosen = () => select2.hidden ? custom : select2.value;
+    function drawPicker() {
+      pickHost.innerHTML = monthPickerHtml("save", custom, monthList(getState().months));
+      pickHost.hidden = false;
+      select2.hidden = true;
+    }
+    function fillList(value) {
+      const choices = monthChoices(getState().months, monthKey(/* @__PURE__ */ new Date()), custom);
+      select2.innerHTML = [
+        '<option value="" disabled>Choose a month\u2026</option>',
+        ...choices.map((c) => `<option value="${c.month}">${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`),
+        `<option value="${CUSTOM2}">Custom\u2026</option>`
+      ].join("");
+      select2.value = choices.some((c) => c.month === value) ? value : "";
+    }
+    function showList() {
+      pickHost.hidden = true;
+      pickHost.innerHTML = "";
+      select2.hidden = false;
+      fillList(custom);
+      ask.hidden = true;
+    }
     function commit2(month) {
       const state2 = getState();
-      const result = saveMonth(state2.history, month, currentValues(state2));
-      if (!result.saved) return toast("Nothing to save \u2014 fill the Pay tab first");
+      if (!toNumber(state2.amount)) return toast("Enter a gross salary first");
+      const replaced = !!state2.months[month];
+      const pay = grossPay(snapshotPay(state2), { ...state2, profile: activeProfile() });
       update((s) => {
-        s.history = result.history;
+        s.months = putMonth(s.months, month, pay);
+        s.ui.histMonth = month;
       });
+      if (month === custom) custom = "";
       close();
-      toast(`${result.replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
-      onChanged();
+      toast(`${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
+      onSaved(month);
     }
-    function save2(month) {
-      if (!hasMonth(getState().history, month)) return commit2(month);
+    function done() {
+      const month = chosen();
+      if (!month) return;
+      if (!getState().months[month]) return commit2(month);
       pending = month;
       $("#saveMonthAskText").textContent = `${monthLabel(month, "long")} is already saved. Override it?`;
       ask.hidden = false;
     }
-    $("#saveMonthBtn").addEventListener("click", () => {
+    function open3() {
       const now = monthKey(/* @__PURE__ */ new Date());
-      const months = nearestFirst(monthsInHistory(getState().history), now);
-      select3.innerHTML = [
-        '<option value="custom">Custom\u2026</option>',
-        ...months.map((m) => `<option value="${m}">${monthLabel(m, "long")}</option>`)
-      ].join("");
-      select3.value = "custom";
-      picker.value = now;
-      picker.hidden = true;
+      const startAt = custom && !getState().months[custom] ? custom : now;
+      pickHost.hidden = true;
+      pickHost.innerHTML = "";
+      select2.hidden = false;
+      fillList(startAt);
       ask.hidden = true;
       panel.hidden = false;
-    });
-    select3.addEventListener("change", () => {
+    }
+    $("#saveMonthBtn").addEventListener("click", () => panel.hidden ? open3() : close());
+    select2.addEventListener("change", () => {
       ask.hidden = true;
-      if (select3.value === "custom") {
-        picker.hidden = false;
-        picker.showPicker?.();
-      } else save2(select3.value);
+      if (select2.value !== CUSTOM2) return;
+      if (!custom) custom = monthKey(/* @__PURE__ */ new Date());
+      drawPicker();
+      openMonthPicker("save");
     });
-    picker.addEventListener("change", () => {
-      if (picker.value) save2(picker.value);
+    onMonthBack("save", showList);
+    onMonthPick("save", (month) => {
+      custom = month;
+      showList();
     });
+    onMonthClose("save", () => {
+      if (!panel.hidden && select2.hidden) showList();
+    });
+    $("#saveMonthGo").addEventListener("click", done);
     $("#saveMonthYes").addEventListener("click", () => {
       if (pending) commit2(pending);
     });
@@ -2081,6 +2357,22 @@
       pending = "";
     });
     $("#saveMonthCancel").addEventListener("click", close);
+  }
+  function syncSaveMonth(state2) {
+    const onPay = state2.ui.inTab === "pay";
+    $("#saveMonthBtn").hidden = !onPay;
+    if (!onPay) $("#saveMonthPanel").hidden = true;
+  }
+
+  // js/ui/numberInputs.js
+  var MONEY = "input[data-money]";
+  function initMoneyInputs() {
+    document.addEventListener("focusin", (e) => {
+      if (e.target.matches?.(MONEY)) e.target.value = e.target.value.replace(/,/g, "");
+    });
+    document.addEventListener("focusout", (e) => {
+      if (e.target.matches?.(MONEY)) e.target.value = groupDigits(e.target.value);
+    });
   }
 
   // js/main.js
@@ -2095,6 +2387,7 @@
     const adjusted = proRataInput(input, factor);
     return withImpacts(adjusted, calculate(adjusted, full.baseAnnual));
   }
+  var lastForm = "";
   function render(state2) {
     const input = { ...state2, profile: activeProfile() };
     const money = createMoneyFormatter(input.profile.currency);
@@ -2102,6 +2395,9 @@
     const pay = resolvePayPeriod(state2.payPeriod);
     pay.result = computeProRata(input, result, pay.factor);
     syncTabs(state2);
+    placePayForm(state2);
+    syncSaveMonth(state2);
+    syncHistoryBar(state2);
     syncCollapsibles(state2);
     syncBindings(state2);
     syncProfiles(state2);
@@ -2113,21 +2409,26 @@
       impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] }
     });
     renderResults(result, input, money, pay);
-    renderEsppInputs(pay.result ?? result, money);
-    syncEsppCounts(state2);
+    if (scopeMonth() !== lastForm) {
+      lastForm = scopeMonth();
+      resetEsppAdded();
+    }
+    renderEsppInputs(pay.result ?? result, money, state2);
     if (state2.ui.inTab === "history") {
-      renderHistory(state2, money);
+      renderHistory(input, money, pay);
       syncCollapsibles(state2);
     }
     if (state2.ui.resTab === "espp") renderEsppTab(esppReport(input), money);
   }
   function rebuild() {
-    const state2 = getState();
+    const state2 = view();
     fillSelects(state2);
     renderAllLists();
     render(state2);
   }
   initTabs();
+  initMonthPickers();
+  initMoneyInputs();
   initBindings();
   initLists();
   initCollapsibles();
@@ -2138,7 +2439,10 @@
   initRateFetcher();
   initEspp(rebuild);
   initHistory(rebuild);
-  initSaveMonth(rebuild);
+  initSaveMonth(rebuild, (month) => {
+    showTab("history", month);
+    rebuild();
+  });
   subscribe(render);
   rebuild();
 })();

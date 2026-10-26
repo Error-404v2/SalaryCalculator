@@ -55,7 +55,6 @@ export const DEFAULT_STATE = Object.freeze({
   deductions: [],
   /** ESPP: deducted after tax. `constPct` applies to basic, `varPct` to the parts ticked in `variable`. */
   espp: {
-    enabled: false,
     constPct: '',
     varPct: '',
     variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
@@ -71,6 +70,8 @@ export const DEFAULT_STATE = Object.freeze({
   },
   /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
   history: [],
+  /** Saved months: "YYYY-MM" → a full copy of the Pay tab inputs for that month (see core/months.js). */
+  months: {},
   ui: {
     inTab: 'pay',
     resTab: 'summary',
@@ -79,6 +80,6 @@ export const DEFAULT_STATE = Object.freeze({
     period: 'month',
     theme: '',
     taxEdit: false,
-    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true },
+    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true },
   },
 });

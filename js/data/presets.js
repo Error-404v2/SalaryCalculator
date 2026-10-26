@@ -13,8 +13,7 @@ export const PRESETS = {
     { name: 'Bonus', amount: '', per: 'once', taxable: true, insurable: false },
   ],
   deductions: [
-    { name: 'Medical insurance', amount: '', per: 'month', pretax: false },
-    { name: 'Pension plan', amount: '', per: 'month', pretax: true },
+    { name: 'Medical insurance', amount: '230.8', per: 'month', pretax: false },
     { name: 'Loan', amount: '', per: 'month', pretax: false },
   ],
 };

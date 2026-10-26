@@ -1,5 +1,6 @@
 import { $, $$ } from '../utils/dom.js';
 import { stepValue } from '../utils/number.js';
+import { groupDigits } from '../utils/format.js';
 import * as store from '../state/store.js';
 
 const DRAG_THRESHOLD_PX = 6;
@@ -10,8 +11,9 @@ const limitOf = (input, key, fallback) => (input.dataset[key] === undefined ? fa
 function applyStep(input, direction, multiplier = 1) {
   const step = Number(input.dataset.step) || 1;
   const delta = direction * step * multiplier;
-  input.value = String(stepValue(input.value, delta, limitOf(input, 'min', 0), limitOf(input, 'max', Infinity)));
-  store.set(input.dataset.bind, input.value);
+  const next = String(stepValue(input.value, delta, limitOf(input, 'min', 0), limitOf(input, 'max', Infinity)));
+  store.set(input.dataset.bind, next);
+  input.value = input.hasAttribute('data-money') && document.activeElement !== input ? groupDigits(next) : next;
 }
 
 function enableDrag(input) {
