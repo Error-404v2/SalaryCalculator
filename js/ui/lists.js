@@ -42,8 +42,8 @@ function updateCounts() {
 
 export const renderAllLists = () => Object.keys(ROW_TEMPLATES).forEach(renderList);
 
-/** "+ ESPP" sits among the deduction chips, just before Loan; it reveals the ESPP fields instead of adding a row. */
-const ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button>';
+/** "+ Stocks" sits among the deduction chips, just before Loan; it reveals the Stocks fields instead of adding a row. */
+const ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ Stocks</button>';
 
 function renderPresets() {
   $$('[data-presets]').forEach((host) => {

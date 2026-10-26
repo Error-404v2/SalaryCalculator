@@ -381,8 +381,8 @@
     { id: "salary", label: "Gross salary", unit: "money" },
     { id: "transport", label: "Transportation", unit: "money" },
     { id: "medical", label: "Medical insurance", unit: "money" },
-    { id: "esppConst", label: "ESPP % (constant)", unit: "pct" },
-    { id: "esppVar", label: "ESPP % (variable)", unit: "pct" }
+    { id: "esppConst", label: "Stocks % (constant)", unit: "pct" },
+    { id: "esppVar", label: "Stocks % (variable)", unit: "pct" }
   ];
   var monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   function monthLabel(key2, style = "short") {
@@ -1218,7 +1218,7 @@
     });
   }
   var renderAllLists = () => Object.keys(ROW_TEMPLATES).forEach(renderList);
-  var ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button>';
+  var ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ Stocks</button>';
   function renderPresets() {
     $$("[data-presets]").forEach((host) => {
       const kind = host.dataset.presets;
@@ -1507,7 +1507,7 @@
       line(`Income tax${taxNote}`, negative(at(r.incomeTax)), "", COLORS.tax),
       ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), "", COLORS.tax)),
       ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
-      r.espp.total ? line("ESPP", negative(at(r.espp.total)), mine.trim(), COLORS.other) : "",
+      r.espp.total ? line("Stocks", negative(at(r.espp.total)), mine.trim(), COLORS.other) : "",
       line("Total deductions", negative(at(r.totalDeductions)), "strong sep"),
       net ? line("Net pay", at(r.net), "strong net-line") : ""
     ];

@@ -17,8 +17,8 @@ const LOCKABLE = [
 const fixed = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : '');
 const usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 
-// ---------- Pay form: ESPP as the first entry of Other deductions ----------
-/** ESPP shows once added (+ ESPP / + Add ESPP) or while a % is above 0; it's added per form (Pay or a month). */
+// ---------- Pay form: Stocks as the first entry of Other deductions ----------
+/** Stocks shows once added (+ Stocks / + Add Stocks) or while a % is above 0; it's added per form (Pay or a month). */
 let esppAdded = false;
 const hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0;
 export const esppShown = (s) => esppAdded || hasEsppPct(s);
@@ -40,7 +40,7 @@ export function renderEsppInputs(result, money, state) {
     : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
 }
 
-/** A different form (Pay, or another month) starts without a pending "+ ESPP". */
+/** A different form (Pay, or another month) starts without a pending "+ Stocks". */
 export function resetEsppAdded() {
   esppAdded = false;
 }
