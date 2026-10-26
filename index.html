@@ -35,6 +35,20 @@
           <select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select>
         </div>
 
+        <div class="row between field" style="justify-content:flex-start">
+          <button class="btn sm primary" id="saveMonthBtn" title="Store the Pay tab values under a month you choose">Save Month</button>
+        </div>
+        <div class="save-month" id="saveMonthPanel" hidden>
+          <select id="saveMonthSel" aria-label="Month to save to"></select>
+          <input type="month" id="saveMonthPick" aria-label="Custom month" hidden>
+          <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
+          <span class="confirm" id="saveMonthAsk" hidden>
+            <span id="saveMonthAskText"></span>
+            <button class="btn sm danger" id="saveMonthYes">Override</button>
+            <button class="btn sm ghost" id="saveMonthNo">No</button>
+          </span>
+        </div>
+
         <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
           <span class="label">Pro-rata</span>
           <div class="spins">
@@ -114,6 +128,10 @@
           <summary>More options</summary>
           <div class="inner">
             <div class="field">
+              <label for="jobSel">Job type</label>
+              <select id="jobSel" data-bind="jobType"></select>
+            </div>
+            <div class="field">
               <label for="siBase">Social insurance base (monthly)</label>
               <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase">
               <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
@@ -125,10 +143,6 @@
                 <select class="period-select" data-bind="overrides.taxablePer" id="ovPer" aria-label="Taxable amount period"></select>
               </div>
               <div class="hint">Replaces the computed taxable income fed into the brackets.</div>
-            </div>
-            <div class="field">
-              <label for="jobSel">Job type</label>
-              <select id="jobSel" data-bind="jobType"></select>
             </div>
               <details class="more" data-open="settings">
                 <summary>Settings</summary>
@@ -162,11 +176,6 @@
       </div>
 
       <div class="card-body" data-in-panel="history" hidden>
-        <div class="hint" style="margin-bottom:10px">Values that change over time. Each applies from its month until the next one. ESPP months use the value in force that month.</div>
-        <div class="row hist-fill">
-          <input type="month" id="histMonth" aria-label="Month to load">
-          <button class="btn sm primary" id="histFill" title="Copy the values in force that month into the Pay tab">Fill Pay tab</button>
-        </div>
         <div id="historyList"></div>
       </div>
     </section>
@@ -176,17 +185,12 @@
       <nav class="tabs" role="tablist" data-tabs>
         <button class="tab" role="tab" data-tab="summary">Summary</button>
         <button class="tab" role="tab" data-tab="tax">Tax</button>
-        <button class="tab" role="tab" data-tab="periods">By period</button>
         <button class="tab" role="tab" data-tab="espp">ESPP</button>
         <button class="tab" role="tab" data-tab="employer">Employer cost</button>
       </nav>
 
       <div class="card-body">
         <div class="panel" data-panel="summary"><div data-view="summary"></div></div>
-
-        <div class="panel" data-panel="periods" hidden>
-          <div data-view="periods"></div>
-        </div>
 
         <div class="panel" data-panel="tax" hidden>
           <div class="profile-bar">

@@ -7,7 +7,38 @@ export const PERIODS = [
   { id: 'hour', label: 'Hourly', unit: 'hour' },
 ];
 
+/** Periods an allowance, bonus or deduction can be entered in. The results views only use PERIODS. */
+export const ITEM_PERIODS = [
+  { id: 'once', label: 'One-Time' },
+  { id: 'year', label: 'Annual' },
+  { id: 'half', label: 'Bi-annual' },
+  { id: 'quarter', label: 'Quarterly' },
+  { id: 'month', label: 'Monthly' },
+  { id: 'day', label: 'Daily' },
+  { id: 'hour', label: 'Hourly' },
+];
+
 export const isPeriod = (id) => PERIODS.some((p) => p.id === id);
+export const isItemPeriod = (id) => ITEM_PERIODS.some((p) => p.id === id);
+
+const PERIOD_SETS = {
+  occasional: ['once', 'half', 'quarter'],
+  recurring: ['month', 'year'],
+  deduction: ['month', 'quarter', 'half', 'year'],
+};
+
+/**
+ * Period choices for one Pay-tab item. Transportation and Medical are monthly or annual; other allowances
+ * and bonuses are occasional; other deductions never use daily or hourly. An item already saved with a
+ * period outside its list keeps that period selectable, so loading old data never changes its figures.
+ */
+export function itemPeriods(list, item = {}) {
+  const name = String(item.name ?? '').toLowerCase();
+  const recurring = name.startsWith('transport') || name.startsWith('medical');
+  const set = recurring ? PERIOD_SETS.recurring : list === 'deductions' ? PERIOD_SETS.deduction : PERIOD_SETS.occasional;
+  const ids = item.per && !set.includes(item.per) && isItemPeriod(item.per) ? [...set, item.per] : set;
+  return ids.map((id) => ITEM_PERIODS.find((p) => p.id === id));
+}
 
 export const findPeriod = (id) => PERIODS.find((p) => p.id === id) ?? PERIODS[1];
 
@@ -16,7 +47,11 @@ export function periodsPerYear(periodId, schedule = {}) {
   const days = toNumber(schedule.daysPerWeek) || 5;
   const hours = toNumber(schedule.hoursPerDay) || 8;
   const table = {
+    // One-Time counts in full in the month it is paid (the month on the Pay tab), not spread over the year.
+    once: 12,
     year: 1,
+    half: 2,
+    quarter: 4,
     month: 12,
     day: weeks * days,
     hour: weeks * days * hours,

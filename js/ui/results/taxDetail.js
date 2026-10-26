@@ -24,7 +24,7 @@ function bracketTable(r, money) {
       <td>${b.rate}%</td>
       <td>${formatNumber(b.from)} – ${b.max === Infinity ? '∞' : formatNumber(b.max)}</td>
       <td>${statusOf(b)}</td>
-      <td class="r">${money(b.portion)}</td><td class="r">${money(b.tax)}</td><td class="r">${money(b.tax / 12)}</td>
+      <td class="r">${money(b.portion / 12)}</td><td class="r">${money(b.tax / 12)}</td>
     </tr>`).join('');
 
   const excluded = r.bracketRows.filter((b) => b.excluded);
@@ -35,8 +35,8 @@ function bracketTable(r, money) {
 
   return `<div class="section-title">Brackets</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Rate</th><th>Range (annual)</th><th>Status</th><th class="r">Taxed amount</th><th class="r">Tax / year</th><th class="r">Tax / month</th></tr></thead>
-      <tbody>${rows}<tr class="total"><td colspan="4">Income tax</td><td class="r">${money(r.incomeTax)}</td><td class="r">${money(r.incomeTax / 12)}</td></tr></tbody>
+      <thead><tr><th>Rate</th><th>Range (annual)</th><th>Status</th><th class="r">Taxed amount / month</th><th class="r">Tax / month</th></tr></thead>
+      <tbody>${rows}<tr class="total"><td colspan="4">Income tax</td><td class="r">${money(r.incomeTax / 12)}</td></tr></tbody>
     </table></div>${note}`;
 }
 

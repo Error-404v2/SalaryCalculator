@@ -846,34 +846,6 @@ input.rate-error {
     grid-template-columns: 1fr;
   }
 }
-.hist-row {
-  display: grid;
-  grid-template-columns: 150px minmax(0, 1fr) auto 34px;
-  gap: 6px;
-  align-items: center;
-  margin-bottom: 6px;
-}
-.hist-row input {
-  height: 34px;
-  font-size: .88rem;
-}
-.hist-row .hint {
-  margin: 0;
-  white-space: nowrap;
-}
-details[data-hist-group] > summary .hint {
-  margin: 0 0 0 auto;
-  padding-right: 10px;
-  font-weight: 500;
-}
-@media (max-width: 420px) {
-  .hist-row {
-    grid-template-columns: 1fr 1fr 34px;
-  }
-  .hist-row .hint {
-    display: none;
-  }
-}
 .etiles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -951,15 +923,28 @@ details[data-hist-group] > summary .hint {
 .espp-table .muted-cell {
   color: var(--muted);
 }
-.hist-fill {
+.save-month {
+  display: flex;
   gap: 6px;
-  margin-bottom: 12px;
   align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
 }
-.hist-fill input[type=month] {
-  height: 32px;
-  max-width: 170px;
-  font-size: .88rem;
+.save-month select,
+.save-month input[type=month] {
+  height: 34px;
+  font-size: .9rem;
+  max-width: 220px;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 14px 0 6px;
+  font-weight: 600;
+}
+.save-month[hidden] {
+  display: none;
 }
 
 /* css/tables.css */
@@ -1296,6 +1281,143 @@ tr.active td:first-child {
 }
 .line.net-line .v {
   color: var(--accent);
+}
+
+/* css/history.css */
+.month-list {
+  display: flex;
+  flex-direction: column;
+  padding-top: 0;
+}
+.month-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: none;
+  cursor: pointer;
+  font-size: .88rem;
+  text-align: left;
+  color: var(--text);
+}
+.month-item:last-child {
+  border-bottom: 0;
+}
+.month-item:hover {
+  color: var(--accent);
+}
+.month-item.on {
+  color: var(--accent);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
+  padding-left: 10px;
+}
+.month-item .hint {
+  margin: 0;
+  white-space: nowrap;
+}
+.hist-new {
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 12px;
+}
+.hist-new input[type=month] {
+  height: 32px;
+  max-width: 170px;
+  font-size: .88rem;
+}
+.hist-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.hist-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 2px;
+}
+.hist-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 120px minmax(64px, auto);
+  gap: 8px;
+  align-items: center;
+  font-size: .88rem;
+}
+.hist-field input {
+  height: 32px;
+  padding: 0 8px;
+  font-size: .88rem;
+  text-align: right;
+}
+.hist-field small {
+  color: var(--muted);
+  font-size: .76rem;
+  text-align: right;
+  white-space: nowrap;
+}
+.hist-field.inherited span,
+.hist-field.inherited input {
+  color: var(--muted);
+}
+.hist-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+}
+.hist-pair .hist-field {
+  grid-template-columns: minmax(0, 1fr) 64px;
+}
+.hist-pair .hist-field small {
+  display: none;
+}
+.hist-actions {
+  gap: 6px;
+  margin-top: 4px;
+}
+.hist-actions .confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .85rem;
+  color: var(--danger);
+}
+.lines.compact .line {
+  padding: 3px 0;
+  font-size: .86rem;
+}
+.lines.compact .line.sep {
+  margin-top: 3px;
+  padding-top: 6px;
+}
+.lines.compact .line.strong .k,
+.lines.compact .line.strong .v {
+  font-size: .9rem;
+}
+@media (max-width: 420px) {
+  .hist-field {
+    grid-template-columns: minmax(0, 1fr) 110px;
+  }
+  .hist-field small {
+    display: none;
+  }
+  .hist-pair {
+    grid-template-columns: 1fr;
+  }
+}
+.save-month .confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .85rem;
+  color: var(--danger);
+}
+.save-month .confirm[hidden] {
+  display: none;
 }
 
 /* css/main.css */

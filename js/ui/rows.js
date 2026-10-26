@@ -3,6 +3,7 @@ import { OT_TYPES } from '../data/presets.js';
 import { CURRENCIES } from '../data/defaults.js';
 import { otType } from '../core/overtime.js';
 import { periodOptions, optionList } from './form.js';
+import { itemPeriods } from '../core/periods.js';
 import { advanced } from './advanced.js';
 import { rateStatus } from './rateFetcher.js';
 
@@ -30,7 +31,7 @@ const LEVY_BASES = [{ value: 'gross', label: 'Gross' }, { value: 'taxable', labe
 export const ROW_TEMPLATES = {
   incomes: (it, i) => `<div class="item income">
     ${text('incomes', i, 'name', it.name, 'Name')}${num('incomes', i, 'amount', it.amount, 'Amount')}
-    ${select('incomes', i, 'per', periodOptions(it.per))}${removeBtn('incomes', i)}
+    ${select('incomes', i, 'per', periodOptions(it.per, itemPeriods('incomes', it)))}${removeBtn('incomes', i)}
     ${advanced('incomes', i, `${check('incomes', i, 'taxable', it.taxable, 'Taxable')}${check('incomes', i, 'insurable', it.insurable, 'Counts toward SI base')}`)}</div>`,
 
   overtime: (it, i, ctx) => {
@@ -60,13 +61,13 @@ export const ROW_TEMPLATES = {
       ${text('cashAwards', i, 'name', it.name, 'Name')}${num('cashAwards', i, 'amount', it.amount, 'Amount')}
       ${select('cashAwards', i, 'currency', optionList(currencies, it.currency))}${removeBtn('cashAwards', i)}
       ${foreign ? rateRow : ''}
-      ${advanced('cashAwards', i, `${select('cashAwards', i, 'per', periodOptions(it.per), 'xs-select')}${check('cashAwards', i, 'taxable', it.taxable, 'Taxable')}`)}
+      ${advanced('cashAwards', i, `${select('cashAwards', i, 'per', periodOptions(it.per, itemPeriods('cashAwards', it)), 'xs-select')}${check('cashAwards', i, 'taxable', it.taxable, 'Taxable')}`)}
       ${net}</div>`;
   },
 
   deductions: (it, i) => `<div class="item income">
     ${text('deductions', i, 'name', it.name, 'Name')}${num('deductions', i, 'amount', it.amount, 'Amount')}
-    ${select('deductions', i, 'per', periodOptions(it.per))}${removeBtn('deductions', i)}
+    ${select('deductions', i, 'per', periodOptions(it.per, itemPeriods('deductions', it)))}${removeBtn('deductions', i)}
     ${advanced('deductions', i, check('deductions', i, 'pretax', it.pretax, 'Before tax (reduces taxable income)'))}</div>`,
 
   'espp.payrollTax': (e, i) => {

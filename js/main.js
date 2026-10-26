@@ -13,6 +13,7 @@ import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
 import { initEspp, renderEsppInputs, renderEsppTab, syncEsppCounts } from './ui/espp.js';
 import { initHistory, renderHistory } from './ui/history.js';
+import { initSaveMonth } from './ui/saveMonth.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -51,7 +52,10 @@ function render(state) {
   renderResults(result, input, money, pay);
   renderEsppInputs(pay.result ?? result, money);
   syncEsppCounts(state);
-  if (state.ui.inTab === 'history') renderHistory(state, money);
+  if (state.ui.inTab === 'history') {
+    renderHistory(state, money);
+    syncCollapsibles(state);
+  }
   if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
 }
 
@@ -73,5 +77,6 @@ initSteppers();
 initRateFetcher();
 initEspp(rebuild);
 initHistory(rebuild);
+initSaveMonth(rebuild);
 store.subscribe(render);
 rebuild();
