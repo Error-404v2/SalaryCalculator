@@ -12,7 +12,7 @@ import { initSettings, syncSettings } from './ui/settings.js';
 import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
 import { initEspp, renderEsppInputs, renderEsppTab, syncEsppCounts } from './ui/espp.js';
-import { initHistory, renderHistory, placePayForm, syncHistoryBar } from './ui/history.js';
+import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab } from './ui/history.js';
 import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
 
@@ -83,6 +83,6 @@ initSteppers();
 initRateFetcher();
 initEspp(rebuild);
 initHistory(rebuild);
-initSaveMonth(rebuild);
+initSaveMonth(rebuild, (month) => { showTab('history', month); rebuild(); });
 store.subscribe(render);
 rebuild();

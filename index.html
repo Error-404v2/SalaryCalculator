@@ -31,10 +31,11 @@
         </span>
       </nav>
       <div class="save-month" id="saveMonthPanel" hidden>
-        <select id="saveMonthSel" aria-label="Month to save to"></select>
-        <input type="month" id="saveMonthPick" aria-label="Custom month">
-        <button class="btn sm primary" id="saveMonthGo">Save</button>
-        <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
+        <div class="save-row">
+          <button class="btn sm primary" id="saveMonthGo">Done</button>
+          <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
+          <span class="save-slot"><select id="saveMonthSel" aria-label="Month to save to"></select><span id="saveMonthPickHost" hidden></span></span>
+        </div>
         <span class="confirm" id="saveMonthAsk" hidden>
           <span id="saveMonthAskText"></span>
           <button class="btn sm danger" id="saveMonthYes">Override</button>
@@ -51,28 +52,6 @@
         </div>
 
         <div id="payFormHome"><div id="payForm">
-        <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
-          <span class="label">Pro-rata</span>
-          <div class="spins">
-            <div class="spin">
-              <span class="spin-label">Month</span>
-              <input type="text" inputmode="numeric" data-bind="payPeriod.months" data-step="1" data-min="0" data-max="24" aria-label="Months">
-              <span class="spin-btns">
-                <button type="button" data-step-btn="1" data-target="payPeriod.months" aria-label="Increase months"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
-                <button type="button" data-step-btn="-1" data-target="payPeriod.months" aria-label="Decrease months"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
-              </span>
-            </div>
-            <div class="spin">
-              <span class="spin-label">Day</span>
-              <input type="text" inputmode="numeric" data-bind="payPeriod.days" data-step="1" data-min="-30" data-max="30" aria-label="Days">
-              <span class="spin-btns">
-                <button type="button" data-step-btn="1" data-target="payPeriod.days" aria-label="Increase days"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
-                <button type="button" data-step-btn="-1" data-target="payPeriod.days" aria-label="Decrease days"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
-              </span>
-            </div>
-          </div>
-        </div>
-
         <div class="field">
           <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
           <div class="row">

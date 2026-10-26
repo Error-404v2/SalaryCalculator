@@ -127,7 +127,7 @@ export function renderHistory(state, money, pay) {
   host.innerHTML = `${savedList(state, month, money)}
     <div class="row hist-bar">
       ${monthPickerHtml('hist', month, monthList(state.months))}
-      <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost'}" data-hist-act="save">${dirty ? 'Save' : 'Saved'}</button>
+      <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost done'}" data-hist-act="save"${dirty ? '' : ' disabled aria-disabled="true"'}>${dirty ? 'Save' : 'Saved'}</button>
     </div>
     <div class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</div>
     ${monthSummary(state, money, pay)}`;
@@ -144,12 +144,24 @@ function save() {
   toast(`${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
 }
 
-/** Fill Pay: copy the open month (with any unsaved edits) into the Pay tab. */
+/** Switches the input tab and enters or leaves month editing to match. */
+export function showTab(tab, month = '') {
+  stash();
+  store.update((s) => {
+    s.ui.inTab = tab;
+    if (month) s.ui.histMonth = month;
+  });
+  syncHistoryScope();
+}
+
+/** Fill Pay: copy the open month (with any unsaved edits) into the Pay tab, then show the Pay tab. */
 function fillPay() {
   const month = store.scopeMonth();
   const pay = store.scopePay();
   if (!pay) return;
   store.update((s) => applyPay(s, pay));
+  drafts.delete(month);
+  showTab('pay');
   toast(`Pay tab filled with ${monthLabel(month, 'long')}`);
 }
 

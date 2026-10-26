@@ -163,7 +163,7 @@
       { name: "Bonus", amount: "", per: "once", taxable: true, insurable: false }
     ],
     deductions: [
-      { name: "Medical insurance", amount: "", per: "month", pretax: false },
+      { name: "Medical insurance", amount: "230.8", per: "month", pretax: false },
       { name: "Pension plan", amount: "", per: "month", pretax: true },
       { name: "Loan", amount: "", per: "month", pretax: false }
     ]
@@ -2073,7 +2073,7 @@
     host.innerHTML = `${savedList(state2, month, money)}
     <div class="row hist-bar">
       ${monthPickerHtml("hist", month, monthList(state2.months))}
-      <button type="button" class="btn sm ${dirty ? "primary" : "ghost"}" data-hist-act="save">${dirty ? "Save" : "Saved"}</button>
+      <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
     </div>
     <div class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</div>
     ${monthSummary(state2, money, pay)}`;
@@ -2090,11 +2090,21 @@
     });
     toast(`${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
   }
+  function showTab(tab, month = "") {
+    stash();
+    update((s) => {
+      s.ui.inTab = tab;
+      if (month) s.ui.histMonth = month;
+    });
+    syncHistoryScope();
+  }
   function fillPay() {
     const month = scopeMonth();
     const pay = scopePay();
     if (!pay) return;
     update((s) => applyPay(s, pay));
+    drafts.delete(month);
+    showTab("pay");
     toast(`Pay tab filled with ${monthLabel(month, "long")}`);
   }
   function remove(month) {
@@ -2150,16 +2160,24 @@
   }
 
   // js/ui/saveMonth.js
-  function initSaveMonth(onChanged) {
+  var CUSTOM2 = "custom";
+  function initSaveMonth(onChanged, onSaved) {
     const panel = $("#saveMonthPanel");
     const select2 = $("#saveMonthSel");
-    const picker = $("#saveMonthPick");
+    const pickHost = $("#saveMonthPickHost");
     const ask = $("#saveMonthAsk");
+    let custom = "";
     let pending = "";
     function close() {
       panel.hidden = true;
       ask.hidden = true;
       pending = "";
+    }
+    const chosen = () => select2.value === CUSTOM2 ? custom : select2.value;
+    function drawPicker() {
+      pickHost.innerHTML = monthPickerHtml("save", custom, monthList(getState().months));
+      pickHost.hidden = false;
+      select2.hidden = true;
     }
     function commit2(month) {
       const state2 = getState();
@@ -2167,40 +2185,45 @@
       const replaced = !!state2.months[month];
       update((s) => {
         s.months = putMonth(s.months, month, snapshotPay(s));
+        s.ui.histMonth = month;
       });
       close();
       toast(`${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
-      onChanged();
+      onSaved(month);
     }
-    function save2(month) {
+    function done() {
+      const month = chosen();
+      if (!month) return;
       if (!getState().months[month]) return commit2(month);
       pending = month;
       $("#saveMonthAskText").textContent = `${monthLabel(month, "long")} is already saved. Override it?`;
       ask.hidden = false;
     }
-    $("#saveMonthBtn").addEventListener("click", () => {
+    function open3() {
       const now = monthKey(/* @__PURE__ */ new Date());
       const months = nearestFirst(monthList(getState().months), now);
       select2.innerHTML = [
-        '<option value="custom">Custom\u2026</option>',
+        `<option value="${CUSTOM2}">Custom\u2026</option>`,
         ...months.map((m) => `<option value="${m}">${monthLabel(m, "long")}</option>`)
       ].join("");
-      select2.value = "custom";
-      picker.value = now;
-      picker.hidden = false;
+      select2.value = months.includes(now) ? now : CUSTOM2;
+      custom = now;
+      pickHost.hidden = true;
+      select2.hidden = false;
       ask.hidden = true;
-      panel.hidden = !panel.hidden;
-    });
+      panel.hidden = false;
+    }
+    $("#saveMonthBtn").addEventListener("click", () => panel.hidden ? open3() : close());
     select2.addEventListener("change", () => {
       ask.hidden = true;
-      picker.hidden = select2.value !== "custom";
-      if (select2.value === "custom") picker.showPicker?.();
-      else save2(select2.value);
+      if (select2.value === CUSTOM2) drawPicker();
     });
-    picker.addEventListener("change", () => {
-      if (picker.value) save2(picker.value);
+    onMonthPick("save", (month) => {
+      custom = month;
+      drawPicker();
+      ask.hidden = true;
     });
-    $("#saveMonthGo").addEventListener("click", () => save2(select2.value === "custom" ? picker.value : select2.value));
+    $("#saveMonthGo").addEventListener("click", done);
     $("#saveMonthYes").addEventListener("click", () => {
       if (pending) commit2(pending);
     });
@@ -2275,7 +2298,10 @@
   initRateFetcher();
   initEspp(rebuild);
   initHistory(rebuild);
-  initSaveMonth(rebuild);
+  initSaveMonth(rebuild, (month) => {
+    showTab("history", month);
+    rebuild();
+  });
   subscribe(render);
   rebuild();
 })();
