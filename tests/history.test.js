@@ -5,6 +5,7 @@ import {
   nearestFirst, removeMonth, monthsOfYear, monthValues, savedMonths, valueAt,
 } from '../js/core/history.js';
 import { hydrate } from '../js/state/migrate.js';
+import { itemPeriods, toAnnual, fromAnnual } from '../js/core/periods.js';
 
 const H = [
   { field: 'salary', from: '2026-01', value: '10000' },
@@ -103,6 +104,27 @@ test('a fresh start has no history and no saved month', () => {
   const s = hydrate(null);
   assert.deepEqual(s.history, []);
   assert.equal(s.ui.histMonth, '');
+});
+
+test('each Pay-tab item offers only its own period choices', () => {
+  const ids = (list, item) => itemPeriods(list, item).map((p) => p.id);
+  assert.deepEqual(ids('incomes', { name: 'Profit share (GDP)' }), ['once', 'half', 'quarter']);
+  assert.deepEqual(ids('incomes', { name: 'Bonus' }), ['once', 'half', 'quarter']);
+  assert.deepEqual(ids('incomes', { name: '' }), ['once', 'half', 'quarter']);
+  assert.deepEqual(ids('incomes', { name: 'Transportation' }), ['month', 'year']);
+  assert.deepEqual(ids('deductions', { name: 'Medical insurance' }), ['month', 'year']);
+  const other = ids('deductions', { name: 'Loan' });
+  assert.ok(!other.includes('day') && !other.includes('hour'));
+});
+
+test('an item saved with an older period keeps it, so its figures do not change', () => {
+  assert.deepEqual(itemPeriods('incomes', { name: 'Bonus', per: 'year' }).map((p) => p.id), ['once', 'half', 'quarter', 'year']);
+});
+
+test('One-Time counts in full in the month, Bi-annual and Quarterly are spread', () => {
+  assert.equal(fromAnnual(toAnnual('1200', 'once'), 'month'), 1200);
+  assert.equal(fromAnnual(toAnnual('1200', 'half'), 'month'), 200);
+  assert.equal(fromAnnual(toAnnual('1200', 'quarter'), 'month'), 400);
 });
 
 test('monthsOfYear lists twelve months', () => {

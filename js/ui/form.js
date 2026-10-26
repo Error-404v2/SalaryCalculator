@@ -3,8 +3,8 @@ import { escapeHtml } from '../utils/format.js';
 import { PERIODS } from '../core/periods.js';
 import * as store from '../state/store.js';
 
-export const periodOptions = (selected) =>
-  PERIODS.map((p) => `<option value="${p.id}"${p.id === selected ? ' selected' : ''}>${p.label}</option>`).join('');
+export const periodOptions = (selected, periods = PERIODS) =>
+  periods.map((p) => `<option value="${p.id}"${p.id === selected ? ' selected' : ''}>${p.label}</option>`).join('');
 
 export const optionList = (items, selected) =>
   items.map(({ value, label }) => `<option value="${escapeHtml(value)}"${value === selected ? ' selected' : ''}>${escapeHtml(label)}</option>`).join('');

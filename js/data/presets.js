@@ -9,8 +9,8 @@ export const OT_TYPES = [
 export const PRESETS = {
   incomes: [
     { name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false },
-    { name: 'Profit share (GDP)', amount: '', per: 'year', taxable: false, insurable: false },
-    { name: 'Bonus', amount: '', per: 'year', taxable: true, insurable: false },
+    { name: 'Profit share (GDP)', amount: '', per: 'once', taxable: false, insurable: false },
+    { name: 'Bonus', amount: '', per: 'once', taxable: true, insurable: false },
   ],
   deductions: [
     { name: 'Medical insurance', amount: '', per: 'month', pretax: false },
@@ -20,8 +20,8 @@ export const PRESETS = {
 };
 
 export const BLANK_ROWS = {
-  incomes: { name: '', amount: '', per: 'month', taxable: true, insurable: false },
-  cashAwards: { name: 'Cash Award', amount: '', currency: 'USD', rate: '', per: 'year', taxable: true },
+  incomes: { name: '', amount: '', per: 'once', taxable: true, insurable: false },
+  cashAwards: { name: 'Cash Award', amount: '', currency: 'USD', rate: '', per: 'once', taxable: true },
   deductions: { name: '', amount: '', per: 'month', pretax: false },
   'espp.payrollTax': { date: '', gains: '', tax: '', rate: '' },
   '@.tax.brackets': { rate: '', min: '', max: '', exclusion: '' },

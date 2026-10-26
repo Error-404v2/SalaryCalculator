@@ -24,6 +24,7 @@
     { id: "hour", label: "Hourly", unit: "hour" }
   ];
   var ITEM_PERIODS = [
+    { id: "once", label: "One-Time" },
     { id: "year", label: "Annual" },
     { id: "half", label: "Bi-annual" },
     { id: "quarter", label: "Quarterly" },
@@ -33,12 +34,26 @@
   ];
   var isPeriod = (id) => PERIODS.some((p) => p.id === id);
   var isItemPeriod = (id) => ITEM_PERIODS.some((p) => p.id === id);
+  var PERIOD_SETS = {
+    occasional: ["once", "half", "quarter"],
+    recurring: ["month", "year"],
+    deduction: ["month", "quarter", "half", "year"]
+  };
+  function itemPeriods(list, item = {}) {
+    const name = String(item.name ?? "").toLowerCase();
+    const recurring = name.startsWith("transport") || name.startsWith("medical");
+    const set2 = recurring ? PERIOD_SETS.recurring : list === "deductions" ? PERIOD_SETS.deduction : PERIOD_SETS.occasional;
+    const ids = item.per && !set2.includes(item.per) && isItemPeriod(item.per) ? [...set2, item.per] : set2;
+    return ids.map((id) => ITEM_PERIODS.find((p) => p.id === id));
+  }
   var findPeriod = (id) => PERIODS.find((p) => p.id === id) ?? PERIODS[1];
   function periodsPerYear(periodId, schedule = {}) {
     const weeks = toNumber(schedule.weeksPerYear) || 52;
     const days = toNumber(schedule.daysPerWeek) || 5;
     const hours = toNumber(schedule.hoursPerDay) || 8;
     const table = {
+      // One-Time counts in full in the month it is paid (the month on the Pay tab), not spread over the year.
+      once: 12,
       year: 1,
       half: 2,
       quarter: 4,
@@ -144,8 +159,8 @@
   var PRESETS = {
     incomes: [
       { name: "Transportation", amount: "1000", per: "month", taxable: true, insurable: false },
-      { name: "Profit share (GDP)", amount: "", per: "year", taxable: false, insurable: false },
-      { name: "Bonus", amount: "", per: "year", taxable: true, insurable: false }
+      { name: "Profit share (GDP)", amount: "", per: "once", taxable: false, insurable: false },
+      { name: "Bonus", amount: "", per: "once", taxable: true, insurable: false }
     ],
     deductions: [
       { name: "Medical insurance", amount: "", per: "month", pretax: false },
@@ -154,8 +169,8 @@
     ]
   };
   var BLANK_ROWS = {
-    incomes: { name: "", amount: "", per: "month", taxable: true, insurable: false },
-    cashAwards: { name: "Cash Award", amount: "", currency: "USD", rate: "", per: "year", taxable: true },
+    incomes: { name: "", amount: "", per: "once", taxable: true, insurable: false },
+    cashAwards: { name: "Cash Award", amount: "", currency: "USD", rate: "", per: "once", taxable: true },
     deductions: { name: "", amount: "", per: "month", pretax: false },
     "espp.payrollTax": { date: "", gains: "", tax: "", rate: "" },
     "@.tax.brackets": { rate: "", min: "", max: "", exclusion: "" },
@@ -855,7 +870,7 @@
   }
 
   // js/ui/form.js
-  var periodOptions = (selected) => PERIODS.map((p) => `<option value="${p.id}"${p.id === selected ? " selected" : ""}>${p.label}</option>`).join("");
+  var periodOptions = (selected, periods = PERIODS) => periods.map((p) => `<option value="${p.id}"${p.id === selected ? " selected" : ""}>${p.label}</option>`).join("");
   var optionList = (items, selected) => items.map(({ value, label }) => `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
   var readValue = (el) => el.type === "checkbox" ? el.checked : el.value;
   function initBindings() {
@@ -1054,7 +1069,7 @@
   var ROW_TEMPLATES = {
     incomes: (it, i) => `<div class="item income">
     ${text("incomes", i, "name", it.name, "Name")}${num("incomes", i, "amount", it.amount, "Amount")}
-    ${select("incomes", i, "per", periodOptions(it.per))}${removeBtn("incomes", i)}
+    ${select("incomes", i, "per", periodOptions(it.per, itemPeriods("incomes", it)))}${removeBtn("incomes", i)}
     ${advanced("incomes", i, `${check("incomes", i, "taxable", it.taxable, "Taxable")}${check("incomes", i, "insurable", it.insurable, "Counts toward SI base")}`)}</div>`,
     overtime: (it, i, ctx2) => {
       const preset = otType(it.type);
@@ -1078,12 +1093,12 @@
       ${text("cashAwards", i, "name", it.name, "Name")}${num("cashAwards", i, "amount", it.amount, "Amount")}
       ${select("cashAwards", i, "currency", optionList(currencies, it.currency))}${removeBtn("cashAwards", i)}
       ${foreign ? rateRow : ""}
-      ${advanced("cashAwards", i, `${select("cashAwards", i, "per", periodOptions(it.per), "xs-select")}${check("cashAwards", i, "taxable", it.taxable, "Taxable")}`)}
+      ${advanced("cashAwards", i, `${select("cashAwards", i, "per", periodOptions(it.per, itemPeriods("cashAwards", it)), "xs-select")}${check("cashAwards", i, "taxable", it.taxable, "Taxable")}`)}
       ${net}</div>`;
     },
     deductions: (it, i) => `<div class="item income">
     ${text("deductions", i, "name", it.name, "Name")}${num("deductions", i, "amount", it.amount, "Amount")}
-    ${select("deductions", i, "per", periodOptions(it.per))}${removeBtn("deductions", i)}
+    ${select("deductions", i, "per", periodOptions(it.per, itemPeriods("deductions", it)))}${removeBtn("deductions", i)}
     ${advanced("deductions", i, check("deductions", i, "pretax", it.pretax, "Before tax (reduces taxable income)"))}</div>`,
     "espp.payrollTax": (e, i) => {
       const p = "espp.payrollTax";
