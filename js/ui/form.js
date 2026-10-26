@@ -16,11 +16,9 @@ export function initBindings() {
     const path = e.target.dataset.bind;
     if (path) store.set(path, readValue(e.target));
   });
-  $$('[data-seg]').forEach((seg) => {
-    seg.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-v]');
-      if (btn) store.set(seg.dataset.seg, btn.dataset.v);
-    });
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-seg] button[data-v]');
+    if (btn) store.set(btn.closest('[data-seg]').dataset.seg, btn.dataset.v);
   });
 }
 

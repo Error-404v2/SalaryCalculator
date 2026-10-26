@@ -15,6 +15,7 @@ import * as store from '../state/store.js';
 const drafts = new Map();
 let askDelete = '';
 
+const CHEVRON = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
 const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
 
 const isSaved = (state, month) => !!state.months[month];
@@ -129,8 +130,10 @@ export function renderHistory(state, money, pay) {
       ${monthPickerHtml('hist', month, monthList(state.months))}
       <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost done'}" data-hist-act="save"${dirty ? '' : ' disabled aria-disabled="true"'}>${dirty ? 'Save' : 'Saved'}</button>
     </div>
-    <div class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</div>
-    ${monthSummary(state, money, pay)}`;
+    <details class="hist-summary" data-open="histSummary">
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</span>${CHEVRON}</summary>
+      ${monthSummary(state, money, pay)}
+    </details>`;
 }
 
 function save() {
@@ -178,6 +181,7 @@ function remove(month) {
 
 export function syncHistoryBar(state) {
   $('#fillPayBtn').hidden = state.ui.inTab !== 'history' || !store.scopeMonth();
+  $('#yearSlot').hidden = !!store.scopeMonth();
 }
 
 export function initHistory(onChanged) {

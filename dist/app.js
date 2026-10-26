@@ -726,7 +726,7 @@
       period: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true }
     }
   });
 
@@ -918,11 +918,9 @@
       const path = e.target.dataset.bind;
       if (path) set(path, readValue(e.target));
     });
-    $$("[data-seg]").forEach((seg) => {
-      seg.addEventListener("click", (e) => {
-        const btn = e.target.closest("button[data-v]");
-        if (btn) set(seg.dataset.seg, btn.dataset.v);
-      });
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-seg] button[data-v]");
+      if (btn) set(btn.closest("[data-seg]").dataset.seg, btn.dataset.v);
     });
   }
   function syncBindings(state2) {
@@ -1998,6 +1996,7 @@
   // js/ui/history.js
   var drafts = /* @__PURE__ */ new Map();
   var askDelete = "";
+  var CHEVRON3 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
   var isSaved = (state2, month) => !!state2.months[month];
   var isDirty = (month) => month === scopeMonth() ? scopeDirty() : drafts.has(month);
@@ -2094,8 +2093,10 @@
       ${monthPickerHtml("hist", month, monthList(state2.months))}
       <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
     </div>
-    <div class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</div>
-    ${monthSummary(state2, money, pay)}`;
+    <details class="hist-summary" data-open="histSummary">
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON3}</summary>
+      ${monthSummary(state2, money, pay)}
+    </details>`;
   }
   function save() {
     const month = scopeMonth();
@@ -2140,6 +2141,7 @@
   }
   function syncHistoryBar(state2) {
     $("#fillPayBtn").hidden = state2.ui.inTab !== "history" || !scopeMonth();
+    $("#yearSlot").hidden = !!scopeMonth();
   }
   function initHistory(onChanged) {
     syncHistoryScope();

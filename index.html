@@ -43,15 +43,14 @@
         </span>
       </div>
       <div class="card-body" data-in-panel="pay">
+        <div id="payFormHome"><div id="payForm">
         <div class="row between field">
           <div class="seg" data-seg="mode">
             <button data-v="gross">Gross &rarr; Net</button>
             <button data-v="net">Net &rarr; Gross</button>
           </div>
-          <select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select>
+          <span id="yearSlot"><select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select></span>
         </div>
-
-        <div id="payFormHome"><div id="payForm">
         <div class="field">
           <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
           <div class="row">

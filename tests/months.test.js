@@ -33,6 +33,16 @@ test('withPay applies a month over the state and gives the same figures as typin
   assert.deepEqual(applied.espp.entries, s.espp.entries, 'ESPP ledger is kept, not overwritten');
 });
 
+test('a month saved as Net → Gross keeps that direction, separate from the Pay tab', () => {
+  const s = { ...base(), mode: 'net', amount: '8000' };
+  const pay = snapshotPay(s);
+  assert.equal(pay.mode, 'net');
+  const months = putMonth({}, '2026-04', pay);
+  const back = withPay({ ...base(), mode: 'gross' }, months['2026-04']);
+  assert.equal(back.mode, 'net');
+  assert.equal(back.amount, '8000');
+});
+
 test('months: list newest first, in force, put and drop', () => {
   let m = putMonth({}, '2026-03', { amount: '1' });
   m = putMonth(m, '2026-01', { amount: '2' });
