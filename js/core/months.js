@@ -1,6 +1,6 @@
 import { clone } from '../utils/object.js';
 import { isFilled, toNumber } from '../utils/number.js';
-import { HISTORY_FIELDS } from './history.js';
+import { HISTORY_FIELDS, nearestFirst } from './history.js';
 import { solveForNet } from './solver.js';
 import { toAnnual, fromAnnual } from './periods.js';
 
@@ -76,6 +76,22 @@ export function dropMonth(months, month) {
   const next = { ...(months ?? {}) };
   delete next[month];
   return next;
+}
+
+/**
+ * Moves a saved entry to another month: `from` is removed and `to` holds `pay`. With no `from` (a new entry)
+ * it just saves `pay` under `to`. The month being moved to is replaced if it already existed.
+ */
+export const moveMonth = (months, from, to, pay) => putMonth(from && from !== to ? dropMonth(months, from) : months, to, pay);
+
+/**
+ * Save Month's dropdown choices: saved months nearest to `now` first, then the last month picked from the
+ * calendar if it isn't saved yet (flagged `saved: false`, shown as "not saved").
+ */
+export function monthChoices(months, now, lastCustom = '') {
+  const choices = nearestFirst(monthList(months), now).map((month) => ({ month, saved: true }));
+  if (lastCustom && !months?.[lastCustom]) choices.push({ month: lastCustom, saved: false });
+  return choices;
 }
 
 const FIELD_TO_ITEM = { transport: ['incomes', 'transport', 'Transportation'], medical: ['deductions', 'medical', 'Medical insurance'] };

@@ -96,3 +96,10 @@ select option { background: var(--surface); color: var(--text); }
 
 /* Entered values in the month's summary: same lines, a subtle tint like the net pay band */
 .lines.compact .line.entered { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 6px; padding-left: 6px; padding-right: 6px; }
+
+/* Collapsible "Summary of …", same look as the section title, with a down arrow */
+.hist-summary > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; margin: 14px 0 8px; }
+.hist-summary > summary::-webkit-details-marker { display: none; }
+.hist-summary > summary .section-title { margin: 0; }
+.hist-summary .chev { width: 11px; height: 7px; fill: none; stroke: var(--muted); stroke-width: 1.7; transition: transform .15s; }
+.hist-summary:not([open]) .chev { transform: rotate(-90deg); }

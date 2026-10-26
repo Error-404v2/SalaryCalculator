@@ -466,6 +466,12 @@
     delete next[month];
     return next;
   }
+  var moveMonth = (months, from, to, pay) => putMonth(from && from !== to ? dropMonth(months, from) : months, to, pay);
+  function monthChoices(months, now, lastCustom = "") {
+    const choices = nearestFirst(monthList(months), now).map((month) => ({ month, saved: true }));
+    if (lastCustom && !months?.[lastCustom]) choices.push({ month: lastCustom, saved: false });
+    return choices;
+  }
   var FIELD_TO_ITEM = { transport: ["incomes", "transport", "Transportation"], medical: ["deductions", "medical", "Medical insurance"] };
   function monthsFromHistory(history, base) {
     const entries = (history ?? []).filter((e) => e && e.from && HISTORY_FIELDS.some((f) => f.id === e.field) && isFilled(e.value));
@@ -738,7 +744,7 @@
       period: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true }
     }
   });
 
@@ -1956,6 +1962,8 @@
   var handlers = /* @__PURE__ */ new Map();
   var onMonthPick = (id, fn) => handlers.set(id, fn);
   var backHandlers = /* @__PURE__ */ new Map();
+  var closeHandlers = /* @__PURE__ */ new Map();
+  var onMonthClose = (id, fn) => closeHandlers.set(id, fn);
   var onMonthBack = (id, fn) => backHandlers.set(id, fn);
   function openMonthPicker(id) {
     const root = document.querySelector(`.mpick[data-mpick="${id}"]`);
@@ -1989,8 +1997,10 @@
     <div class="mpick-pop"${isOpen ? "" : " hidden"}>${popHtml(year, shown, saved)}</div>
   </div>`;
   }
-  function closeAll() {
+  function closeAll({ notify = true } = {}) {
+    const was = open.id;
     open.id = "";
+    if (notify && was) setTimeout(() => closeHandlers.get(was)?.());
     $$(".mpick-pop").forEach((p) => p.hidden = true);
     $$(".mpick-btn").forEach((b) => b.setAttribute("aria-expanded", "false"));
   }
@@ -2005,7 +2015,7 @@
       const id = root.dataset.mpick;
       if (e.target.closest("[data-mp-toggle]")) {
         const wasOpen = open.id === id;
-        closeAll();
+        closeAll({ notify: wasOpen });
         if (wasOpen) return;
         open.id = id;
         open.year = Number(root.dataset.value.slice(0, 4));
@@ -2015,7 +2025,7 @@
         return;
       }
       if (e.target.closest("[data-mp-back]")) {
-        closeAll();
+        closeAll({ notify: false });
         return backHandlers.get(id)?.();
       }
       const step = e.target.closest("[data-mp-year]");
@@ -2025,7 +2035,7 @@
       }
       const pick2 = e.target.closest("[data-mp-pick]");
       if (pick2) {
-        closeAll();
+        closeAll({ notify: false });
         handlers.get(id)?.(pick2.dataset.mpPick);
       }
     });
@@ -2037,6 +2047,8 @@
   // js/ui/history.js
   var drafts = /* @__PURE__ */ new Map();
   var askDelete = "";
+  var movingFrom = "";
+  var CHEVRON3 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
   var isSaved = (state2, month) => !!state2.months[month];
   var withProfile = (state2) => ({ ...state2, profile: activeProfile() });
@@ -2057,6 +2069,7 @@
   }
   function open2(month) {
     if (month === scopeMonth()) return;
+    movingFrom = "";
     const current = scopeMonth();
     const state2 = getState();
     if (current && !isSaved(state2, current) && !isSaved(state2, month)) {
@@ -2079,13 +2092,16 @@
   function pickMonth(month) {
     const state2 = getState();
     const current = scopeMonth();
-    if (isSaved(state2, month) || !current || month === current) return open2(month);
+    if (!current || month === current) return open2(month);
+    if (isSaved(state2, month)) return open2(month);
     const pay = scopePay();
+    const origin = movingFrom || (isSaved(state2, current) ? current : "");
     drafts.delete(current);
     update((s) => {
       s.ui.histMonth = month;
     });
     setScope(month, pay, contentFor(state2, month).base);
+    movingFrom = origin;
   }
   function nextFreeMonth(state2) {
     const now = monthKey(/* @__PURE__ */ new Date());
@@ -2116,7 +2132,8 @@
       <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span></div>`;
     }
     const pay = month === active ? scopePay() : drafts.get(month) ?? state2.months[month];
-    const tag = !isSaved(state2, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : "";
+    const moved = month === active && movingFrom ? `<span class="tag">from ${escapeHtml(monthLabel(movingFrom))}</span>` : "";
+    const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : "");
     const now = month === monthKey(/* @__PURE__ */ new Date()) ? '<span class="hint">now</span>' : "";
     return `<div class="month-row${month === active ? " on" : ""}">
     <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
@@ -2127,6 +2144,7 @@
   }
   function savedList(state2, active, money) {
     const months = /* @__PURE__ */ new Set([...monthList(state2.months), ...drafts.keys()]);
+    if (movingFrom) months.delete(movingFrom);
     if (active) months.add(active);
     const rows = [...months].sort((a, b) => b.localeCompare(a)).map((m) => monthRow(state2, m, active, money)).join("");
     return `<details class="more" data-open="histSaved">
@@ -2157,8 +2175,10 @@
       ${monthPickerHtml("hist", month, monthList(state2.months))}
       <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
     </div>
-    <div class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</div>
-    ${monthSummary(state2, money, pay)}`;
+    <details class="hist-summary" data-open="histSummary">
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON3}</summary>
+      ${monthSummary(state2, money, pay)}
+    </details>`;
   }
   function save() {
     const month = scopeMonth();
@@ -2166,12 +2186,14 @@
     if (!toNumber(pay?.amount)) return toast("Enter a gross salary to save this month");
     const replaced = isSaved(getState(), month);
     const gross = grossPay(pay, withProfile(getState()));
+    const from = movingFrom;
+    movingFrom = "";
     markScopeSaved();
     drafts.delete(month);
     update((s) => {
-      s.months = putMonth(s.months, month, gross);
+      s.months = moveMonth(s.months, from, month, gross);
     });
-    toast(`${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
+    toast(from ? `Moved ${monthLabel(from, "long")} to ${monthLabel(month, "long")}` : `${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
   }
   function showTab(tab, month = "") {
     stash();
@@ -2256,17 +2278,26 @@
       ask.hidden = true;
       pending = "";
     }
-    const chosen = () => select2.value === CUSTOM2 ? custom : select2.value;
+    const chosen = () => select2.hidden ? custom : select2.value;
     function drawPicker() {
       pickHost.innerHTML = monthPickerHtml("save", custom, monthList(getState().months));
       pickHost.hidden = false;
       select2.hidden = true;
     }
+    function fillList(value) {
+      const choices = monthChoices(getState().months, monthKey(/* @__PURE__ */ new Date()), custom);
+      select2.innerHTML = [
+        '<option value="" disabled>Choose a month\u2026</option>',
+        ...choices.map((c) => `<option value="${c.month}">${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`),
+        `<option value="${CUSTOM2}">Custom\u2026</option>`
+      ].join("");
+      select2.value = choices.some((c) => c.month === value) ? value : "";
+    }
     function showList() {
       pickHost.hidden = true;
       pickHost.innerHTML = "";
       select2.hidden = false;
-      select2.selectedIndex = 0;
+      fillList(custom);
       ask.hidden = true;
     }
     function commit2(month) {
@@ -2278,6 +2309,7 @@
         s.months = putMonth(s.months, month, pay);
         s.ui.histMonth = month;
       });
+      if (month === custom) custom = "";
       close();
       toast(`${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
       onSaved(month);
@@ -2292,16 +2324,11 @@
     }
     function open3() {
       const now = monthKey(/* @__PURE__ */ new Date());
-      const months = nearestFirst(monthList(getState().months), now);
-      select2.innerHTML = [
-        `<option value="" disabled>Choose a month\u2026</option>`,
-        ...months.map((m) => `<option value="${m}">${monthLabel(m, "long")}</option>`),
-        `<option value="${CUSTOM2}">Custom\u2026</option>`
-      ].join("");
-      select2.value = months.includes(now) ? now : "";
-      custom = now;
+      const startAt = custom && !getState().months[custom] ? custom : now;
       pickHost.hidden = true;
+      pickHost.innerHTML = "";
       select2.hidden = false;
+      fillList(startAt);
       ask.hidden = true;
       panel.hidden = false;
     }
@@ -2309,14 +2336,17 @@
     select2.addEventListener("change", () => {
       ask.hidden = true;
       if (select2.value !== CUSTOM2) return;
+      if (!custom) custom = monthKey(/* @__PURE__ */ new Date());
       drawPicker();
       openMonthPicker("save");
     });
     onMonthBack("save", showList);
     onMonthPick("save", (month) => {
       custom = month;
-      drawPicker();
-      ask.hidden = true;
+      showList();
+    });
+    onMonthClose("save", () => {
+      if (!panel.hidden && select2.hidden) showList();
     });
     $("#saveMonthGo").addEventListener("click", done);
     $("#saveMonthYes").addEventListener("click", () => {

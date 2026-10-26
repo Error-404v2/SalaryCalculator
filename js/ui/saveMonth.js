@@ -1,7 +1,7 @@
 import { $, toast } from '../utils/dom.js';
 import { toNumber } from '../utils/number.js';
-import { monthKey, monthLabel, monthList, nearestFirst, putMonth, snapshotPay, grossPay } from '../core/index.js';
-import { monthPickerHtml, onMonthPick, onMonthBack, openMonthPicker } from './monthPicker.js';
+import { monthKey, monthLabel, monthList, monthChoices, putMonth, snapshotPay, grossPay } from '../core/index.js';
+import { monthPickerHtml, onMonthPick, onMonthBack, onMonthClose, openMonthPicker } from './monthPicker.js';
 import * as store from '../state/store.js';
 
 const CUSTOM = 'custom';
@@ -17,6 +17,7 @@ export function initSaveMonth(onChanged, onSaved) {
   const select = $('#saveMonthSel');
   const pickHost = $('#saveMonthPickHost');
   const ask = $('#saveMonthAsk');
+  /** The last month picked from the calendar; it stays in the dropdown, marked "not saved", until saved. */
   let custom = '';
   let pending = '';
 
@@ -26,7 +27,7 @@ export function initSaveMonth(onChanged, onSaved) {
     pending = '';
   }
 
-  const chosen = () => (select.value === CUSTOM ? custom : select.value);
+  const chosen = () => (select.hidden ? custom : select.value);
 
   function drawPicker() {
     pickHost.innerHTML = monthPickerHtml('save', custom, monthList(store.getState().months));
@@ -34,12 +35,23 @@ export function initSaveMonth(onChanged, onSaved) {
     select.hidden = true;
   }
 
-  /** Back to the dropdown, starting over from its first choice. */
+  /** Fills the dropdown and selects `value`: saved months nearest first, the last calendar pick, then Custom…. */
+  function fillList(value) {
+    const choices = monthChoices(store.getState().months, monthKey(new Date()), custom);
+    select.innerHTML = [
+      '<option value="" disabled>Choose a month…</option>',
+      ...choices.map((c) => `<option value="${c.month}">${monthLabel(c.month, 'long')}${c.saved ? '' : ' (not saved)'}</option>`),
+      `<option value="${CUSTOM}">Custom…</option>`,
+    ].join('');
+    select.value = choices.some((c) => c.month === value) ? value : '';
+  }
+
+  /** Back to the dropdown, showing the month just picked from the calendar (if any). */
   function showList() {
     pickHost.hidden = true;
     pickHost.innerHTML = '';
     select.hidden = false;
-    select.selectedIndex = 0;
+    fillList(custom);
     ask.hidden = true;
   }
 
@@ -49,6 +61,7 @@ export function initSaveMonth(onChanged, onSaved) {
     const replaced = !!state.months[month];
     const pay = grossPay(snapshotPay(state), { ...state, profile: store.activeProfile() });
     store.update((s) => { s.months = putMonth(s.months, month, pay); s.ui.histMonth = month; });
+    if (month === custom) custom = '';
     close();
     toast(`${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
     onSaved(month);
@@ -65,16 +78,11 @@ export function initSaveMonth(onChanged, onSaved) {
 
   function open() {
     const now = monthKey(new Date());
-    const months = nearestFirst(monthList(store.getState().months), now);
-    select.innerHTML = [
-      `<option value="" disabled>Choose a month…</option>`,
-      ...months.map((m) => `<option value="${m}">${monthLabel(m, 'long')}</option>`),
-      `<option value="${CUSTOM}">Custom…</option>`,
-    ].join('');
-    select.value = months.includes(now) ? now : '';
-    custom = now;
+    const startAt = custom && !store.getState().months[custom] ? custom : now;
     pickHost.hidden = true;
+    pickHost.innerHTML = '';
     select.hidden = false;
+    fillList(startAt);
     ask.hidden = true;
     panel.hidden = false;
   }
@@ -84,6 +92,7 @@ export function initSaveMonth(onChanged, onSaved) {
   select.addEventListener('change', () => {
     ask.hidden = true;
     if (select.value !== CUSTOM) return;
+    if (!custom) custom = monthKey(new Date());
     drawPicker();
     openMonthPicker('save');
   });
@@ -91,9 +100,9 @@ export function initSaveMonth(onChanged, onSaved) {
 
   onMonthPick('save', (month) => {
     custom = month;
-    drawPicker();
-    ask.hidden = true;
+    showList();
   });
+  onMonthClose('save', () => { if (!panel.hidden && select.hidden) showList(); });
 
   $('#saveMonthGo').addEventListener('click', done);
   $('#saveMonthYes').addEventListener('click', () => { if (pending) commit(pending); });

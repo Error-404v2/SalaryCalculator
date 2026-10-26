@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { snapshotPay, withPay, monthList, monthInForce, putMonth, dropMonth, monthsFromHistory, grossPay } from '../js/core/months.js';
+import { snapshotPay, withPay, monthList, monthInForce, putMonth, dropMonth, monthsFromHistory, grossPay, moveMonth, monthChoices } from '../js/core/months.js';
 import { DEFAULT_STATE, DEFAULT_PROFILE } from '../js/data/defaults.js';
 import { calculate } from '../js/core/calculator.js';
 import { hydrate } from '../js/state/migrate.js';
@@ -56,6 +56,30 @@ test('months saved earlier as Net → Gross are converted to gross on load', () 
   const s = hydrate({ months: { '2026-04': pay } });
   assert.equal(s.months['2026-04'].mode, 'gross');
   assert.ok(Number(s.months['2026-04'].amount) > 8000);
+});
+
+test('moving a saved entry re-dates it instead of adding another month', () => {
+  let m = putMonth(putMonth({}, '2026-11', { amount: '1' }), '2026-10', { amount: '2' });
+  m = moveMonth(m, '2026-11', '2027-02', { amount: '3' });
+  assert.deepEqual(monthList(m), ['2027-02', '2026-10']);
+  assert.equal(m['2027-02'].amount, '3');
+  assert.equal(m['2026-10'].amount, '2', 'other months are untouched');
+});
+
+test('moving with no origin just saves; moving onto the same month keeps it', () => {
+  assert.deepEqual(monthList(moveMonth({}, '', '2026-05', { amount: '1' })), ['2026-05']);
+  const m = putMonth({}, '2026-05', { amount: '1' });
+  assert.deepEqual(monthList(moveMonth(m, '2026-05', '2026-05', { amount: '9' })), ['2026-05']);
+  assert.equal(moveMonth(m, '2026-05', '2026-05', { amount: '9' })['2026-05'].amount, '9');
+});
+
+test('Save Month choices: saved months nearest first, then the unsaved calendar pick', () => {
+  const m = { '2026-10': {}, '2026-08': {}, '2026-12': {} };
+  assert.deepEqual(monthChoices(m, '2026-10').map((c) => c.month), ['2026-10', '2026-12', '2026-08'], 'ties go to the later month');
+  const withPick = monthChoices(m, '2026-10', '2027-03');
+  assert.deepEqual(withPick.at(-1), { month: '2027-03', saved: false });
+  assert.equal(monthChoices(m, '2026-10', '2026-08').length, 3, 'a pick that got saved is not listed twice');
+  assert.deepEqual(monthChoices({}, '2026-10'), []);
 });
 
 test('money fields show grouped digits; the stored value stays plain', () => {

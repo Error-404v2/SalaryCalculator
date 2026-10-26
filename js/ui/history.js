@@ -3,7 +3,7 @@ import { escapeHtml } from '../utils/format.js';
 import { toNumber } from '../utils/number.js';
 import {
   monthKey, monthLabel, monthList, monthInForce, snapshotPay, putMonth, dropMonth, applyPay, fromAnnual,
-  grossPay, withPay, calculate,
+  grossPay, withPay, calculate, moveMonth,
 } from '../core/index.js';
 import { breakdownLines } from './results/summary.js';
 import { monthPickerHtml, onMonthPick } from './monthPicker.js';
@@ -15,7 +15,10 @@ import * as store from '../state/store.js';
  */
 const drafts = new Map();
 let askDelete = '';
+/** The saved month the open entry was re-dated from with the calendar; Save moves it from there. */
+let movingFrom = '';
 
+const CHEVRON = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
 const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
 
 const isSaved = (state, month) => !!state.months[month];
@@ -43,6 +46,7 @@ function contentFor(state, month) {
 
 function open(month) {
   if (month === store.scopeMonth()) return;
+  movingFrom = '';
   const current = store.scopeMonth();
   const state = store.getState();
   if (current && !isSaved(state, current) && !isSaved(state, month)) {
@@ -60,17 +64,21 @@ function open(month) {
 }
 
 /**
- * The month picker: a saved month opens normally; a month not saved yet takes over the open form (its values
- * carry over) instead of adding another row, and Save becomes active to store it under the picked month.
+ * The month picker re-dates the open entry: its values carry over to the picked month and Save becomes active.
+ * Saving moves it there (the original month is replaced, not duplicated). Picking a month that is already
+ * saved simply opens that month.
  */
 function pickMonth(month) {
   const state = store.getState();
   const current = store.scopeMonth();
-  if (isSaved(state, month) || !current || month === current) return open(month);
+  if (!current || month === current) return open(month);
+  if (isSaved(state, month)) return open(month);
   const pay = store.scopePay();
+  const origin = movingFrom || (isSaved(state, current) ? current : '');
   drafts.delete(current);
   store.update((s) => { s.ui.histMonth = month; });
   store.setScope(month, pay, contentFor(state, month).base);
+  movingFrom = origin;
 }
 
 /** The month "+ New" opens: this month if it isn't saved, else the month after the newest saved one. */
@@ -110,7 +118,8 @@ function monthRow(state, month, active, money) {
       <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span></div>`;
   }
   const pay = month === active ? store.scopePay() : drafts.get(month) ?? state.months[month];
-  const tag = !isSaved(state, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : '';
+  const moved = month === active && movingFrom ? `<span class="tag">from ${escapeHtml(monthLabel(movingFrom))}</span>` : '';
+  const tag = moved || (!isSaved(state, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : '');
   const now = month === monthKey(new Date()) ? '<span class="hint">now</span>' : '';
   return `<div class="month-row${month === active ? ' on' : ''}">
     <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
@@ -122,6 +131,7 @@ function monthRow(state, month, active, money) {
 
 function savedList(state, active, money) {
   const months = new Set([...monthList(state.months), ...drafts.keys()]);
+  if (movingFrom) months.delete(movingFrom);
   if (active) months.add(active);
   const rows = [...months].sort((a, b) => b.localeCompare(a)).map((m) => monthRow(state, m, active, money)).join('');
   return `<details class="more" data-open="histSaved">
@@ -156,8 +166,10 @@ export function renderHistory(state, money, pay) {
       ${monthPickerHtml('hist', month, monthList(state.months))}
       <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost done'}" data-hist-act="save"${dirty ? '' : ' disabled aria-disabled="true"'}>${dirty ? 'Save' : 'Saved'}</button>
     </div>
-    <div class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</div>
-    ${monthSummary(state, money, pay)}`;
+    <details class="hist-summary" data-open="histSummary">
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</span>${CHEVRON}</summary>
+      ${monthSummary(state, money, pay)}
+    </details>`;
 }
 
 function save() {
@@ -166,10 +178,12 @@ function save() {
   if (!toNumber(pay?.amount)) return toast('Enter a gross salary to save this month');
   const replaced = isSaved(store.getState(), month);
   const gross = grossPay(pay, withProfile(store.getState()));
+  const from = movingFrom;
+  movingFrom = '';
   store.markScopeSaved();
   drafts.delete(month);
-  store.update((s) => { s.months = putMonth(s.months, month, gross); });
-  toast(`${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
+  store.update((s) => { s.months = moveMonth(s.months, from, month, gross); });
+  toast(from ? `Moved ${monthLabel(from, 'long')} to ${monthLabel(month, 'long')}` : `${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
 }
 
 /** Switches the input tab and enters or leaves month editing to match. */

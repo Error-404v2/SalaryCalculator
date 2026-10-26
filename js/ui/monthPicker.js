@@ -13,6 +13,9 @@ const handlers = new Map();
 
 export const onMonthPick = (id, fn) => handlers.set(id, fn);
 const backHandlers = new Map();
+const closeHandlers = new Map();
+/** Runs when picker `id` closes without a pick (a click elsewhere, or Escape). */
+export const onMonthClose = (id, fn) => closeHandlers.set(id, fn);
 /** Shows a "Back to list" link in the picker; `fn` runs when it's pressed. */
 export const onMonthBack = (id, fn) => backHandlers.set(id, fn);
 
@@ -57,8 +60,10 @@ export function renderMonthPicker(host, id, value, saved = []) {
   host.innerHTML = monthPickerHtml(id, value, saved);
 }
 
-function closeAll() {
+function closeAll({ notify = true } = {}) {
+  const was = open.id;
   open.id = '';
+  if (notify && was) setTimeout(() => closeHandlers.get(was)?.());
   $$('.mpick-pop').forEach((p) => (p.hidden = true));
   $$('.mpick-btn').forEach((b) => b.setAttribute('aria-expanded', 'false'));
 }
@@ -76,7 +81,7 @@ export function initMonthPickers() {
 
     if (e.target.closest('[data-mp-toggle]')) {
       const wasOpen = open.id === id;
-      closeAll();
+      closeAll({ notify: wasOpen });
       if (wasOpen) return;
       open.id = id;
       open.year = Number(root.dataset.value.slice(0, 4));
@@ -86,7 +91,7 @@ export function initMonthPickers() {
       return;
     }
     if (e.target.closest('[data-mp-back]')) {
-      closeAll();
+      closeAll({ notify: false });
       return backHandlers.get(id)?.();
     }
     const step = e.target.closest('[data-mp-year]');
@@ -96,7 +101,7 @@ export function initMonthPickers() {
     }
     const pick = e.target.closest('[data-mp-pick]');
     if (pick) {
-      closeAll();
+      closeAll({ notify: false });
       handlers.get(id)?.(pick.dataset.mpPick);
     }
   });

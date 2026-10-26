@@ -1666,5 +1666,30 @@ select option {
   padding-left: 6px;
   padding-right: 6px;
 }
+.hist-summary > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  margin: 14px 0 8px;
+}
+.hist-summary > summary::-webkit-details-marker {
+  display: none;
+}
+.hist-summary > summary .section-title {
+  margin: 0;
+}
+.hist-summary .chev {
+  width: 11px;
+  height: 7px;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.7;
+  transition: transform .15s;
+}
+.hist-summary:not([open]) .chev {
+  transform: rotate(-90deg);
+}
 
 /* css/main.css */
