@@ -35,15 +35,23 @@ Collapsible sections, in this order:
 
 1. **Overtime:** shows the base (×1) hourly rate, gross and net. Choose a type (Holiday ×2, Rest day ×1.7, Weekday ×1.35, Regular ×1, Night ×0.09) or *Custom…*, which unlocks the multiplier. Entries are always sorted. Each one shows its gross and its **real net effect**.
 2. **Allowances & bonuses:** starts with *Transportation 1,000 / month*. Quick-add: Transportation, Profit share (GDP), Bonus. Holds regular allowances (each with its own period and *taxable* / *counts toward SI base* flags) and **cash awards** (amount, currency, exchange rate, period, and net effect).
+   - Period choices depend on the item: Transportation is *Monthly* or *Annual*; Profit share, Bonus, added allowances and cash awards are *One-Time*, *Bi-annual* or *Quarterly*. **One-Time** counts in full in the month it's paid instead of being spread over the year.
    - **Live rate ⟳** fetches today's rate with no setup or API key. It tries open.er-api.com first, then the currency-api on jsDelivr, and caches the result for an hour. The rate box turns **green** on success, or **red** if no source could be reached (enter the rate manually then; typing a rate clears the colour).
-3. **Other deductions:** taken before tax or after tax.
-4. **More options:** social insurance base override, manual taxable amount, **job type**, and compact **Settings** (weeks/year, days/week, hours/day, OT base hours/month, export/import/reset).
+3. **Other deductions:** taken before tax or after tax. Medical insurance is *Monthly* or *Annual*; other deductions can't be daily or hourly.
+4. **More options:** **job type** first, then social insurance base override, manual taxable amount, and compact **Settings** (weeks/year, days/week, hours/day, OT base hours/month, export/import/reset).
 
 Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the right of a single line, with a faded preview of the first options on its left. Clicking it expands the options: the *taxable* / *counts toward SI base* flags, a cash award's period and taxable flag, and a deduction's before-tax flag.
 
 5. **ESPP:** an *On* switch, a tile with this month's constant, variable and total deduction, and the two percentages. *Constant %* applies to basic salary; *Variable %* applies to whatever is ticked under More options → Settings → *ESPP: what counts as variable*. ESPP comes out of net pay after tax.
 
-**History tab** (input card): dated values for gross salary, transportation, medical insurance and ESPP % (the constant and variable percentages share one row per month). A *Saved months* list sits on top: open a month to see every value in force for it. Adding a gross salary also adds Transportation and Medical for that month from the Pay tab. *Save Month* asks which month, and asks before overriding one that exists, then stores all Pay-tab values under it. Each value applies from its month until the next one. *Save current* stores today's Pay-tab value; *Fill Pay tab* loads the values in force for any chosen month. The ESPP ledger uses the value in force for each month.
+**Save Month** (Pay tab): stores the Pay-tab gross salary, transportation, medical insurance and both ESPP percentages under a month. Pick a saved month (nearest first) or *Custom…* for any month. Saving over a month that already exists asks first, inline.
+
+**History tab** (input card):
+- **Saved months:** a collapsible, compact list, newest first, with each month's gross salary. Click a month to open it.
+- **The open month:** its values in the Pay tab's order (gross salary, transportation, medical insurance, ESPP constant and variable %). Values carried over from an earlier month are greyed. Change them and press *Save*; only that month changes. *Delete month* asks inline.
+- **+ New month:** pick a month and start from the Pay tab's current values.
+- **Summary:** the open month's figures as plain line items in the Summary tab's order, updating as you type.
+- Each saved value applies from its month until the next one. The ESPP ledger uses the value in force for each month.
 
 **Results tabs**
 
@@ -56,8 +64,7 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
   - social insurance rates and yearly caps
   - job types
 
-  Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket.
-- **By period:** a table of every period.
+  Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket, and ends with the **By period** table (annual, monthly, daily, hourly).
 - **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
   - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares): blank means forecast; type the actual value to lock it.
   - Forecast rules: USD at the set rate, shares bought at price × (1 − discount), quarterly dividends (Mar/Jun/Sep/Dec) on shares held two months earlier, reinvest fee capped, an entry fee each Jan and Jul.
