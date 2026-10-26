@@ -128,6 +128,10 @@
           <summary>More options</summary>
           <div class="inner">
             <div class="field">
+              <label for="jobSel">Job type</label>
+              <select id="jobSel" data-bind="jobType"></select>
+            </div>
+            <div class="field">
               <label for="siBase">Social insurance base (monthly)</label>
               <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase">
               <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
@@ -139,10 +143,6 @@
                 <select class="period-select" data-bind="overrides.taxablePer" id="ovPer" aria-label="Taxable amount period"></select>
               </div>
               <div class="hint">Replaces the computed taxable income fed into the brackets.</div>
-            </div>
-            <div class="field">
-              <label for="jobSel">Job type</label>
-              <select id="jobSel" data-bind="jobType"></select>
             </div>
               <details class="more" data-open="settings">
                 <summary>Settings</summary>

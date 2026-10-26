@@ -99,6 +99,12 @@ test('a saved By period tab opens the Tax tab, which now holds that table', () =
   assert.equal(hydrate({ ui: { resTab: 'espp' } }).ui.resTab, 'espp');
 });
 
+test('a fresh start has no history and no saved month', () => {
+  const s = hydrate(null);
+  assert.deepEqual(s.history, []);
+  assert.equal(s.ui.histMonth, '');
+});
+
 test('monthsOfYear lists twelve months', () => {
   assert.equal(monthsOfYear(2026).length, 12);
   assert.equal(monthsOfYear(2026)[0], '2026-01');
