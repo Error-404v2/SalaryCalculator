@@ -2011,17 +2011,29 @@
     const panel = $("#saveMonthPanel");
     const select3 = $("#saveMonthSel");
     const picker = $("#saveMonthPick");
-    function save2(month) {
+    const ask = $("#saveMonthAsk");
+    let pending = "";
+    function close() {
+      panel.hidden = true;
+      ask.hidden = true;
+      pending = "";
+    }
+    function commit2(month) {
       const state2 = getState();
-      if (hasMonth(state2.history, month) && !confirm(`${monthLabel(month, "long")} is already saved. Override it with the Pay tab values?`)) return;
       const result = saveMonth(state2.history, month, currentValues(state2));
       if (!result.saved) return toast("Nothing to save \u2014 fill the Pay tab first");
       update((s) => {
         s.history = result.history;
       });
-      panel.hidden = true;
+      close();
       toast(`${result.replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
       onChanged();
+    }
+    function save2(month) {
+      if (!hasMonth(getState().history, month)) return commit2(month);
+      pending = month;
+      $("#saveMonthAskText").textContent = `${monthLabel(month, "long")} is already saved. Override it?`;
+      ask.hidden = false;
     }
     $("#saveMonthBtn").addEventListener("click", () => {
       const now = monthKey(/* @__PURE__ */ new Date());
@@ -2033,9 +2045,11 @@
       select3.value = "custom";
       picker.value = now;
       picker.hidden = true;
+      ask.hidden = true;
       panel.hidden = false;
     });
     select3.addEventListener("change", () => {
+      ask.hidden = true;
       if (select3.value === "custom") {
         picker.hidden = false;
         picker.showPicker?.();
@@ -2044,9 +2058,14 @@
     picker.addEventListener("change", () => {
       if (picker.value) save2(picker.value);
     });
-    $("#saveMonthCancel").addEventListener("click", () => {
-      panel.hidden = true;
+    $("#saveMonthYes").addEventListener("click", () => {
+      if (pending) commit2(pending);
     });
+    $("#saveMonthNo").addEventListener("click", () => {
+      ask.hidden = true;
+      pending = "";
+    });
+    $("#saveMonthCancel").addEventListener("click", close);
   }
 
   // js/main.js

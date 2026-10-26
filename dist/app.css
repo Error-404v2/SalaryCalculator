@@ -1409,5 +1409,15 @@ tr.active td:first-child {
     grid-template-columns: 1fr;
   }
 }
+.save-month .confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: .85rem;
+  color: var(--danger);
+}
+.save-month .confirm[hidden] {
+  display: none;
+}
 
 /* css/main.css */

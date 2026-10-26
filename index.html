@@ -42,6 +42,11 @@
           <select id="saveMonthSel" aria-label="Month to save to"></select>
           <input type="month" id="saveMonthPick" aria-label="Custom month" hidden>
           <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
+          <span class="confirm" id="saveMonthAsk" hidden>
+            <span id="saveMonthAskText"></span>
+            <button class="btn sm danger" id="saveMonthYes">Override</button>
+            <button class="btn sm ghost" id="saveMonthNo">No</button>
+          </span>
         </div>
 
         <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
