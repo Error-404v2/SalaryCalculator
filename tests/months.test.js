@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { snapshotPay, withPay, monthList, monthInForce, putMonth, dropMonth, monthsFromHistory } from '../js/core/months.js';
+import { snapshotPay, withPay, monthList, monthInForce, putMonth, dropMonth, monthsFromHistory, grossPay } from '../js/core/months.js';
 import { DEFAULT_STATE, DEFAULT_PROFILE } from '../js/data/defaults.js';
 import { calculate } from '../js/core/calculator.js';
 import { hydrate } from '../js/state/migrate.js';
+import { groupDigits } from '../js/utils/format.js';
 
 // Synthetic figures only.
 const base = () => ({
@@ -33,14 +34,36 @@ test('withPay applies a month over the state and gives the same figures as typin
   assert.deepEqual(applied.espp.entries, s.espp.entries, 'ESPP ledger is kept, not overwritten');
 });
 
-test('a month saved as Net → Gross keeps that direction, separate from the Pay tab', () => {
-  const s = { ...base(), mode: 'net', amount: '8000' };
+test('a Net → Gross Pay tab is saved as the gross that gives that net', () => {
+  const profile = structuredClone(DEFAULT_PROFILE);
+  const s = { ...base(), mode: 'net', amount: '8000', profile };
+  const pay = grossPay(snapshotPay(s), s);
+  assert.equal(pay.mode, 'gross');
+  const gross = Number(pay.amount);
+  assert.ok(gross > 8000, 'gross is above the target net');
+  const net = calculate({ ...withPay(s, pay), profile }).net / 12;
+  assert.ok(Math.abs(net - 8000) < 0.05, `net ${net} ≈ 8000`);
+});
+
+test('a gross month is stored unchanged', () => {
+  const s = { ...base(), profile: structuredClone(DEFAULT_PROFILE) };
   const pay = snapshotPay(s);
-  assert.equal(pay.mode, 'net');
-  const months = putMonth({}, '2026-04', pay);
-  const back = withPay({ ...base(), mode: 'gross' }, months['2026-04']);
-  assert.equal(back.mode, 'net');
-  assert.equal(back.amount, '8000');
+  assert.deepEqual(grossPay(pay, s), pay);
+});
+
+test('months saved earlier as Net → Gross are converted to gross on load', () => {
+  const pay = { ...snapshotPay(base()), mode: 'net', amount: '8000' };
+  const s = hydrate({ months: { '2026-04': pay } });
+  assert.equal(s.months['2026-04'].mode, 'gross');
+  assert.ok(Number(s.months['2026-04'].amount) > 8000);
+});
+
+test('money fields show grouped digits; the stored value stays plain', () => {
+  assert.equal(groupDigits('45000'), '45,000');
+  assert.equal(groupDigits('1234567.5'), '1,234,567.5');
+  assert.equal(groupDigits('45,000'), '45,000');
+  assert.equal(groupDigits(''), '');
+  assert.equal(groupDigits('12a'), '12a', 'half-typed text is left alone');
 });
 
 test('months: list newest first, in force, put and drop', () => {

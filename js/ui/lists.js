@@ -42,11 +42,14 @@ function updateCounts() {
 
 export const renderAllLists = () => Object.keys(ROW_TEMPLATES).forEach(renderList);
 
+/** "+ ESPP" sits among the deduction chips, just before Loan; it reveals the ESPP fields instead of adding a row. */
+const ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button>';
+
 function renderPresets() {
   $$('[data-presets]').forEach((host) => {
     const kind = host.dataset.presets;
     host.innerHTML = PRESETS[kind]
-      .map((p, i) => `<button class="chip" data-preset="${kind}" data-i="${i}">+ ${escapeHtml(p.name)}</button>`)
+      .map((p, i) => `${kind === 'deductions' && p.name === 'Loan' ? ESPP_CHIP : ''}<button class="chip" data-preset="${kind}" data-i="${i}">+ ${escapeHtml(p.name)}</button>`)
       .join('');
   });
 }
@@ -124,7 +127,10 @@ export function initLists() {
   // Selects are saved on `change` only: saving on `input` re-renders the row and the `change` event would be lost.
   document.addEventListener('input', (e) => {
     const path = e.target.dataset.path;
-    if (path && e.target.tagName !== 'SELECT') store.set(path, e.target.type === 'checkbox' ? e.target.checked : e.target.value);
+    if (path && e.target.tagName !== 'SELECT') {
+      const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+      store.set(path, e.target.hasAttribute('data-money') ? String(value).replace(/,/g, '') : value);
+    }
   });
 
   document.addEventListener('change', (e) => {

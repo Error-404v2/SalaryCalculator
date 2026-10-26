@@ -3,7 +3,7 @@ import { OT_TYPES } from '../data/presets.js';
 import { isPeriod, isItemPeriod } from '../core/periods.js';
 import { sortOvertime } from '../core/overtime.js';
 import { mergeShape } from '../utils/object.js';
-import { monthsFromHistory } from '../core/months.js';
+import { monthsFromHistory, grossPay } from '../core/months.js';
 
 /** v1 stored tax rules at the root; v2 keeps them inside named profiles. */
 function upgradeV1(saved) {
@@ -77,7 +77,16 @@ function restoreMonths(state, saved) {
   return state;
 }
 
+/** Months saved in Net → Gross mode (before months always stored gross) are converted once. */
+function grossMonths(state) {
+  const context = { ...state, profile: state.profiles.find((p) => p.id === state.profileId) ?? state.profiles[0] };
+  for (const [month, pay] of Object.entries(state.months)) {
+    if (pay.mode === 'net') state.months[month] = grossPay(pay, context);
+  }
+  return state;
+}
+
 export function hydrate(saved) {
   const upgraded = upgradeV1(saved);
-  return sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded));
+  return grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded)));
 }

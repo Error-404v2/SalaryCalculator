@@ -1,5 +1,5 @@
 import { $, $$ } from '../utils/dom.js';
-import { escapeHtml } from '../utils/format.js';
+import { escapeHtml, groupDigits } from '../utils/format.js';
 import { PERIODS } from '../core/periods.js';
 import * as store from '../state/store.js';
 
@@ -14,7 +14,7 @@ const readValue = (el) => (el.type === 'checkbox' ? el.checked : el.value);
 export function initBindings() {
   document.addEventListener('input', (e) => {
     const path = e.target.dataset.bind;
-    if (path) store.set(path, readValue(e.target));
+    if (path) store.set(path, e.target.hasAttribute('data-money') ? e.target.value.replace(/,/g, '') : readValue(e.target));
   });
   document.addEventListener('click', (e) => {
     const btn = e.target.closest('[data-seg] button[data-v]');
@@ -26,7 +26,7 @@ export function syncBindings(state) {
   $$('[data-bind]').forEach((el) => {
     const value = store.get(el.dataset.bind);
     if (el.type === 'checkbox') el.checked = !!value;
-    else if (document.activeElement !== el) el.value = value ?? '';
+    else if (document.activeElement !== el) el.value = el.hasAttribute('data-money') ? groupDigits(value) : value ?? '';
   });
   $$('[data-seg]').forEach((seg) => {
     const value = store.get(seg.dataset.seg);

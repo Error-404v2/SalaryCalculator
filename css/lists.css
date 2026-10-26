@@ -105,9 +105,9 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-item[hidden] { display: none; }
 .espp-head { display: flex; justify-content: space-between; align-items: center; width: 100%; }
 .espp-head b { font-size: .9rem; }
-.espp-line { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: 8px; align-items: center; font-size: .88rem; }
-.espp-line .hint { margin: 0; display: inline; }
-.espp-line input { height: 34px; text-align: right; }
+.espp-pcts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
+.espp-field { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 500; min-width: 0; }
+.espp-field .hint { margin: 0; display: inline; font-weight: 400; }
+.espp-field input { height: 36px; }
 .espp-item .quick-tile { margin: 2px 0 0; }
-.chips > span[data-presets] { display: contents; }
 .chip[hidden], .btn[hidden] { display: none; }

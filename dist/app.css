@@ -945,27 +945,30 @@ input.rate-error {
 .espp-head b {
   font-size: .9rem;
 }
-.espp-line {
-  width: 100%;
+.espp-pcts {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 110px;
-  gap: 8px;
-  align-items: center;
-  font-size: .88rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
 }
-.espp-line .hint {
+.espp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: .85rem;
+  font-weight: 500;
+  min-width: 0;
+}
+.espp-field .hint {
   margin: 0;
   display: inline;
+  font-weight: 400;
 }
-.espp-line input {
-  height: 34px;
-  text-align: right;
+.espp-field input {
+  height: 36px;
 }
 .espp-item .quick-tile {
   margin: 2px 0 0;
-}
-.chips > span[data-presets] {
-  display: contents;
 }
 .chip[hidden],
 .btn[hidden] {
@@ -1580,7 +1583,7 @@ select option {
 .hist-net {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: center;
   padding: 8px 12px;
   margin-bottom: 4px;
   border-radius: var(--radius-sm);
@@ -1588,37 +1591,14 @@ select option {
 }
 .hist-net span {
   font-size: 1rem;
+  line-height: 1;
   color: var(--muted);
   font-weight: 600;
 }
 .hist-net b {
   font-size: 1.3rem;
+  line-height: 1;
   color: var(--accent);
-}
-.hist-summary > summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  list-style: none;
-  margin: 14px 0 8px;
-}
-.hist-summary > summary::-webkit-details-marker {
-  display: none;
-}
-.hist-summary > summary .section-title {
-  margin: 0;
-}
-.hist-summary .chev {
-  width: 11px;
-  height: 7px;
-  fill: none;
-  stroke: var(--muted);
-  stroke-width: 1.7;
-  transition: transform .15s;
-}
-.hist-summary:not([open]) .chev {
-  transform: rotate(-90deg);
 }
 .lines.compact .line {
   padding: 3px 0;
@@ -1645,6 +1625,46 @@ select option {
   .save-month {
     padding: 10px 16px;
   }
+}
+.mpick-back {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 6px 0 2px;
+  border: 0;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: .82rem;
+  text-align: left;
+}
+#payFormSlot .field:has(#amount) {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+}
+#payFormSlot .field:has(#amount) > label {
+  margin: 0;
+  white-space: nowrap;
+}
+#payFormSlot #amount {
+  height: 36px;
+  font-size: .92rem;
+  font-weight: 500;
+}
+#payFormSlot #amount + .period-select {
+  height: 36px;
+}
+#payFormSlot #amountHint {
+  display: none;
+}
+.lines.compact .line.entered {
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-radius: 6px;
+  padding-left: 6px;
+  padding-right: 6px;
 }
 
 /* css/main.css */

@@ -15,3 +15,11 @@ export function createMoneyFormatter(currency) {
 }
 
 export const formatPercent = (ratio) => `${(ratio * 100).toFixed(1)}%`;
+
+const grouped = new Intl.NumberFormat('en-US', { maximumFractionDigits: 2 });
+
+/** "45000" → "45,000" for display in an input; anything that isn't a plain number is left as typed. */
+export function groupDigits(value) {
+  const raw = String(value ?? '').replace(/,/g, '').trim();
+  return /^-?\d+(\.\d+)?$/.test(raw) ? grouped.format(Number(raw)) : String(value ?? '');
+}

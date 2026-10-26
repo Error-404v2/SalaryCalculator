@@ -43,18 +43,40 @@
         </span>
       </div>
       <div class="card-body" data-in-panel="pay">
-        <div id="payFormHome"><div id="payForm">
         <div class="row between field">
           <div class="seg" data-seg="mode">
             <button data-v="gross">Gross &rarr; Net</button>
             <button data-v="net">Net &rarr; Gross</button>
           </div>
-          <span id="yearSlot"><select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select></span>
+          <select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select>
         </div>
+        <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
+          <span class="label">Pro-rata</span>
+          <div class="spins">
+            <div class="spin">
+              <span class="spin-label">Month</span>
+              <input type="text" inputmode="numeric" data-bind="payPeriod.months" data-step="1" data-min="0" data-max="24" aria-label="Months">
+              <span class="spin-btns">
+                <button type="button" data-step-btn="1" data-target="payPeriod.months" aria-label="Increase months"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
+                <button type="button" data-step-btn="-1" data-target="payPeriod.months" aria-label="Decrease months"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
+              </span>
+            </div>
+            <div class="spin">
+              <span class="spin-label">Day</span>
+              <input type="text" inputmode="numeric" data-bind="payPeriod.days" data-step="1" data-min="-30" data-max="30" aria-label="Days">
+              <span class="spin-btns">
+                <button type="button" data-step-btn="1" data-target="payPeriod.days" aria-label="Increase days"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
+                <button type="button" data-step-btn="-1" data-target="payPeriod.days" aria-label="Decrease days"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div id="payFormHome"><div id="payForm">
         <div class="field">
           <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
           <div class="row">
-            <input class="big grow" id="amount" type="text" inputmode="decimal" placeholder="e.g. 30,000" data-bind="amount" data-step="100" data-swipe autocomplete="off">
+            <input class="big grow" id="amount" type="text" inputmode="decimal" placeholder="e.g. 30,000" data-bind="amount" data-money data-step="100" data-swipe autocomplete="off">
             <select class="period-select" data-bind="per" id="perSel" aria-label="Salary period"></select>
           </div>
           <div class="hint" id="amountHint"></div>
@@ -85,12 +107,14 @@
         <details class="more" data-open="deductions">
           <summary>Other deductions <span class="count" data-deduction-count></span></summary>
           <div class="inner">
-            <div class="chips"><span data-presets="deductions"></span><button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button></div>
+            <div class="chips" data-presets="deductions"></div>
             <div class="item espp-item" id="esppBlock" hidden>
               <div class="espp-head"><b>ESPP</b><button type="button" class="btn icon ghost danger" data-espp-remove aria-label="Remove ESPP" title="Remove ESPP">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
-              <label class="espp-line"><span>Constant % <span class="hint">of basic</span></span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
-              <label class="espp-line"><span>Variable % <span class="hint">of extras</span></span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
+              <div class="espp-pcts">
+                <label class="espp-field"><span>Constant % <span class="hint">of basic</span></span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
+                <label class="espp-field"><span>Variable % <span class="hint">of extras</span></span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
+              </div>
               <div class="quick-tile" id="esppTile"></div>
             </div>
             <div class="list" data-list="deductions" data-quiet></div>
@@ -110,13 +134,13 @@
             </div>
             <div class="field">
               <label for="siBase">Social insurance base (monthly)</label>
-              <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase">
+              <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase" data-money>
               <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
             </div>
             <div class="field">
               <label for="ovTax">Manual taxable amount</label>
               <div class="row">
-                <input class="grow" id="ovTax" type="text" inputmode="decimal" placeholder="Auto-calculated if empty" data-bind="overrides.taxable">
+                <input class="grow" id="ovTax" type="text" inputmode="decimal" placeholder="Auto-calculated if empty" data-bind="overrides.taxable" data-money>
                 <select class="period-select" data-bind="overrides.taxablePer" id="ovPer" aria-label="Taxable amount period"></select>
               </div>
               <div class="hint">Replaces the computed taxable income fed into the brackets.</div>
@@ -210,7 +234,7 @@
             <details class="more" data-open="exemption">
               <summary>Personal exemption (annual)</summary>
               <div class="inner">
-                <input type="text" inputmode="decimal" data-bind="@.tax.exemption" style="max-width:200px" aria-label="Personal exemption (annual)">
+                <input type="text" inputmode="decimal" data-bind="@.tax.exemption" data-money style="max-width:200px" aria-label="Personal exemption (annual)">
               </div>
             </details>
 

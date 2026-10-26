@@ -72,16 +72,10 @@ select {
 select option { background: var(--surface); color: var(--text); }
 
 /* Summary of the open month */
-.hist-net { display: flex; justify-content: space-between; align-items: baseline; padding: 8px 12px; margin-bottom: 4px; border-radius: var(--radius-sm); background: var(--accent-soft); }
-.hist-net span { font-size: 1rem; color: var(--muted); font-weight: 600; }
-.hist-net b { font-size: 1.3rem; color: var(--accent); }
+.hist-net { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; margin-bottom: 4px; border-radius: var(--radius-sm); background: var(--accent-soft); }
+.hist-net span { font-size: 1rem; line-height: 1; color: var(--muted); font-weight: 600; }
+.hist-net b { font-size: 1.3rem; line-height: 1; color: var(--accent); }
 
-/* Collapsible "Summary of …", same look as the section title, with a down arrow */
-.hist-summary > summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; margin: 14px 0 8px; }
-.hist-summary > summary::-webkit-details-marker { display: none; }
-.hist-summary > summary .section-title { margin: 0; }
-.hist-summary .chev { width: 11px; height: 7px; fill: none; stroke: var(--muted); stroke-width: 1.7; transition: transform .15s; }
-.hist-summary:not([open]) .chev { transform: rotate(-90deg); }
 .lines.compact .line { padding: 3px 0; font-size: .86rem; }
 .lines.compact .line.sep { margin-top: 3px; padding-top: 6px; }
 .lines.compact .line.strong .k, .lines.compact .line.strong .v { font-size: .9rem; }
@@ -91,3 +85,14 @@ select option { background: var(--surface); color: var(--text); }
   .tab-actions .btn { padding: 0 8px; font-size: .78rem; }
   .save-month { padding: 10px 16px; }
 }
+.mpick-back { display: block; width: 100%; margin-top: 6px; padding: 6px 0 2px; border: 0; border-top: 1px solid var(--border); background: none; color: var(--accent); cursor: pointer; font-size: .82rem; text-align: left; }
+
+/* History form: Gross salary on one line, normal field size (the Pay tab keeps the large version) */
+#payFormSlot .field:has(#amount) { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; }
+#payFormSlot .field:has(#amount) > label { margin: 0; white-space: nowrap; }
+#payFormSlot #amount { height: 36px; font-size: .92rem; font-weight: 500; }
+#payFormSlot #amount + .period-select { height: 36px; }
+#payFormSlot #amountHint { display: none; }
+
+/* Entered values in the month's summary: same lines, a subtle tint like the net pay band */
+.lines.compact .line.entered { background: color-mix(in srgb, var(--accent) 7%, transparent); border-radius: 6px; padding-left: 6px; padding-right: 6px; }

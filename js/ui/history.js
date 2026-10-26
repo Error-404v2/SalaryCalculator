@@ -3,6 +3,7 @@ import { escapeHtml } from '../utils/format.js';
 import { toNumber } from '../utils/number.js';
 import {
   monthKey, monthLabel, monthList, monthInForce, snapshotPay, putMonth, dropMonth, applyPay, fromAnnual,
+  grossPay, withPay, calculate,
 } from '../core/index.js';
 import { breakdownLines } from './results/summary.js';
 import { monthPickerHtml, onMonthPick } from './monthPicker.js';
@@ -15,10 +16,12 @@ import * as store from '../state/store.js';
 const drafts = new Map();
 let askDelete = '';
 
-const CHEVRON = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
 const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
 
 const isSaved = (state, month) => !!state.months[month];
+const withProfile = (state) => ({ ...state, profile: store.activeProfile() });
+/** A month's final (net) monthly pay, for the saved-months list. */
+const finalPay = (state, pay) => (toNumber(pay?.amount) > 0 ? calculate({ ...withPay(withProfile(state), pay), profile: store.activeProfile() }).net / 12 : 0);
 const isDirty = (month) => month === store.scopeMonth() ? store.scopeDirty() : drafts.has(month);
 
 /** Keeps unsaved edits of the month being left, so switching back resumes them. */
@@ -34,17 +37,40 @@ function contentFor(state, month) {
   const saved = state.months[month];
   if (saved) return { pay: drafts.get(month) ?? saved, base: saved };
   const before = monthInForce(state.months, month);
-  const start = before ? state.months[before] : snapshotPay(state);
+  const start = before ? state.months[before] : grossPay(snapshotPay(state), withProfile(state));
   return { pay: drafts.get(month) ?? start, base: start };
 }
 
 function open(month) {
   if (month === store.scopeMonth()) return;
+  const current = store.scopeMonth();
+  const state = store.getState();
+  if (current && !isSaved(state, current) && !isSaved(state, month)) {
+    const pay = store.scopePay();
+    drafts.delete(current);
+    store.update((s) => { s.ui.histMonth = month; });
+    store.setScope(month, pay, contentFor(state, month).base);
+    return;
+  }
   stash();
   askDelete = '';
   const { pay, base } = contentFor(store.getState(), month);
   store.update((s) => { s.ui.histMonth = month; });
   store.setScope(month, pay, base);
+}
+
+/**
+ * The month picker: a saved month opens normally; a month not saved yet takes over the open form (its values
+ * carry over) instead of adding another row, and Save becomes active to store it under the picked month.
+ */
+function pickMonth(month) {
+  const state = store.getState();
+  const current = store.scopeMonth();
+  if (isSaved(state, month) || !current || month === current) return open(month);
+  const pay = store.scopePay();
+  drafts.delete(current);
+  store.update((s) => { s.ui.histMonth = month; });
+  store.setScope(month, pay, contentFor(state, month).base);
 }
 
 /** The month "+ New" opens: this month if it isn't saved, else the month after the newest saved one. */
@@ -88,7 +114,7 @@ function monthRow(state, month, active, money) {
   const now = month === monthKey(new Date()) ? '<span class="hint">now</span>' : '';
   return `<div class="month-row${month === active ? ' on' : ''}">
     <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
-      <span class="hint">${pay && toNumber(pay.amount) ? money(toNumber(pay.amount)) : '—'}</span></button>
+      <span class="hint" title="Net pay">${finalPay(state, pay) ? money(finalPay(state, pay)) : '—'}</span></button>
     <button type="button" class="btn icon ghost danger" data-hist-del="${month}" aria-label="${isSaved(state, month) ? 'Delete' : 'Discard'} ${name}"
       title="${isSaved(state, month) ? 'Delete month' : 'Discard'}">${RED_MINUS}</button>
   </div>`;
@@ -113,7 +139,7 @@ function monthSummary(state, money, pay) {
   if (!r) return '<div class="hint">Enter a gross salary below to see this month’s figures.</div>';
   const at = (annual) => money(fromAnnual(annual, 'month', state.schedule, pay.factor));
   return `<div class="hist-net"><span>Net pay</span><b>${at(r.net)}</b></div>
-    <div class="lines compact">${breakdownLines(r, state, at, { net: false })}</div>`;
+    <div class="lines compact">${breakdownLines(r, state, at, { net: false, entered: true })}</div>`;
 }
 
 export function renderHistory(state, money, pay) {
@@ -130,10 +156,8 @@ export function renderHistory(state, money, pay) {
       ${monthPickerHtml('hist', month, monthList(state.months))}
       <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost done'}" data-hist-act="save"${dirty ? '' : ' disabled aria-disabled="true"'}>${dirty ? 'Save' : 'Saved'}</button>
     </div>
-    <details class="hist-summary" data-open="histSummary">
-      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</span>${CHEVRON}</summary>
-      ${monthSummary(state, money, pay)}
-    </details>`;
+    <div class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</div>
+    ${monthSummary(state, money, pay)}`;
 }
 
 function save() {
@@ -141,9 +165,10 @@ function save() {
   const pay = store.scopePay();
   if (!toNumber(pay?.amount)) return toast('Enter a gross salary to save this month');
   const replaced = isSaved(store.getState(), month);
+  const gross = grossPay(pay, withProfile(store.getState()));
   store.markScopeSaved();
   drafts.delete(month);
-  store.update((s) => { s.months = putMonth(s.months, month, pay); });
+  store.update((s) => { s.months = putMonth(s.months, month, gross); });
   toast(`${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
 }
 
@@ -181,12 +206,11 @@ function remove(month) {
 
 export function syncHistoryBar(state) {
   $('#fillPayBtn').hidden = state.ui.inTab !== 'history' || !store.scopeMonth();
-  $('#yearSlot').hidden = !!store.scopeMonth();
 }
 
 export function initHistory(onChanged) {
   syncHistoryScope();
-  onMonthPick('hist', (month) => { open(month); onChanged(); });
+  onMonthPick('hist', (month) => { pickMonth(month); onChanged(); });
   $('#fillPayBtn').addEventListener('click', () => { fillPay(); onChanged(); });
 
   document.addEventListener('click', (e) => {

@@ -15,6 +15,7 @@ import { initEspp, renderEsppInputs, renderEsppTab, resetEsppAdded } from './ui/
 import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab } from './ui/history.js';
 import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
+import { initMoneyInputs } from './ui/numberInputs.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -75,6 +76,7 @@ function rebuild() {
 
 initTabs();
 initMonthPickers();
+initMoneyInputs();
 initBindings();
 initLists();
 initCollapsibles();

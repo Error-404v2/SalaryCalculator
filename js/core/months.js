@@ -1,6 +1,8 @@
 import { clone } from '../utils/object.js';
-import { isFilled } from '../utils/number.js';
+import { isFilled, toNumber } from '../utils/number.js';
 import { HISTORY_FIELDS } from './history.js';
+import { solveForNet } from './solver.js';
+import { toAnnual, fromAnnual } from './periods.js';
 
 /**
  * A saved month is a full copy of the Pay tab's inputs for that month, so the History tab can show and
@@ -23,6 +25,19 @@ export function snapshotPay(state) {
     else pay[key] = clone(state[key]);
   }
   return pay;
+}
+
+/**
+ * Saved months always hold a gross salary. A Pay tab in Net → Gross mode is solved first, so the month
+ * stores the gross that gives that take-home, in the same period the user entered.
+ * `context` supplies what the solver needs from the app (tax profile, schedule, year).
+ */
+export function grossPay(pay, context) {
+  if (pay.mode !== 'net' || !(toNumber(pay.amount) > 0)) return { ...clone(pay), mode: 'gross' };
+  const input = { ...context, ...withPay(context, pay) };
+  const solved = solveForNet(input, toAnnual(pay.amount, pay.per, input.schedule));
+  const gross = fromAnnual(solved.baseAnnual, pay.per, input.schedule);
+  return { ...clone(pay), mode: 'gross', amount: String(Math.round(gross * 100) / 100) };
 }
 
 /** The state with a saved month's Pay inputs applied over it, for calculating or editing that month. */

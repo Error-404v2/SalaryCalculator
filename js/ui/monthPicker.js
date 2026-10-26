@@ -12,6 +12,20 @@ const open = { id: '', year: 0 };
 const handlers = new Map();
 
 export const onMonthPick = (id, fn) => handlers.set(id, fn);
+const backHandlers = new Map();
+/** Shows a "Back to list" link in the picker; `fn` runs when it's pressed. */
+export const onMonthBack = (id, fn) => backHandlers.set(id, fn);
+
+/** Opens picker `id` (already in the page) as if its button was pressed. */
+export function openMonthPicker(id) {
+  const root = document.querySelector(`.mpick[data-mpick="${id}"]`);
+  if (!root) return;
+  open.id = id;
+  open.year = Number(root.dataset.value.slice(0, 4));
+  refill(root);
+  root.querySelector('.mpick-pop').hidden = false;
+  root.querySelector('.mpick-btn').setAttribute('aria-expanded', 'true');
+}
 
 function popHtml(year, value, saved) {
   const now = monthKey(new Date());
@@ -50,7 +64,8 @@ function closeAll() {
 }
 
 function refill(root) {
-  root.querySelector('.mpick-pop').innerHTML = popHtml(open.year, root.dataset.value, root.dataset.saved.split(',').filter(Boolean));
+  const back = backHandlers.has(root.dataset.mpick) ? '<button type="button" class="mpick-back" data-mp-back>‹ Back to list</button>' : '';
+  root.querySelector('.mpick-pop').innerHTML = popHtml(open.year, root.dataset.value, root.dataset.saved.split(',').filter(Boolean)) + back;
 }
 
 export function initMonthPickers() {
@@ -69,6 +84,10 @@ export function initMonthPickers() {
       root.querySelector('.mpick-pop').hidden = false;
       root.querySelector('.mpick-btn').setAttribute('aria-expanded', 'true');
       return;
+    }
+    if (e.target.closest('[data-mp-back]')) {
+      closeAll();
+      return backHandlers.get(id)?.();
     }
     const step = e.target.closest('[data-mp-year]');
     if (step) {

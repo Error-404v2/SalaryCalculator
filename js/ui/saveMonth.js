@@ -1,7 +1,7 @@
 import { $, toast } from '../utils/dom.js';
 import { toNumber } from '../utils/number.js';
-import { monthKey, monthLabel, monthList, nearestFirst, putMonth, snapshotPay } from '../core/index.js';
-import { monthPickerHtml, onMonthPick } from './monthPicker.js';
+import { monthKey, monthLabel, monthList, nearestFirst, putMonth, snapshotPay, grossPay } from '../core/index.js';
+import { monthPickerHtml, onMonthPick, onMonthBack, openMonthPicker } from './monthPicker.js';
 import * as store from '../state/store.js';
 
 const CUSTOM = 'custom';
@@ -34,11 +34,21 @@ export function initSaveMonth(onChanged, onSaved) {
     select.hidden = true;
   }
 
+  /** Back to the dropdown, starting over from its first choice. */
+  function showList() {
+    pickHost.hidden = true;
+    pickHost.innerHTML = '';
+    select.hidden = false;
+    select.selectedIndex = 0;
+    ask.hidden = true;
+  }
+
   function commit(month) {
     const state = store.getState();
     if (!toNumber(state.amount)) return toast('Enter a gross salary first');
     const replaced = !!state.months[month];
-    store.update((s) => { s.months = putMonth(s.months, month, snapshotPay(s)); s.ui.histMonth = month; });
+    const pay = grossPay(snapshotPay(state), { ...state, profile: store.activeProfile() });
+    store.update((s) => { s.months = putMonth(s.months, month, pay); s.ui.histMonth = month; });
     close();
     toast(`${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
     onSaved(month);
@@ -57,10 +67,11 @@ export function initSaveMonth(onChanged, onSaved) {
     const now = monthKey(new Date());
     const months = nearestFirst(monthList(store.getState().months), now);
     select.innerHTML = [
-      `<option value="${CUSTOM}">Custom…</option>`,
+      `<option value="" disabled>Choose a month…</option>`,
       ...months.map((m) => `<option value="${m}">${monthLabel(m, 'long')}</option>`),
+      `<option value="${CUSTOM}">Custom…</option>`,
     ].join('');
-    select.value = months.includes(now) ? now : CUSTOM;
+    select.value = months.includes(now) ? now : '';
     custom = now;
     pickHost.hidden = true;
     select.hidden = false;
@@ -72,8 +83,11 @@ export function initSaveMonth(onChanged, onSaved) {
 
   select.addEventListener('change', () => {
     ask.hidden = true;
-    if (select.value === CUSTOM) drawPicker();
+    if (select.value !== CUSTOM) return;
+    drawPicker();
+    openMonthPicker('save');
   });
+  onMonthBack('save', showList);
 
   onMonthPick('save', (month) => {
     custom = month;

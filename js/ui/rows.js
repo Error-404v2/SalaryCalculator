@@ -1,4 +1,4 @@
-import { escapeHtml } from '../utils/format.js';
+import { escapeHtml, groupDigits } from '../utils/format.js';
 import { OT_TYPES } from '../data/presets.js';
 import { CURRENCIES } from '../data/defaults.js';
 import { otType } from '../core/overtime.js';
@@ -11,9 +11,9 @@ import { rateStatus } from './rateFetcher.js';
 const removeBtn = (path, i) => `<button class="btn icon ghost danger" data-del="${path}" data-i="${i}" aria-label="Remove" title="Remove">
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button>`;
 
-const text = (path, i, key, value, placeholder = '', { numeric = false, disabled = false, cls = '' } = {}) =>
-  `<input type="text" class="${cls}"${numeric ? ' inputmode="decimal"' : ''}${disabled ? ' disabled' : ''} data-path="${path}.${i}.${key}"
-    value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder || key)}">`;
+const text = (path, i, key, value, placeholder = '', { numeric = false, disabled = false, cls = '', money = false } = {}) =>
+  `<input type="text" class="${cls}"${numeric ? ' inputmode="decimal"' : ''}${money ? ' data-money' : ''}${disabled ? ' disabled' : ''} data-path="${path}.${i}.${key}"
+    value="${escapeHtml(money ? groupDigits(value) : value)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder || key)}">`;
 
 const num = (path, i, key, value, placeholder, extra = {}) => text(path, i, key, value, placeholder, { ...extra, numeric: true });
 
@@ -30,7 +30,7 @@ const LEVY_BASES = [{ value: 'gross', label: 'Gross' }, { value: 'taxable', labe
 /** `ctx` carries per-render info: { currency, money, impacts: { overtime: [], cashAwards: [] } }. */
 export const ROW_TEMPLATES = {
   incomes: (it, i) => `<div class="item income">
-    ${text('incomes', i, 'name', it.name, 'Name')}${num('incomes', i, 'amount', it.amount, 'Amount')}
+    ${text('incomes', i, 'name', it.name, 'Name')}${num('incomes', i, 'amount', it.amount, 'Amount', { money: true })}
     ${select('incomes', i, 'per', periodOptions(it.per, itemPeriods('incomes', it)))}${removeBtn('incomes', i)}
     ${advanced('incomes', i, `${check('incomes', i, 'taxable', it.taxable, 'Taxable')}${check('incomes', i, 'insurable', it.insurable, 'Counts toward SI base')}`)}</div>`,
 
@@ -58,7 +58,7 @@ export const ROW_TEMPLATES = {
       ? `<div class="impact"><span>${ctx.money(impact.annual * ctx.factor)} gross / yr</span><b>${ctx.money(impact.netAnnual * ctx.factor)} net / yr</b></div>`
       : '';
     return `<div class="item award">
-      ${text('cashAwards', i, 'name', it.name, 'Name')}${num('cashAwards', i, 'amount', it.amount, 'Amount')}
+      ${text('cashAwards', i, 'name', it.name, 'Name')}${num('cashAwards', i, 'amount', it.amount, 'Amount', { money: true })}
       ${select('cashAwards', i, 'currency', optionList(currencies, it.currency))}${removeBtn('cashAwards', i)}
       ${foreign ? rateRow : ''}
       ${advanced('cashAwards', i, `${select('cashAwards', i, 'per', periodOptions(it.per, itemPeriods('cashAwards', it)), 'xs-select')}${check('cashAwards', i, 'taxable', it.taxable, 'Taxable')}`)}
@@ -66,7 +66,7 @@ export const ROW_TEMPLATES = {
   },
 
   deductions: (it, i) => `<div class="item income">
-    ${text('deductions', i, 'name', it.name, 'Name')}${num('deductions', i, 'amount', it.amount, 'Amount')}
+    ${text('deductions', i, 'name', it.name, 'Name')}${num('deductions', i, 'amount', it.amount, 'Amount', { money: true })}
     ${select('deductions', i, 'per', periodOptions(it.per, itemPeriods('deductions', it)))}${removeBtn('deductions', i)}
     ${advanced('deductions', i, check('deductions', i, 'pretax', it.pretax, 'Before tax (reduces taxable income)'))}</div>`,
 
