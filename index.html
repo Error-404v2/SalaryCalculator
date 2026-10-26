@@ -84,23 +84,21 @@
         </details>
 
         <details class="more" data-open="deductions">
-          <summary>Other deductions <span class="count" data-count="deductions"></span></summary>
+          <summary>Other deductions <span class="count" data-deduction-count></span></summary>
           <div class="inner">
-            <div class="chips" data-presets="deductions"></div>
-            <div class="list" data-list="deductions"></div>
-            <button class="btn" data-add="deductions">+ Add deduction</button>
-          </div>
-        </details>
-
-        <details class="more" data-open="espp">
-          <summary>ESPP <span class="count" data-espp-locked></span></summary>
-          <div class="inner">
-            <div class="quick-tile" id="esppTile"></div>
-            <div id="esppFields" class="compact-grid two">
-              <label>Constant % <span class="hint">of basic</span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
-              <label>Variable % <span class="hint">of extras</span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
+            <div class="chips"><span data-presets="deductions"></span><button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button></div>
+            <div class="item espp-item" id="esppBlock" hidden>
+              <div class="espp-head"><b>ESPP</b><button type="button" class="btn icon ghost danger" data-espp-remove aria-label="Remove ESPP" title="Remove ESPP">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+              <label class="espp-line"><span>Constant % <span class="hint">of basic</span></span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
+              <label class="espp-line"><span>Variable % <span class="hint">of extras</span></span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
+              <div class="quick-tile" id="esppTile"></div>
             </div>
-            <div class="hint">Taken from net pay after tax. Ledger, forecast and withdrawal are on the <b>ESPP</b> tab.</div>
+            <div class="list" data-list="deductions" data-quiet></div>
+            <div class="row wrap">
+              <button class="btn" data-add="deductions">+ Add deduction</button>
+              <button class="btn" data-espp-show id="esppAddBtn">+ Add ESPP</button>
+            </div>
           </div>
         </details>
 

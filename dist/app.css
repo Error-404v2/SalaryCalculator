@@ -924,6 +924,53 @@ input.rate-error {
   margin: 14px 0 6px;
   font-weight: 600;
 }
+.item.espp-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin-bottom: 8px;
+  grid-template-columns: none;
+  text-align: left;
+}
+.espp-item[hidden] {
+  display: none;
+}
+.espp-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+.espp-head b {
+  font-size: .9rem;
+}
+.espp-line {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 8px;
+  align-items: center;
+  font-size: .88rem;
+}
+.espp-line .hint {
+  margin: 0;
+  display: inline;
+}
+.espp-line input {
+  height: 34px;
+  text-align: right;
+}
+.espp-item .quick-tile {
+  margin: 2px 0 0;
+}
+.chips > span[data-presets] {
+  display: contents;
+}
+.chip[hidden],
+.btn[hidden] {
+  display: none;
+}
 
 /* css/tables.css */
 .table-wrap {

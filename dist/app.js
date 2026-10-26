@@ -164,7 +164,6 @@
     ],
     deductions: [
       { name: "Medical insurance", amount: "230.8", per: "month", pretax: false },
-      { name: "Pension plan", amount: "", per: "month", pretax: true },
       { name: "Loan", amount: "", per: "month", pretax: false }
     ]
   };
@@ -1774,13 +1773,25 @@
   ];
   var fixed = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "";
   var usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
-  function renderEsppInputs(result, money) {
-    const tile2 = $("#esppTile");
-    if (!tile2) return;
+  var esppAdded = false;
+  var hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0;
+  var esppShown = (s) => esppAdded || hasEsppPct(s);
+  function renderEsppInputs(result, money, state2) {
+    const block = $("#esppBlock");
+    if (!block) return;
+    const shown = esppShown(state2);
+    block.hidden = !shown;
+    $$("[data-espp-show]").forEach((b) => b.hidden = shown);
+    const count = state2.deductions.length + (shown ? 1 : 0);
+    $$("[data-deduction-count]").forEach((b) => b.textContent = count ? String(count) : "");
+    if (!shown) return;
     const e = result?.espp;
-    tile2.innerHTML = e?.total ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
+    $("#esppTile").innerHTML = e?.total ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
        <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
        <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
+  }
+  function resetEsppAdded() {
+    esppAdded = false;
   }
   function tile(label, a, b, tone = "") {
     return `<div class="etile ${tone}"><div class="k">${label}</div>
@@ -1877,6 +1888,18 @@
   }
   function initEspp(onChanged) {
     document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-espp-show]")) {
+        esppAdded = true;
+        onChanged();
+        $("#esppBlock input")?.focus();
+        return;
+      }
+      if (e.target.closest("[data-espp-remove]")) {
+        esppAdded = false;
+        set("espp.constPct", "");
+        set("espp.varPct", "");
+        return onChanged();
+      }
       const live = e.target.closest("[data-espp-live]");
       if (live) return fetchLive(live.dataset.esppLive, live);
       const year = e.target.closest("[data-espp-year] button");
@@ -1901,10 +1924,6 @@
     document.addEventListener("focusout", (e) => {
       if (e.target.dataset.esppEntry) setTimeout(onChanged);
     });
-  }
-  function syncEsppCounts(state2) {
-    const locked = Object.keys(state2.espp.entries).length;
-    $$("[data-espp-locked]").forEach((b) => b.textContent = locked ? String(locked) : "");
   }
 
   // js/ui/monthPicker.js
@@ -2251,6 +2270,7 @@
     const adjusted = proRataInput(input, factor);
     return withImpacts(adjusted, calculate(adjusted, full.baseAnnual));
   }
+  var lastForm = "";
   function render(state2) {
     const input = { ...state2, profile: activeProfile() };
     const money = createMoneyFormatter(input.profile.currency);
@@ -2272,8 +2292,11 @@
       impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] }
     });
     renderResults(result, input, money, pay);
-    renderEsppInputs(pay.result ?? result, money);
-    syncEsppCounts(state2);
+    if (scopeMonth() !== lastForm) {
+      lastForm = scopeMonth();
+      resetEsppAdded();
+    }
+    renderEsppInputs(pay.result ?? result, money, state2);
     if (state2.ui.inTab === "history") {
       renderHistory(input, money, pay);
       syncCollapsibles(state2);

@@ -4,6 +4,7 @@ import { monthLabel } from '../core/history.js';
 import { getRate } from '../services/exchangeRates.js';
 import { getStockPrice } from '../services/stockPrice.js';
 import * as store from '../state/store.js';
+import { toNumber } from '../utils/number.js';
 
 /** The yellow, lockable columns of the sheet: blank = forecast, a value = actual. */
 const LOCKABLE = [
@@ -16,16 +17,32 @@ const LOCKABLE = [
 const fixed = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : '');
 const usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 
-// ---------- salary card: compact ESPP block ----------
-export function renderEsppInputs(result, money) {
-  const tile = $('#esppTile');
-  if (!tile) return;
+// ---------- Pay form: ESPP as the first entry of Other deductions ----------
+/** ESPP shows once added (+ ESPP / + Add ESPP) or while a % is above 0; it's added per form (Pay or a month). */
+let esppAdded = false;
+const hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0;
+export const esppShown = (s) => esppAdded || hasEsppPct(s);
+
+export function renderEsppInputs(result, money, state) {
+  const block = $('#esppBlock');
+  if (!block) return;
+  const shown = esppShown(state);
+  block.hidden = !shown;
+  $$('[data-espp-show]').forEach((b) => (b.hidden = shown));
+  const count = state.deductions.length + (shown ? 1 : 0);
+  $$('[data-deduction-count]').forEach((b) => (b.textContent = count ? String(count) : ''));
+  if (!shown) return;
   const e = result?.espp;
-  tile.innerHTML = e?.total
+  $('#esppTile').innerHTML = e?.total
     ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
        <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
        <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>`
     : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
+}
+
+/** A different form (Pay, or another month) starts without a pending "+ ESPP". */
+export function resetEsppAdded() {
+  esppAdded = false;
 }
 
 // ---------- ESPP tab ----------
@@ -136,6 +153,18 @@ async function fetchLive(kind, button) {
 
 export function initEspp(onChanged) {
   document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-espp-show]')) {
+      esppAdded = true;
+      onChanged();
+      $('#esppBlock input')?.focus();
+      return;
+    }
+    if (e.target.closest('[data-espp-remove]')) {
+      esppAdded = false;
+      store.set('espp.constPct', '');
+      store.set('espp.varPct', '');
+      return onChanged();
+    }
     const live = e.target.closest('[data-espp-live]');
     if (live) return fetchLive(live.dataset.esppLive, live);
     const year = e.target.closest('[data-espp-year] button');
@@ -162,7 +191,3 @@ export function initEspp(onChanged) {
   });
 }
 
-export function syncEsppCounts(state) {
-  const locked = Object.keys(state.espp.entries).length;
-  $$('[data-espp-locked]').forEach((b) => (b.textContent = locked ? String(locked) : ''));
-}

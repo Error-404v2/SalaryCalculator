@@ -14,7 +14,6 @@ export const PRESETS = {
   ],
   deductions: [
     { name: 'Medical insurance', amount: '230.8', per: 'month', pretax: false },
-    { name: 'Pension plan', amount: '', per: 'month', pretax: true },
     { name: 'Loan', amount: '', per: 'month', pretax: false },
   ],
 };
