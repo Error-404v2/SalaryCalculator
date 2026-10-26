@@ -70,6 +70,13 @@ export const ROW_TEMPLATES = {
     ${select('deductions', i, 'per', periodOptions(it.per, itemPeriods('deductions', it)))}${removeBtn('deductions', i)}
     ${advanced('deductions', i, check('deductions', i, 'pretax', it.pretax, 'Before tax (reduces taxable income)'))}</div>`,
 
+  'espp.payrollTax': (e, i) => {
+    const p = 'espp.payrollTax';
+    return `<tr><td><input type="date" data-path="${p}.${i}.date" value="${escapeHtml(e.date)}" aria-label="Payroll date"></td>
+      <td>${num(p, i, 'gains', e.gains, 'gains')}</td><td>${num(p, i, 'tax', e.tax, 'tax')}</td>
+      <td>${num(p, i, 'rate', e.rate, 'rate')}</td><td>${removeBtn(p, i)}</td></tr>`;
+  },
+
   '@.tax.brackets': (b, i) => {
     const p = '@.tax.brackets';
     return `<tr><td>${num(p, i, 'rate', b.rate, '%')}</td><td>${num(p, i, 'min', b.min, '0')}</td>

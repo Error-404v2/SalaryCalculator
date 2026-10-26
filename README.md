@@ -63,6 +63,12 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
   - job types
 
   Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket, and ends with the **By period** table (annual, monthly, daily, hourly).
+- **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
+  - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares): blank means forecast; type the actual value to lock it.
+  - Forecast rules: each month's deduction comes from the saved month in force (the *Stocks* %), USD at the set rate, shares bought at price × (1 − discount), quarterly dividends (Mar/Jun/Sep/Dec) on shares held two months earlier, reinvest fee capped, an entry fee each Jan and Jul.
+  - **Withdrawal** = (shares × price − withdrawal fee − tax still due) × USD rate, where tax still due = tax % × un-taxed gains − tax already paid through payroll (*Payroll tax events*).
+  - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
+  - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it.
 - **Employer cost:** the real tax rate, including employer social insurance.
 
 ### How the net effect of overtime and cash awards is calculated
@@ -89,12 +95,15 @@ js/
     proRata.js       month/day pro-rata input adjustment
     history.js       month keys and labels, old per-field history
     months.js        saved months (full Pay copies), gross conversion, moves
+    espp.js          ESPP ledger, summary, payroll tax, adjusted month
+    esppForecast.js  ESPP report from saved months
   data/              Egypt 2026 profile, presets, currencies
   state/             store ("@." paths = active profile), migration, localStorage
   ui/                tabs, form bindings, collapsibles, row templates, lists,
                      tax profiles, settings, swipe stepper, advanced toggles
     results/         one renderer per results tab
-  services/          http.js (timeouts, fallbacks, cache), exchangeRates.js (live + dated FX)
+  services/          http.js (timeouts, fallbacks, cache), exchangeRates.js (live + dated FX),
+                     stockPrice.js (key-less share price)
   utils/             number, format, dom, object helpers
 tests/               node:test unit tests for core/
 ```

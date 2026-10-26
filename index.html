@@ -188,6 +188,7 @@
       <nav class="tabs" role="tablist" data-tabs>
         <button class="tab" role="tab" data-tab="summary">Summary</button>
         <button class="tab" role="tab" data-tab="tax">Tax</button>
+        <button class="tab" role="tab" data-tab="espp">ESPP</button>
         <button class="tab" role="tab" data-tab="employer">Employer cost</button>
       </nav>
 
@@ -283,6 +284,45 @@
           </div>
 
           <div data-view="tax"></div>
+        </div>
+
+        <div class="panel" data-panel="espp" hidden>
+          <div data-view="espp"></div>
+
+          <details class="more" data-open="esppAssumptions" style="margin-top:14px">
+            <summary>Assumptions &amp; live data</summary>
+            <div class="inner">
+              <div class="compact-grid">
+                <label>Symbol<input type="text" data-bind="espp.symbol" maxlength="8"></label>
+                <label>Share price $<span class="row"><input type="text" inputmode="decimal" data-bind="espp.assumptions.price"><button type="button" class="btn sm ghost live" data-espp-live="price" title="Get the price online"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button></span></label>
+                <label>1 USD =<span class="row"><input type="text" inputmode="decimal" data-bind="espp.assumptions.fx"><button type="button" class="btn sm ghost live" data-espp-live="fx" title="Get the rate online"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg></button></span></label>
+                <label>Discount %<input type="text" inputmode="decimal" data-bind="espp.assumptions.discount"></label>
+                <label>Dividend $/share<input type="text" inputmode="decimal" data-bind="espp.assumptions.dividend"></label>
+                <label>Reinvest fee %<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestRate"></label>
+                <label>Reinvest cap $<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestCap"></label>
+                <label>Fee in $ (Jan/Jul)<input type="text" inputmode="decimal" data-bind="espp.assumptions.feeIn"></label>
+                <label>Tax on gains %<input type="text" inputmode="decimal" data-bind="espp.assumptions.taxRate"></label>
+                <label>Withdrawal fee $<input type="text" inputmode="decimal" data-bind="espp.assumptions.withdrawalFee"></label>
+                <label title="Before this day of the month, the current month is not settled yet">Change day<input type="text" inputmode="numeric" data-bind="espp.changeDay"></label>
+                <label title="Shift the adjusted month by this many months">Month offset<input type="text" inputmode="numeric" data-bind="espp.monthOffset"></label>
+              </div>
+              <div class="hint">Price: free Alpha Vantage demo (works for IBM). Rate: free currency API. Green = fetched, red = unavailable, so type it.</div>
+            </div>
+          </details>
+
+          <details class="more" data-open="esppPayroll">
+            <summary>Payroll tax events <span class="count" data-count="espp.payrollTax"></span></summary>
+            <div class="inner">
+              <div class="table-wrap">
+                <table class="edit-table">
+                  <thead><tr><th>Payroll date</th><th>Total gains</th><th>Tax paid</th><th>USD rate</th><th></th></tr></thead>
+                  <tbody data-list="espp.payrollTax"></tbody>
+                </table>
+              </div>
+              <div class="hint">Tax already withheld through payroll on ESPP gains. It is subtracted from the tax still due at withdrawal.</div>
+              <div class="row" style="margin-top:8px"><button class="btn" data-add="espp.payrollTax">+ Add event</button></div>
+            </div>
+          </details>
         </div>
 
         <div class="panel" data-panel="employer" hidden><div data-view="employer"></div></div>
