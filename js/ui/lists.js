@@ -60,7 +60,7 @@ function refresh(path) {
   const host = $(`[data-list="${path}"]`);
   if (host?.contains(document.activeElement)) document.activeElement.blur();
   renderList(path);
-  if (AFFECTS_SELECTS.includes(path)) fillSelects(store.getState());
+  if (AFFECTS_SELECTS.includes(path)) fillSelects(store.view());
 }
 
 function newRow(path) {
@@ -137,7 +137,7 @@ export function initLists() {
       return refresh('overtime');
     }
     if (/^cashAwards\.\d+\.currency$/.test(path)) return refresh('cashAwards');
-    if (AFFECTS_SELECTS.some((src) => path.startsWith(`${src}.`))) fillSelects(store.getState());
+    if (AFFECTS_SELECTS.some((src) => path.startsWith(`${src}.`))) fillSelects(store.view());
   });
 
   document.addEventListener('focusout', (e) => {

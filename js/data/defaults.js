@@ -70,6 +70,8 @@ export const DEFAULT_STATE = Object.freeze({
   },
   /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
   history: [],
+  /** Saved months: "YYYY-MM" → a full copy of the Pay tab inputs for that month (see core/months.js). */
+  months: {},
   ui: {
     inTab: 'pay',
     resTab: 'summary',

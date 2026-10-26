@@ -98,11 +98,11 @@ test('ESPP is on only while a percentage is above 0', () => {
   assert.ok(at('0', '5') >= 0 && at('0', '0') === 0);
 });
 
-test('ESPP months use history: salary rise changes the forecast deduction', () => {
+test('ESPP months use saved months: a July raise changes July onwards', () => {
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
     espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '10', assumptions: A },
-    history: [{ field: 'salary', from: '2030-07', value: '20000' }],
+    months: { '2030-07': { amount: '20000', per: 'month' } },
     ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
   };
   const rep = esppReport(s, new Date(2030, 11, 31));

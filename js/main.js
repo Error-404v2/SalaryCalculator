@@ -12,8 +12,9 @@ import { initSettings, syncSettings } from './ui/settings.js';
 import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
 import { initEspp, renderEsppInputs, renderEsppTab, syncEsppCounts } from './ui/espp.js';
-import { initHistory, renderHistory } from './ui/history.js';
-import { initSaveMonth } from './ui/saveMonth.js';
+import { initHistory, renderHistory, placePayForm, syncHistoryBar } from './ui/history.js';
+import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
+import { initMonthPickers } from './ui/monthPicker.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -31,6 +32,7 @@ function computeProRata(input, full, factor) {
   return withImpacts(adjusted, calculate(adjusted, full.baseAnnual));
 }
 
+/** `state` is the store's view: the Pay tab, or on the History tab the month being edited. */
 function render(state) {
   const input = { ...state, profile: store.activeProfile() };
   const money = createMoneyFormatter(input.profile.currency);
@@ -39,6 +41,9 @@ function render(state) {
   pay.result = computeProRata(input, result, pay.factor);
 
   syncTabs(state);
+  placePayForm(state);
+  syncSaveMonth(state);
+  syncHistoryBar(state);
   syncCollapsibles(state);
   syncBindings(state);
   syncProfiles(state);
@@ -53,20 +58,21 @@ function render(state) {
   renderEsppInputs(pay.result ?? result, money);
   syncEsppCounts(state);
   if (state.ui.inTab === 'history') {
-    renderHistory(state, money);
+    renderHistory(input, money, pay);
     syncCollapsibles(state);
   }
   if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
 }
 
 function rebuild() {
-  const state = store.getState();
+  const state = store.view();
   fillSelects(state);
   renderAllLists();
   render(state);
 }
 
 initTabs();
+initMonthPickers();
 initBindings();
 initLists();
 initCollapsibles();

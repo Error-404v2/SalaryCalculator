@@ -1,26 +1,13 @@
-import { isFilled, toNumber } from '../utils/number.js';
+import { toNumber } from '../utils/number.js';
 import { calculate } from './calculator.js';
-import { valueAt, monthKey } from './history.js';
+import { monthKey } from './history.js';
+import { monthInForce, withPay } from './months.js';
 import { buildLedger, summarize, payrollTax, adjustedMonth } from './espp.js';
 
-/** History-tracked values applied onto the calculator input for one month. */
+/** The calculator input for one month: the saved month in force then, or the Pay tab when none is saved yet. */
 export function inputForMonth(input, month) {
-  const h = input.history;
-  const amount = valueAt(h, 'salary', month, input.amount);
-  const swap = (list, name, field) => list.map((it) =>
-    it.name?.toLowerCase().startsWith(name) ? { ...it, amount: valueAt(h, field, month, it.amount) } : it);
-  return {
-    ...input,
-    amount,
-    per: isFilled(valueAt(h, 'salary', month, '')) ? 'month' : input.per,
-    incomes: swap(input.incomes ?? [], 'transport', 'transport'),
-    deductions: swap(input.deductions ?? [], 'medical', 'medical'),
-    espp: {
-      ...input.espp,
-      constPct: valueAt(h, 'esppConst', month, input.espp.constPct),
-      varPct: valueAt(h, 'esppVar', month, input.espp.varPct),
-    },
-  };
+  const saved = monthInForce(input.months, month);
+  return saved ? withPay(input, input.months[saved]) : input;
 }
 
 /** Monthly ESPP deduction for `month`, in the profile currency. */

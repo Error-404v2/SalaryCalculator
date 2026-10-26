@@ -26,7 +26,7 @@ function notices(r, at, period, money) {
   return html;
 }
 
-export function breakdownLines(r, state, at) {
+export function breakdownLines(r, state, at, { net = true } = {}) {
   const sub = (label, annual, netAnnual) =>
     line(`${label}${netAnnual !== undefined ? ` <span class="hint">net ${at(netAnnual)}</span>` : ''}`, positive(at(annual)), 'sub');
   const earnings = [
@@ -45,7 +45,7 @@ export function breakdownLines(r, state, at) {
     ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), '', COLORS.other)),
     r.espp.total ? line('ESPP', negative(at(r.espp.total)), '', COLORS.other) : '',
     line('Total deductions', negative(at(r.totalDeductions)), 'strong sep'),
-    line('Net pay', at(r.net), 'strong net-line'),
+    net ? line('Net pay', at(r.net), 'strong net-line') : '',
   ];
   return [...earnings, ...deductions].join('');
 }

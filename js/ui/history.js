@@ -2,177 +2,197 @@ import { $, toast } from '../utils/dom.js';
 import { escapeHtml } from '../utils/format.js';
 import { toNumber } from '../utils/number.js';
 import {
-  HISTORY_FIELDS, historyField, monthKey, monthLabel, monthValues, savedMonths, saveMonth, removeMonth, valueAt,
-  inputForMonth, calculate, withImpacts,
+  monthKey, monthLabel, monthList, monthInForce, snapshotPay, putMonth, dropMonth, applyPay, fromAnnual,
 } from '../core/index.js';
 import { breakdownLines } from './results/summary.js';
+import { monthPickerHtml, onMonthPick } from './monthPicker.js';
 import * as store from '../state/store.js';
 
-/** Where each tracked field lives on the Pay tab, so Save Month can snapshot it. */
-const CURRENT = {
-  salary: (s) => (s.per === 'month' ? s.amount : ''),
-  transport: (s) => s.incomes.find((i) => i.name?.toLowerCase().startsWith('transport'))?.amount ?? '',
-  medical: (s) => s.deductions.find((d) => d.name?.toLowerCase().startsWith('medical'))?.amount ?? '',
-  esppConst: (s) => s.espp.constPct,
-  esppVar: (s) => s.espp.varPct,
-};
-export const currentValues = (s) => Object.fromEntries(HISTORY_FIELDS.map((f) => [f.id, CURRENT[f.id](s)]));
+/**
+ * History tab: a saved-month list, a month picker with Save, then the month's summary and the Pay tab's own
+ * form, moved here and pointed at that month (see `store.setScope`). Unsaved edits are kept per month.
+ */
+const drafts = new Map();
+let askDelete = '';
 
-/** Edits to the selected month that haven't been saved yet, field id → value. */
-let draft = null;
-let draftMonth = '';
-let confirmDelete = false;
+const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
 
-const fmt = (field, value, money) => (value === '' ? '—' : field.unit === 'pct' ? `${escapeHtml(value)}%` : money(toNumber(value)));
+const isSaved = (state, month) => !!state.months[month];
+const isDirty = (month) => month === store.scopeMonth() ? store.scopeDirty() : drafts.has(month);
 
-/** The month being viewed: the selected one if it still exists, else the newest saved month. */
-function selectedMonth(state, months) {
-  const chosen = state.ui.histMonth;
-  if (chosen && (months.some((m) => m.month === chosen) || chosen === draftMonth)) return chosen;
-  return months[0]?.month ?? '';
+/** Keeps unsaved edits of the month being left, so switching back resumes them. */
+function stash() {
+  const month = store.scopeMonth();
+  if (!month) return;
+  if (store.scopeDirty()) drafts.set(month, store.scopePay());
+  else drafts.delete(month);
 }
 
-function savedList(state, months, active, money) {
+/** A month opens with its unsaved draft, else what is saved, else a copy of the month before it (or the Pay tab). */
+function contentFor(state, month) {
+  const saved = state.months[month];
+  if (saved) return { pay: drafts.get(month) ?? saved, base: saved };
+  const before = monthInForce(state.months, month);
+  const start = before ? state.months[before] : snapshotPay(state);
+  return { pay: drafts.get(month) ?? start, base: start };
+}
+
+function open(month) {
+  if (month === store.scopeMonth()) return;
+  stash();
+  askDelete = '';
+  const { pay, base } = contentFor(store.getState(), month);
+  store.update((s) => { s.ui.histMonth = month; });
+  store.setScope(month, pay, base);
+}
+
+/** The month "+ New" opens: this month if it isn't saved, else the month after the newest saved one. */
+function nextFreeMonth(state) {
   const now = monthKey(new Date());
-  const rows = months.map(({ month, fields }) => {
-    const salary = valueAt(state.history, 'salary', month);
-    const tag = month === now ? ' <span class="hint">now</span>' : '';
-    return `<button type="button" class="month-item${month === active ? ' on' : ''}" data-hist-pick="${month}">
-      <span>${escapeHtml(monthLabel(month, 'long'))}${tag}</span>
-      <span class="hint">${salary ? money(toNumber(salary)) : '—'} · ${fields.length} saved</span></button>`;
-  }).join('');
-  return `<details class="more" data-open="histSaved">
-    <summary>Saved months <span class="count">${months.length || ''}</span></summary>
-    <div class="inner month-list">${rows || '<div class="hint">No saved months yet. Use <b>Save Month</b> on the Pay tab, or + New.</div>'}</div>
-  </details>`;
+  if (!state.months[now]) return now;
+  const [y, m] = monthList(state.months)[0].split('-').map(Number);
+  return monthKey(new Date(y, m, 1));
 }
 
-/** The selected month's own values, in the Pay tab's order and field style. */
-function editor(state, month, money) {
-  if (draftMonth !== month) {
-    draft = monthValues(state.history, month);
-    draftMonth = month;
-    confirmDelete = false;
+/** Enter or leave month editing to match the active input tab. Called on load and on every tab switch. */
+export function syncHistoryScope() {
+  const s = store.getState();
+  if (s.ui.inTab !== 'history') {
+    stash();
+    if (store.scopeMonth()) store.setScope('');
+    return;
   }
-  const own = new Set(savedMonths(state.history).find((m) => m.month === month)?.fields ?? []);
-  const field = (id, label, unit) => {
-    const inherited = !own.has(id) && draft[id] !== '';
-    return `<label class="hist-field${inherited ? ' inherited' : ''}" title="${inherited ? 'Carried over from an earlier month' : ''}">
-      <span>${label}</span>
-      <input type="text" inputmode="decimal" data-hist-edit="${id}" value="${escapeHtml(draft[id] ?? '')}" placeholder="${unit === 'pct' ? '%' : 'Amount'}">
-      <small>${fmt(historyField(id), draft[id] ?? '', money)}</small></label>`;
-  };
-  const isSaved = savedMonths(state.history).some((m) => m.month === month);
-  const actions = confirmDelete
-    ? `<span class="confirm">Delete ${escapeHtml(monthLabel(month, 'long'))}?
-         <button class="btn sm danger" data-hist-act="delete-yes">Delete</button>
-         <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span>`
-    : `<button class="btn sm primary" data-hist-act="save">Save</button>
-       ${isSaved ? '<button class="btn sm ghost danger" data-hist-act="delete">Delete month</button>' : ''}`;
-  return `<div class="hist-editor">
-    <div class="hist-head"><b>${escapeHtml(monthLabel(month, 'long'))}</b>${isSaved ? '' : '<span class="hint">not saved yet</span>'}</div>
-    ${field('salary', 'Gross salary', 'money')}
-    ${field('transport', 'Transportation', 'money')}
-    ${field('medical', 'Medical insurance', 'money')}
-    <div class="hist-pair">${field('esppConst', 'ESPP constant %', 'pct')}${field('esppVar', 'ESPP variable %', 'pct')}</div>
-    <div class="row wrap hist-actions">${actions}</div>
+  const month = s.ui.histMonth && (isSaved(s, s.ui.histMonth) || drafts.has(s.ui.histMonth))
+    ? s.ui.histMonth
+    : monthList(s.months)[0] ?? monthKey(new Date());
+  open(month);
+}
+
+/** The Pay form lives on the Pay tab and moves under the History summary while a month is open. */
+export function placePayForm(state) {
+  const form = $('#payForm');
+  const target = state.ui.inTab === 'history' && store.scopeMonth() ? $('#payFormSlot') : $('#payFormHome');
+  if (form && target && form.parentElement !== target) target.appendChild(form);
+}
+
+function monthRow(state, month, active, money) {
+  const name = escapeHtml(monthLabel(month, 'long'));
+  if (askDelete === month) {
+    return `<div class="month-row ask"><span>Delete ${name}?</span>
+      <span class="row"><button class="btn sm danger" data-hist-act="delete-yes">Delete</button>
+      <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span></div>`;
+  }
+  const pay = month === active ? store.scopePay() : drafts.get(month) ?? state.months[month];
+  const tag = !isSaved(state, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : '';
+  const now = month === monthKey(new Date()) ? '<span class="hint">now</span>' : '';
+  return `<div class="month-row${month === active ? ' on' : ''}">
+    <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
+      <span class="hint">${pay && toNumber(pay.amount) ? money(toNumber(pay.amount)) : '—'}</span></button>
+    <button type="button" class="btn icon ghost danger" data-hist-del="${month}" aria-label="${isSaved(state, month) ? 'Delete' : 'Discard'} ${name}"
+      title="${isSaved(state, month) ? 'Delete month' : 'Discard'}">${RED_MINUS}</button>
   </div>`;
 }
 
-/** The month's figures as plain line items, in the Summary tab's order. */
-function monthSummary(state, month, money) {
-  const base = { ...state, history: draftHistory(state, month), profile: store.activeProfile() };
-  const input = { ...inputForMonth(base, month), profile: store.activeProfile() };
-  if (!toNumber(input.amount)) return '<div class="hint">Add a gross salary to see this month’s figures.</div>';
-  const r = withImpacts(input, calculate(input));
-  return `<div class="lines compact">${breakdownLines(r, input, (annual) => money(annual / 12))}</div>`;
+function savedList(state, active, money) {
+  const months = new Set([...monthList(state.months), ...drafts.keys()]);
+  if (active) months.add(active);
+  const rows = [...months].sort((a, b) => b.localeCompare(a)).map((m) => monthRow(state, m, active, money)).join('');
+  return `<details class="more" data-open="histSaved">
+    <summary>Saved months <span class="count">${monthList(state.months).length || ''}</span></summary>
+    <div class="inner month-list">
+      <button type="button" class="month-item add" data-hist-act="new">+ New month</button>
+      ${rows}
+    </div>
+  </details>`;
 }
 
-/** The history as it would be if the draft were saved, so the summary shows unsaved edits live. */
-const draftHistory = (state, month) => (draft && draftMonth === month ? saveMonth(state.history, month, draft).history : state.history);
+/** The open month's net pay, then its pay items and deductions as compact lines (the form below holds the inputs). */
+function monthSummary(state, money, pay) {
+  const r = pay.result;
+  if (!r) return '<div class="hint">Enter a gross salary below to see this month’s figures.</div>';
+  const at = (annual) => money(fromAnnual(annual, 'month', state.schedule, pay.factor));
+  return `<div class="hist-net"><span>Net pay</span><b>${at(r.net)}</b></div>
+    <div class="lines compact">${breakdownLines(r, state, at, { net: false })}</div>`;
+}
 
-export function renderHistory(state, money) {
+export function renderHistory(state, money, pay) {
   const host = $('#historyList');
   if (!host) return;
   const focused = document.activeElement;
   if (host.contains(focused) && focused.tagName === 'INPUT') return;
 
-  const months = savedMonths(state.history);
-  const active = selectedMonth(state, months);
-  host.innerHTML = `${savedList(state, months, active, money)}
-    <div class="row hist-new">
-      <input type="month" id="histNewMonth" value="${monthKey(new Date())}" aria-label="Month to add">
-      <button class="btn sm" data-hist-act="new">+ New month</button>
+  const month = store.scopeMonth();
+  const saved = isSaved(state, month);
+  const dirty = !saved || store.scopeDirty();
+  host.innerHTML = `${savedList(state, month, money)}
+    <div class="row hist-bar">
+      ${monthPickerHtml('hist', month, monthList(state.months))}
+      <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost'}" data-hist-act="save">${dirty ? 'Save' : 'Saved'}</button>
     </div>
-    ${active ? `${editor(state, active, money)}<div class="section-title">Summary</div><div id="histSummary">${monthSummary(state, active, money)}</div>` : ''}`;
-  lastMoney = money;
+    <div class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</div>
+    ${monthSummary(state, money, pay)}`;
 }
 
-/** Redraws only the summary, so typing in the editor keeps focus while the figures update. */
-let lastMoney = String;
-function refreshSummary() {
-  const host = $('#histSummary');
-  if (host && draftMonth) host.innerHTML = monthSummary(store.getState(), draftMonth, lastMoney);
+function save() {
+  const month = store.scopeMonth();
+  const pay = store.scopePay();
+  if (!toNumber(pay?.amount)) return toast('Enter a gross salary to save this month');
+  const replaced = isSaved(store.getState(), month);
+  store.markScopeSaved();
+  drafts.delete(month);
+  store.update((s) => { s.months = putMonth(s.months, month, pay); });
+  toast(`${replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
 }
 
-function select(month) {
-  store.set('ui.histMonth', month);
+/** Fill Pay: copy the open month (with any unsaved edits) into the Pay tab. */
+function fillPay() {
+  const month = store.scopeMonth();
+  const pay = store.scopePay();
+  if (!pay) return;
+  store.update((s) => applyPay(s, pay));
+  toast(`Pay tab filled with ${monthLabel(month, 'long')}`);
 }
 
-function save(onChanged) {
-  const month = draftMonth;
-  const result = saveMonth(store.getState().history, month, draft);
-  if (!result.saved) return toast('Enter at least one value to save');
-  store.update((s) => { s.history = result.history; s.ui.histMonth = month; });
-  draftMonth = '';
-  toast(`${result.replaced ? 'Updated' : 'Saved'} ${monthLabel(month, 'long')}`);
-  onChanged();
+function remove(month) {
+  const saved = isSaved(store.getState(), month);
+  drafts.delete(month);
+  askDelete = '';
+  if (saved) store.update((s) => { s.months = dropMonth(s.months, month); });
+  toast(`${saved ? 'Deleted' : 'Discarded'} ${monthLabel(month, 'long')}`);
+  if (store.scopeMonth() !== month) return;
+  store.setScope('');
+  open(monthList(store.getState().months)[0] ?? monthKey(new Date()));
 }
 
-function addMonth(onChanged) {
-  const month = $('#histNewMonth')?.value || monthKey(new Date());
-  if (savedMonths(store.getState().history).some((m) => m.month === month)) {
-    select(month);
-    toast(`${monthLabel(month, 'long')} is already saved — opened it`);
-    return onChanged();
-  }
-  draft = { ...currentValues(store.getState()) };
-  draftMonth = month;
-  confirmDelete = false;
-  select(month);
-  onChanged();
+export function syncHistoryBar(state) {
+  $('#fillPayBtn').hidden = state.ui.inTab !== 'history' || !store.scopeMonth();
 }
 
 export function initHistory(onChanged) {
-  document.addEventListener('click', (e) => {
-    const pick = e.target.closest('[data-hist-pick]');
-    if (pick) { select(pick.dataset.histPick); return onChanged(); }
+  syncHistoryScope();
+  onMonthPick('hist', (month) => { open(month); onChanged(); });
+  $('#fillPayBtn').addEventListener('click', () => { fillPay(); onChanged(); });
 
+  document.addEventListener('click', (e) => {
+    if (e.target.closest('[data-in-tabs] .tab')) {
+      syncHistoryScope();
+      return onChanged();
+    }
+    const pick = e.target.closest('[data-hist-pick]');
+    if (pick) { open(pick.dataset.histPick); return onChanged(); }
+    const del = e.target.closest('[data-hist-del]');
+    if (del) {
+      const month = del.dataset.histDel;
+      if (isSaved(store.getState(), month)) askDelete = month;
+      else remove(month);
+      return onChanged();
+    }
     const act = e.target.closest('[data-hist-act]')?.dataset.histAct;
     if (!act) return;
-    if (act === 'save') return save(onChanged);
-    if (act === 'new') return addMonth(onChanged);
-    if (act === 'delete') confirmDelete = true;
-    else if (act === 'delete-no') confirmDelete = false;
-    else if (act === 'delete-yes') {
-      const month = draftMonth;
-      store.update((s) => { s.history = removeMonth(s.history, month); s.ui.histMonth = ''; });
-      draftMonth = '';
-      toast(`Deleted ${monthLabel(month, 'long')}`);
-    }
+    if (act === 'save') save();
+    else if (act === 'new') open(nextFreeMonth(store.getState()));
+    else if (act === 'delete-yes') remove(askDelete);
+    else if (act === 'delete-no') askDelete = '';
     onChanged();
-  });
-
-  document.addEventListener('input', (e) => {
-    const id = e.target.dataset.histEdit;
-    if (!id || !draft) return;
-    draft[id] = e.target.value;
-    const small = e.target.parentElement.querySelector('small');
-    if (small) small.innerHTML = fmt(historyField(id), e.target.value, lastMoney);
-    refreshSummary();
-  });
-
-  document.addEventListener('change', (e) => {
-    if (e.target.dataset.histEdit) onChanged();
   });
 }
