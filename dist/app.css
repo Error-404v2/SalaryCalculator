@@ -914,8 +914,9 @@ input.rate-error {
 .espp-table tr.future td {
   opacity: .55;
 }
-.espp-table .muted-cell {
+.espp-table td.calc {
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .section-title {
   display: flex;

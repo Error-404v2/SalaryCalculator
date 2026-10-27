@@ -301,7 +301,7 @@
                 <label>Reinvest fee %<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestRate"></label>
                 <label>Reinvest cap $<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestCap"></label>
                 <label>Fee in $ (Jan/Jul)<input type="text" inputmode="decimal" data-bind="espp.assumptions.feeIn"></label>
-                <label>Tax on gains %<input type="text" inputmode="decimal" data-bind="espp.assumptions.taxRate"></label>
+                <label title="Share of the un-taxed gain (discount + price rise) set aside as tax at withdrawal, minus what payroll already withheld (Payroll tax events). How this applies to you is still to be confirmed.">Tax on gains % <span class="hint">at withdrawal</span><input type="text" inputmode="decimal" data-bind="espp.assumptions.taxRate"></label>
                 <label>Withdrawal fee $<input type="text" inputmode="decimal" data-bind="espp.assumptions.withdrawalFee"></label>
                 <label title="Before this day of the month, the current month is not settled yet">Change day<input type="text" inputmode="numeric" data-bind="espp.changeDay"></label>
                 <label title="Shift the adjusted month by this many months">Month offset<input type="text" inputmode="numeric" data-bind="espp.monthOffset"></label>

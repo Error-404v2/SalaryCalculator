@@ -88,9 +88,9 @@ function ledgerTable(rep) {
     const cls = [r.month > rep.cutoff ? 'future' : '', r.month === rep.cutoff ? 'active' : ''].join(' ');
     return `<tr class="${cls}"><td><b>${monthLabel(r.month).replace(' ' + rep.year, '')}</b></td>
       ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
-      <td class="r muted-cell">${fixed(r.reinvestFee, 3)}</td><td class="r muted-cell">${fixed(r.feesIn)}</td>
-      <td class="r">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
-      <td class="r">${fixed(r.untaxed)}</td><td class="r">${fixed(r.actualShare)}</td></tr>`;
+      <td class="r calc">${fixed(r.reinvestFee, 3)}</td><td class="r calc">${fixed(r.feesIn)}</td>
+      <td class="r calc">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
+      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td></tr>`;
   }).join('');
   const t = rep.forecast;
   return `<div class="table-wrap espp-table"><table class="edit-table">
