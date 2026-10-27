@@ -109,7 +109,7 @@
           <div class="inner">
             <div class="chips" data-presets="deductions"></div>
             <div class="item espp-item" id="esppBlock" hidden>
-              <div class="espp-head"><b>ESPP</b><button type="button" class="btn icon ghost danger" data-espp-remove aria-label="Remove ESPP" title="Remove ESPP">
+              <div class="espp-head"><b>Stocks</b><button type="button" class="btn icon ghost danger" data-espp-remove aria-label="Remove Stocks" title="Remove Stocks">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
               <div class="espp-pcts">
                 <label class="espp-field"><span>Constant % <span class="hint">of basic</span></span><input type="text" inputmode="decimal" data-bind="espp.constPct" placeholder="0"></label>
@@ -120,7 +120,7 @@
             <div class="list" data-list="deductions" data-quiet></div>
             <div class="row wrap">
               <button class="btn" data-add="deductions">+ Add deduction</button>
-              <button class="btn" data-espp-show id="esppAddBtn">+ Add ESPP</button>
+              <button class="btn" data-espp-show id="esppAddBtn">+ Add Stocks</button>
             </div>
           </div>
         </details>
@@ -155,7 +155,7 @@
                     <label title="OT hourly rate = monthly basic ÷ this">OT base hrs / mo<input type="text" inputmode="decimal" data-bind="schedule.otHoursBase"></label>
                   </div>
                   <details class="more" data-open="esppVariable">
-                    <summary>ESPP: what counts as variable</summary>
+                    <summary>Stocks: what counts as variable</summary>
                     <div class="inner check-grid">
                       <label class="check"><input type="checkbox" data-bind="espp.variable.allowances"> Taxable allowances</label>
                       <label class="check"><input type="checkbox" data-bind="espp.variable.exempt"> Exempt (profit share)</label>
@@ -301,7 +301,7 @@
                 <label>Reinvest fee %<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestRate"></label>
                 <label>Reinvest cap $<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestCap"></label>
                 <label>Fee in $ (Jan/Jul)<input type="text" inputmode="decimal" data-bind="espp.assumptions.feeIn"></label>
-                <label>Tax on gains %<input type="text" inputmode="decimal" data-bind="espp.assumptions.taxRate"></label>
+                <label title="Share of the un-taxed gain (discount + price rise) set aside as tax at withdrawal, minus what payroll already withheld (Payroll tax events). How this applies to you is still to be confirmed.">Tax on gains % <span class="hint">at withdrawal</span><input type="text" inputmode="decimal" data-bind="espp.assumptions.taxRate"></label>
                 <label>Withdrawal fee $<input type="text" inputmode="decimal" data-bind="espp.assumptions.withdrawalFee"></label>
                 <label title="Before this day of the month, the current month is not settled yet">Change day<input type="text" inputmode="numeric" data-bind="espp.changeDay"></label>
                 <label title="Shift the adjusted month by this many months">Month offset<input type="text" inputmode="numeric" data-bind="espp.monthOffset"></label>

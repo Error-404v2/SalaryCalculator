@@ -17,8 +17,8 @@ const LOCKABLE = [
 const fixed = (v, d = 2) => (Number.isFinite(v) ? v.toFixed(d) : '');
 const usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 
-// ---------- Pay form: ESPP as the first entry of Other deductions ----------
-/** ESPP shows once added (+ ESPP / + Add ESPP) or while a % is above 0; it's added per form (Pay or a month). */
+// ---------- Pay form: Stocks as the first entry of Other deductions ----------
+/** Stocks shows once added (+ Stocks / + Add Stocks) or while a % is above 0; it's added per form (Pay or a month). */
 let esppAdded = false;
 const hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0;
 export const esppShown = (s) => esppAdded || hasEsppPct(s);
@@ -40,7 +40,7 @@ export function renderEsppInputs(result, money, state) {
     : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
 }
 
-/** A different form (Pay, or another month) starts without a pending "+ ESPP". */
+/** A different form (Pay, or another month) starts without a pending "+ Stocks". */
 export function resetEsppAdded() {
   esppAdded = false;
 }
@@ -61,13 +61,26 @@ function topTiles(rep, money) {
 }
 const formatNumber2 = (v) => (Number(v) || 0).toFixed(2);
 
+/** Where a forecast Deducted value comes from, shown as a tooltip and a small mark on the cell. */
+function sourceNote(row) {
+  const src = row.source;
+  if (!src) return '';
+  if (src.kind === 'month') return `From History (${monthLabel(src.month)})`;
+  if (src.kind === 'carried') return `From History (${monthLabel(src.month)}, still in force)`;
+  return 'From the Pay tab (no History month yet)';
+}
+
 function cell(row, col) {
   const field = row[col.key];
   const shown = fixed(field.value, col.decimals);
-  return `<td class="lock${field.locked ? ' on' : ''}">
+  const fromHistory = col.key === 'deducted' && !field.locked && row.source?.kind !== 'pay' && field.value > 0;
+  const title = field.locked
+    ? 'Your value — clear it to go back to the calculated one'
+    : `${col.key === 'deducted' ? sourceNote(row) : 'Calculated'} — type a value to override it`;
+  return `<td class="lock${field.locked ? ' on' : ''}${fromHistory ? ' hist' : ''}">
     <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${col.key}"
       value="${field.locked ? escapeHtml(shown) : ''}" placeholder="${shown}" aria-label="${col.label} ${row.month}"
-      title="${field.locked ? 'Locked actual — clear to forecast' : 'Forecast — type the actual to lock it'}"></td>`;
+      title="${escapeHtml(title)}"></td>`;
 }
 
 function ledgerTable(rep) {
@@ -75,9 +88,9 @@ function ledgerTable(rep) {
     const cls = [r.month > rep.cutoff ? 'future' : '', r.month === rep.cutoff ? 'active' : ''].join(' ');
     return `<tr class="${cls}"><td><b>${monthLabel(r.month).replace(' ' + rep.year, '')}</b></td>
       ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
-      <td class="r muted-cell">${fixed(r.reinvestFee, 3)}</td><td class="r muted-cell">${fixed(r.feesIn)}</td>
-      <td class="r">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
-      <td class="r">${fixed(r.untaxed)}</td><td class="r">${fixed(r.actualShare)}</td></tr>`;
+      <td class="r calc">${fixed(r.reinvestFee, 3)}</td><td class="r calc">${fixed(r.feesIn)}</td>
+      <td class="r calc">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
+      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td></tr>`;
   }).join('');
   const t = rep.forecast;
   return `<div class="table-wrap espp-table"><table class="edit-table">
@@ -89,7 +102,8 @@ function ledgerTable(rep) {
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
         <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
     </tbody></table></div>
-    <p class="hint">Yellow columns: leave blank to forecast, type the actual value to lock it. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+    <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
+      <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
 }
 
 function breakdown(rep, money) {
@@ -112,14 +126,17 @@ function breakdown(rep, money) {
 
 export function renderEsppTab(rep, money) {
   const host = $('[data-view="espp"]');
-  if (!host || host.contains(document.activeElement)) return;
+  if (!host) return;
+  // Only wait while a field is being typed in; a pressed button (e.g. a year) must redraw straight away.
+  const focused = document.activeElement;
+  if (host.contains(focused) && focused.tagName === 'INPUT') return;
   const a = store.getState().espp.assumptions;
   const warn = rep.ready ? ''
     : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
   host.innerHTML = `${warn}${topTiles(rep, money)}
     <div class="row between" style="margin:4px 0 10px">
       <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1]
-        .map((y) => `<button data-v="${y}" aria-pressed="${y === rep.year}">${y}</button>`).join('')}</div>
+        .map((y) => `<button type="button" data-v="${y}" aria-pressed="${y === rep.year}" aria-label="${y === rep.year ? `${y} (shown)` : `Show ${y}`}">${y}</button>`).join('')}</div>
       <span class="hint">Price ${a.price ? usd(a.price) : '—'} · 1 USD = ${a.fx || '—'}</span>
     </div>
     ${breakdown(rep, money)}

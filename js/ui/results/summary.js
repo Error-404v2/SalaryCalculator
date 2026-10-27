@@ -45,7 +45,7 @@ export function breakdownLines(r, state, at, { net = true, entered = false } = {
     line(`Income tax${taxNote}`, negative(at(r.incomeTax)), '', COLORS.tax),
     ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), '', COLORS.tax)),
     ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
-    r.espp.total ? line('ESPP', negative(at(r.espp.total)), mine.trim(), COLORS.other) : '',
+    r.espp.total ? line('Stocks', negative(at(r.espp.total)), mine.trim(), COLORS.other) : '',
     line('Total deductions', negative(at(r.totalDeductions)), 'strong sep'),
     net ? line('Net pay', at(r.net), 'strong net-line') : '',
   ];

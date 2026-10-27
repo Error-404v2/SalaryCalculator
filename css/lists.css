@@ -93,7 +93,8 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-table td.lock input::placeholder { color: var(--muted); opacity: .9; }
 .espp-table td.lock.on input { background: color-mix(in srgb, #f5c400 18%, var(--surface)); border-color: color-mix(in srgb, #f5c400 55%, var(--border)); font-weight: 600; }
 .espp-table tr.future td { opacity: .55; }
-.espp-table .muted-cell { color: var(--muted); }
+/* Every calculated (non-editable) column uses the same muted style, so they read as one group. */
+.espp-table td.calc { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 
 
@@ -111,3 +112,6 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-field input { height: 36px; }
 .espp-item .quick-tile { margin: 2px 0 0; }
 .chip[hidden], .btn[hidden] { display: none; }
+.espp-table td.lock.hist { position: relative; }
+.espp-table td.lock.hist::after { content: ""; position: absolute; top: 9px; left: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--pos); }
+.hist-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pos); margin: 0 2px 1px 4px; vertical-align: middle; }

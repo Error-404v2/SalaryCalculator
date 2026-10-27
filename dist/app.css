@@ -914,8 +914,9 @@ input.rate-error {
 .espp-table tr.future td {
   opacity: .55;
 }
-.espp-table .muted-cell {
+.espp-table td.calc {
   color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 .section-title {
   display: flex;
@@ -973,6 +974,28 @@ input.rate-error {
 .chip[hidden],
 .btn[hidden] {
   display: none;
+}
+.espp-table td.lock.hist {
+  position: relative;
+}
+.espp-table td.lock.hist::after {
+  content: "";
+  position: absolute;
+  top: 9px;
+  left: 9px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--pos);
+}
+.hist-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--pos);
+  margin: 0 2px 1px 4px;
+  vertical-align: middle;
 }
 
 /* css/tables.css */

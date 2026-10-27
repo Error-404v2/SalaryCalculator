@@ -5,8 +5,8 @@ export const HISTORY_FIELDS = [
   { id: 'salary', label: 'Gross salary', unit: 'money' },
   { id: 'transport', label: 'Transportation', unit: 'money' },
   { id: 'medical', label: 'Medical insurance', unit: 'money' },
-  { id: 'esppConst', label: 'ESPP % (constant)', unit: 'pct' },
-  { id: 'esppVar', label: 'ESPP % (variable)', unit: 'pct' },
+  { id: 'esppConst', label: 'Stocks % (constant)', unit: 'pct' },
+  { id: 'esppVar', label: 'Stocks % (variable)', unit: 'pct' },
 ];
 
 export const historyField = (id) => HISTORY_FIELDS.find((f) => f.id === id);
@@ -19,7 +19,7 @@ export const HISTORY_GROUPS = [
   { id: 'salary', label: 'Gross salary', fields: ['salary'] },
   { id: 'transport', label: 'Transportation', fields: ['transport'] },
   { id: 'medical', label: 'Medical insurance', fields: ['medical'] },
-  { id: 'espp', label: 'ESPP %', fields: ['esppConst', 'esppVar'] },
+  { id: 'espp', label: 'Stocks %', fields: ['esppConst', 'esppVar'] },
 ];
 
 export const historyGroup = (id) => HISTORY_GROUPS.find((g) => g.id === id);

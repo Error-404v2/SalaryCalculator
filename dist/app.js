@@ -381,8 +381,8 @@
     { id: "salary", label: "Gross salary", unit: "money" },
     { id: "transport", label: "Transportation", unit: "money" },
     { id: "medical", label: "Medical insurance", unit: "money" },
-    { id: "esppConst", label: "ESPP % (constant)", unit: "pct" },
-    { id: "esppVar", label: "ESPP % (variable)", unit: "pct" }
+    { id: "esppConst", label: "Stocks % (constant)", unit: "pct" },
+    { id: "esppVar", label: "Stocks % (variable)", unit: "pct" }
   ];
   var monthKey = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
   function monthLabel(key2, style = "short") {
@@ -612,6 +612,11 @@
     return saved ? withPay(input, input.months[saved]) : input;
   }
   var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
+  function deductionSource(input, month) {
+    if (input.months?.[month]) return { kind: "month", month };
+    const inForce = monthInForce(input.months, month);
+    return inForce ? { kind: "carried", month: inForce } : { kind: "pay", month: "" };
+  }
   function esppReport(input, today = /* @__PURE__ */ new Date()) {
     const espp = input.espp;
     const year = Number(input.ui.esppYear || today.getFullYear());
@@ -620,6 +625,9 @@
       entries: espp.entries,
       assumptions: espp.assumptions,
       deductionFor: esppDeductionFor(input)
+    });
+    ledger.rows.forEach((row) => {
+      row.source = deductionSource(input, row.month);
     });
     const payroll = payrollTax(espp.payrollTax);
     const cutoff = adjustedMonth(today, espp.changeDay, espp.monthOffset);
@@ -1218,7 +1226,7 @@
     });
   }
   var renderAllLists = () => Object.keys(ROW_TEMPLATES).forEach(renderList);
-  var ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ ESPP</button>';
+  var ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ Stocks</button>';
   function renderPresets() {
     $$("[data-presets]").forEach((host) => {
       const kind = host.dataset.presets;
@@ -1507,7 +1515,7 @@
       line(`Income tax${taxNote}`, negative(at(r.incomeTax)), "", COLORS.tax),
       ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), "", COLORS.tax)),
       ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
-      r.espp.total ? line("ESPP", negative(at(r.espp.total)), mine.trim(), COLORS.other) : "",
+      r.espp.total ? line("Stocks", negative(at(r.espp.total)), mine.trim(), COLORS.other) : "",
       line("Total deductions", negative(at(r.totalDeductions)), "strong sep"),
       net ? line("Net pay", at(r.net), "strong net-line") : ""
     ];
@@ -1835,22 +1843,31 @@
   </div>`;
   }
   var formatNumber2 = (v) => (Number(v) || 0).toFixed(2);
+  function sourceNote(row) {
+    const src = row.source;
+    if (!src) return "";
+    if (src.kind === "month") return `From History (${monthLabel(src.month)})`;
+    if (src.kind === "carried") return `From History (${monthLabel(src.month)}, still in force)`;
+    return "From the Pay tab (no History month yet)";
+  }
   function cell(row, col) {
     const field = row[col.key];
     const shown = fixed(field.value, col.decimals);
-    return `<td class="lock${field.locked ? " on" : ""}">
+    const fromHistory = col.key === "deducted" && !field.locked && row.source?.kind !== "pay" && field.value > 0;
+    const title = field.locked ? "Your value \u2014 clear it to go back to the calculated one" : `${col.key === "deducted" ? sourceNote(row) : "Calculated"} \u2014 type a value to override it`;
+    return `<td class="lock${field.locked ? " on" : ""}${fromHistory ? " hist" : ""}">
     <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${col.key}"
       value="${field.locked ? escapeHtml(shown) : ""}" placeholder="${shown}" aria-label="${col.label} ${row.month}"
-      title="${field.locked ? "Locked actual \u2014 clear to forecast" : "Forecast \u2014 type the actual to lock it"}"></td>`;
+      title="${escapeHtml(title)}"></td>`;
   }
   function ledgerTable(rep) {
     const rows = rep.ledger.rows.map((r) => {
       const cls = [r.month > rep.cutoff ? "future" : "", r.month === rep.cutoff ? "active" : ""].join(" ");
       return `<tr class="${cls}"><td><b>${monthLabel(r.month).replace(" " + rep.year, "")}</b></td>
       ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
-      <td class="r muted-cell">${fixed(r.reinvestFee, 3)}</td><td class="r muted-cell">${fixed(r.feesIn)}</td>
-      <td class="r">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
-      <td class="r">${fixed(r.untaxed)}</td><td class="r">${fixed(r.actualShare)}</td></tr>`;
+      <td class="r calc">${fixed(r.reinvestFee, 3)}</td><td class="r calc">${fixed(r.feesIn)}</td>
+      <td class="r calc">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
+      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td></tr>`;
     }).join("");
     const t = rep.forecast;
     return `<div class="table-wrap espp-table"><table class="edit-table">
@@ -1862,7 +1879,8 @@
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
         <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
     </tbody></table></div>
-    <p class="hint">Yellow columns: leave blank to forecast, type the actual value to lock it. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+    <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
+      <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
   }
   function breakdown(rep, money) {
     const r = (label, a, b) => `<tr><td>${label}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`;
@@ -1883,12 +1901,14 @@
   }
   function renderEsppTab(rep, money) {
     const host = $('[data-view="espp"]');
-    if (!host || host.contains(document.activeElement)) return;
+    if (!host) return;
+    const focused = document.activeElement;
+    if (host.contains(focused) && focused.tagName === "INPUT") return;
     const a = getState().espp.assumptions;
     const warn = rep.ready ? "" : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
     host.innerHTML = `${warn}${topTiles(rep, money)}
     <div class="row between" style="margin:4px 0 10px">
-      <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1].map((y) => `<button data-v="${y}" aria-pressed="${y === rep.year}">${y}</button>`).join("")}</div>
+      <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1].map((y) => `<button type="button" data-v="${y}" aria-pressed="${y === rep.year}" aria-label="${y === rep.year ? `${y} (shown)` : `Show ${y}`}">${y}</button>`).join("")}</div>
       <span class="hint">Price ${a.price ? usd(a.price) : "\u2014"} \xB7 1 USD = ${a.fx || "\u2014"}</span>
     </div>
     ${breakdown(rep, money)}
