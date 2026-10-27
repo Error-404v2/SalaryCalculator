@@ -3,7 +3,12 @@ node_modules/
 .DS_Store
 Thumbs.db
 
-# Personal data and local test pages
+# Personal data: spreadsheets and exports never go to the public repo
+files/
 *.xlsx
+*.csv
+
+# Local test pages and notes
 _*.html
 _*.js
+HANDOFF.md
