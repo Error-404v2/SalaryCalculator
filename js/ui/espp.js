@@ -112,14 +112,17 @@ function breakdown(rep, money) {
 
 export function renderEsppTab(rep, money) {
   const host = $('[data-view="espp"]');
-  if (!host || host.contains(document.activeElement)) return;
+  if (!host) return;
+  // Only wait while a field is being typed in; a pressed button (e.g. a year) must redraw straight away.
+  const focused = document.activeElement;
+  if (host.contains(focused) && focused.tagName === 'INPUT') return;
   const a = store.getState().espp.assumptions;
   const warn = rep.ready ? ''
     : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
   host.innerHTML = `${warn}${topTiles(rep, money)}
     <div class="row between" style="margin:4px 0 10px">
       <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1]
-        .map((y) => `<button data-v="${y}" aria-pressed="${y === rep.year}">${y}</button>`).join('')}</div>
+        .map((y) => `<button type="button" data-v="${y}" aria-pressed="${y === rep.year}" aria-label="${y === rep.year ? `${y} (shown)` : `Show ${y}`}">${y}</button>`).join('')}</div>
       <span class="hint">Price ${a.price ? usd(a.price) : '—'} · 1 USD = ${a.fx || '—'}</span>
     </div>
     ${breakdown(rep, money)}

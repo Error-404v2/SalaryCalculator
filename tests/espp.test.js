@@ -110,6 +110,12 @@ test('ESPP months use saved months: a July raise changes July onwards', () => {
   near(rep.ledger.rows[6].deducted.value, 2000);
 });
 
+test('the ESPP year shown follows ui.esppYear, defaulting to this year', () => {
+  const base = { ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000' };
+  assert.equal(esppReport({ ...base, ui: { ...base.ui, esppYear: '2031' } }, new Date(2026, 9, 1)).year, 2031);
+  assert.equal(esppReport(base, new Date(2026, 9, 1)).year, 2026);
+});
+
 test('saved ESPP entries and history survive reload; junk keys are dropped', () => {
   const s = hydrate({ espp: { entries: { '2030-02': { deducted: '9' }, bad: { x: 1 } } }, history: [{ field: 'salary', from: '2030-01', value: '1' }, null] });
   assert.deepEqual(Object.keys(s.espp.entries), ['2030-02']);
