@@ -61,13 +61,26 @@ function topTiles(rep, money) {
 }
 const formatNumber2 = (v) => (Number(v) || 0).toFixed(2);
 
+/** Where a forecast Deducted value comes from, shown as a tooltip and a small mark on the cell. */
+function sourceNote(row) {
+  const src = row.source;
+  if (!src) return '';
+  if (src.kind === 'month') return `From History (${monthLabel(src.month)})`;
+  if (src.kind === 'carried') return `From History (${monthLabel(src.month)}, still in force)`;
+  return 'From the Pay tab (no History month yet)';
+}
+
 function cell(row, col) {
   const field = row[col.key];
   const shown = fixed(field.value, col.decimals);
-  return `<td class="lock${field.locked ? ' on' : ''}">
+  const fromHistory = col.key === 'deducted' && !field.locked && row.source?.kind !== 'pay' && field.value > 0;
+  const title = field.locked
+    ? 'Your value — clear it to go back to the calculated one'
+    : `${col.key === 'deducted' ? sourceNote(row) : 'Calculated'} — type a value to override it`;
+  return `<td class="lock${field.locked ? ' on' : ''}${fromHistory ? ' hist' : ''}">
     <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${col.key}"
       value="${field.locked ? escapeHtml(shown) : ''}" placeholder="${shown}" aria-label="${col.label} ${row.month}"
-      title="${field.locked ? 'Locked actual — clear to forecast' : 'Forecast — type the actual to lock it'}"></td>`;
+      title="${escapeHtml(title)}"></td>`;
 }
 
 function ledgerTable(rep) {
@@ -89,7 +102,8 @@ function ledgerTable(rep) {
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
         <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
     </tbody></table></div>
-    <p class="hint">Yellow columns: leave blank to forecast, type the actual value to lock it. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+    <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
+      <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
 }
 
 function breakdown(rep, money) {

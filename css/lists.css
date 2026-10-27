@@ -111,3 +111,6 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-field input { height: 36px; }
 .espp-item .quick-tile { margin: 2px 0 0; }
 .chip[hidden], .btn[hidden] { display: none; }
+.espp-table td.lock.hist { position: relative; }
+.espp-table td.lock.hist::after { content: ""; position: absolute; top: 9px; left: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--pos); }
+.hist-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pos); margin: 0 2px 1px 4px; vertical-align: middle; }

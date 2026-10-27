@@ -110,6 +110,33 @@ test('ESPP months use saved months: a July raise changes July onwards', () => {
   near(rep.ledger.rows[6].deducted.value, 2000);
 });
 
+test('each ledger month says where its deduction comes from: its own History month, an earlier one, or the Pay tab', () => {
+  const s = {
+    ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
+    espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '5', assumptions: A },
+    months: { '2030-03': { amount: '20000', per: 'month', espp: { constPct: '10', varPct: '', variable: {} } } },
+    ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
+  };
+  const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
+  assert.deepEqual(rows[1].source, { kind: 'pay', month: '' });
+  assert.deepEqual(rows[2].source, { kind: 'month', month: '2030-03' });
+  assert.deepEqual(rows[5].source, { kind: 'carried', month: '2030-03' });
+  near(rows[1].deducted.value, 500);
+  near(rows[2].deducted.value, 2000);
+});
+
+test('a typed Deducted value overrides the History one; clearing it brings the History value back', () => {
+  const s = {
+    ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
+    espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '10', assumptions: A, entries: { '2030-02': { deducted: '777' } } },
+    ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
+  };
+  const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
+  assert.equal(rows[1].deducted.value, 777);
+  assert.equal(rows[1].deducted.locked, true);
+  near(rows[2].deducted.value, 1000);
+});
+
 test('the ESPP year shown follows ui.esppYear, defaulting to this year', () => {
   const base = { ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000' };
   assert.equal(esppReport({ ...base, ui: { ...base.ui, esppYear: '2031' } }, new Date(2026, 9, 1)).year, 2031);

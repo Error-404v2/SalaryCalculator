@@ -13,6 +13,16 @@ export function inputForMonth(input, month) {
 /** Monthly ESPP deduction for `month`, in the profile currency. */
 export const esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
 
+/**
+ * Where each month's forecast deduction comes from, for the ledger's hint: the month's own History entry,
+ * an earlier History month still in force, or the Pay tab (no History saved yet).
+ */
+export function deductionSource(input, month) {
+  if (input.months?.[month]) return { kind: 'month', month };
+  const inForce = monthInForce(input.months, month);
+  return inForce ? { kind: 'carried', month: inForce } : { kind: 'pay', month: '' };
+}
+
 export function esppReport(input, today = new Date()) {
   const espp = input.espp;
   const year = Number(input.ui.esppYear || today.getFullYear());
@@ -22,6 +32,7 @@ export function esppReport(input, today = new Date()) {
     assumptions: espp.assumptions,
     deductionFor: esppDeductionFor(input),
   });
+  ledger.rows.forEach((row) => { row.source = deductionSource(input, row.month); });
   const payroll = payrollTax(espp.payrollTax);
   const cutoff = adjustedMonth(today, espp.changeDay, espp.monthOffset);
   const options = { assumptions: espp.assumptions, payrollTaxUsd: payroll.taxUsd };
