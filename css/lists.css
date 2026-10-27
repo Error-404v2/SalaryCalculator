@@ -67,6 +67,8 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .quick-tile b { font-size: .92rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quick-tile .tot b { color: var(--text); }
 .quick-tile .hint { grid-column: 1 / -1; margin: 0; }
+/* display:grid above would otherwise beat the hidden attribute and leave a stale banner on screen */
+.quick-tile[hidden] { display: none; }
 .compact-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .compact-grid label .hint { font-size: .68rem; margin: 0; display: inline; }
 .compact-grid .row { gap: 4px; }
@@ -102,10 +104,11 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .section-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-weight: 600; }
 
 /* ESPP: first entry of Other deductions, each % on its own line, banner below */
-.item.espp-item { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 8px; grid-template-columns: none; text-align: left; }
+.item.espp-item { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 8px; padding-top: 4px; grid-template-columns: none; text-align: left; }
 .espp-item[hidden] { display: none; }
-.espp-head { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.espp-head b { font-size: .9rem; }
+.espp-head { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 0; }
+.espp-head b { font-size: .9rem; padding-left: 2px; }
+.espp-head .btn.icon { width: 26px; height: 26px; min-height: 0; padding: 0; }
 .espp-pcts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
 .espp-field { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 500; min-width: 0; }
 .espp-field .hint { margin: 0; display: inline; font-weight: 400; }
@@ -115,3 +118,9 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-table td.lock.hist { position: relative; }
 .espp-table td.lock.hist::after { content: ""; position: absolute; top: 9px; left: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--pos); }
 .hist-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pos); margin: 0 2px 1px 4px; vertical-align: middle; }
+
+/* ESPP breakdown: costs that don't come back in red, value and profit in green */
+.espp-sum tr.neg-row td.r { color: var(--danger); }
+.espp-sum tr.pos-row td.r { color: var(--pos); font-weight: 600; }
+.espp-table td.neg-cell input, .espp-table td.neg-cell input::placeholder { color: var(--danger); }
+.espp-table td.neg-cell input::placeholder { opacity: .8; }

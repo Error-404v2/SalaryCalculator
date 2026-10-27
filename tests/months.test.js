@@ -19,7 +19,7 @@ test('a snapshot copies the whole Pay tab and nothing else', () => {
   const pay = snapshotPay(s);
   assert.equal(pay.amount, '10000');
   assert.deepEqual(pay.overtime, s.overtime);
-  assert.deepEqual(new Set(Object.keys(pay.espp)), new Set(['constPct', 'varPct', 'variable']));
+  assert.deepEqual(new Set(Object.keys(pay.espp)), new Set(['constPct', 'varPct', 'variable', 'gain']));
   assert.equal('profiles' in pay, false);
   pay.overtime[0].hours = '1';
   assert.equal(s.overtime[0].hours, '50', 'snapshot is a copy, not a reference');

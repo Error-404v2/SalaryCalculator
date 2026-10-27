@@ -15,6 +15,7 @@ import { initEspp, renderEsppInputs, renderEsppTab, resetEsppAdded } from './ui/
 import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab } from './ui/history.js';
 import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
+import { ensureMonthRates, monthRates } from './ui/esppRates.js';
 import { initMoneyInputs } from './ui/numberInputs.js';
 
 function compute(input) {
@@ -64,7 +65,11 @@ function render(state) {
     renderHistory(input, money, pay);
     syncCollapsibles(state);
   }
-  if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
+  if (state.ui.resTab === 'espp') {
+    const report = esppReport({ ...input, esppRates: monthRates(state) });
+    renderEsppTab(report, money);
+    ensureMonthRates(report.year, rebuild);
+  }
 }
 
 function rebuild() {

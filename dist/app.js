@@ -171,7 +171,6 @@
     incomes: { name: "", amount: "", per: "once", taxable: true, insurable: false },
     cashAwards: { name: "Cash Award", amount: "", currency: "USD", rate: "", per: "once", taxable: true },
     deductions: { name: "", amount: "", per: "month", pretax: false },
-    "espp.payrollTax": { date: "", gains: "", tax: "", rate: "" },
     "@.tax.brackets": { rate: "", min: "", max: "", exclusion: "" },
     "@.levies": { name: "", rate: "", base: "gross" },
     "@.si.caps": { year: "", min: "", max: "" },
@@ -267,7 +266,8 @@
     const overtimeAnnual = sum(overtime, (o) => o.annual);
     const preTax = sum(deductions.filter((d) => d.pretax), (d) => d.annual);
     const postTax = sum(deductions.filter((d) => !d.pretax), (d) => d.annual);
-    const grossTaxable = baseAnnual + taxableExtras + overtimeAnnual;
+    const esppGain = toAnnual(input.espp?.gain, "once", schedule);
+    const grossTaxable = baseAnnual + taxableExtras + overtimeAnnual + esppGain;
     const grossAnnual = grossTaxable + exemptAllowances;
     const si = computeSocialInsurance({
       si: profile.si,
@@ -293,11 +293,12 @@
       overtimeAnnual,
       cashAwardsAnnual: sum(cashAwards, (a) => a.annual)
     });
-    const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total;
+    const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total + esppGain;
     const net = grossAnnual - totalDeductions;
     const employeeGovTake = si.employee + incomeTax + leviesTotal;
     const employerCost = grossAnnual + si.employer;
     const ratio = (a, b) => b > 0 ? a / b : 0;
+    const esppGainTax = esppGain > 0 ? incomeTax + leviesTotal - (({ incomeTax: t, leviesTotal: l }) => t + l)(calculate({ ...input, espp: { ...input.espp, gain: "" } }, baseAnnualOverride)) : 0;
     return {
       job,
       baseAnnual,
@@ -324,6 +325,8 @@
       levies,
       leviesTotal,
       espp,
+      esppGain,
+      esppGainTax,
       totalDeductions,
       net,
       employeeGovTake,
@@ -421,7 +424,7 @@
 
   // js/core/months.js
   var PAY_KEYS = ["amount", "per", "mode", "payPeriod", "jobType", "overrides", "incomes", "overtime", "cashAwards", "deductions", "espp"];
-  var ESPP_KEYS = ["constPct", "varPct", "variable"];
+  var ESPP_KEYS = ["constPct", "varPct", "variable", "gain"];
   var PAY_PATHS = [...PAY_KEYS.filter((k) => k !== "espp"), ...ESPP_KEYS.map((k) => `espp.${k}`)];
   var isPayPath = (path) => PAY_PATHS.some((p) => path === p || path.startsWith(`${p}.`));
   function snapshotPay(state2) {
@@ -506,15 +509,18 @@
   var DIVIDEND_MONTHS = /* @__PURE__ */ new Set([3, 6, 9, 12]);
   var FEE_MONTHS = /* @__PURE__ */ new Set([1, 7]);
   var monthNumber = (key2) => Number(key2.slice(5, 7));
-  var pick = (locked, forecast) => isFilled(locked) ? { value: toNumber(locked), locked: true } : { value: forecast, locked: false };
-  function buildLedger({ year, entries = {}, assumptions = {}, deductionFor }) {
+  var pick = (typed, calculated) => isFilled(typed) ? { value: toNumber(typed), locked: true } : { value: calculated, locked: false };
+  function dividendCash(sharesHeld, { dividend, dividendTax, reinvestRate, reinvestCap }) {
+    const gross = sharesHeld * toNumber(dividend);
+    const afterTax = gross * (1 - toNumber(dividendTax) / 100);
+    const fee = Math.min(afterTax * (toNumber(reinvestRate) / 100), isFilled(reinvestCap) ? toNumber(reinvestCap) : Infinity);
+    return { gross, afterTax, fee, net: Math.max(0, afterTax - fee) };
+  }
+  function buildLedger({ year, entries = {}, assumptions = {}, deductionFor, monthRates: monthRates2 = {} }) {
     const price = toNumber(assumptions.price);
     const discount = toNumber(assumptions.discount) / 100;
     const purchasePrice = price * (1 - discount);
     const fx = toNumber(assumptions.fx);
-    const dividendPerShare = toNumber(assumptions.dividend);
-    const reinvestRate = toNumber(assumptions.reinvestRate) / 100;
-    const reinvestCap = toNumber(assumptions.reinvestCap);
     const feeIn = toNumber(assumptions.feeIn);
     let shares = 0;
     const sharesHistory = [];
@@ -522,12 +528,16 @@
       const entry = entries[month] ?? {};
       const m = monthNumber(month);
       const deducted = pick(entry.deducted, deductionFor(month));
-      const deductedUsd = pick(entry.deductedUsd, fx > 0 ? deducted.value / fx : 0);
+      const rate = toNumber(monthRates2[month]) || fx;
+      const deductedUsd = pick(entry.deductedUsd, rate > 0 ? deducted.value / rate : 0);
+      const usedRate = deductedUsd.value > 0 ? deducted.value / deductedUsd.value : 0;
       const eligibleShares = sharesHistory[i - 2] ?? 0;
-      const dividend = pick(entry.dividend, DIVIDEND_MONTHS.has(m) ? Math.floor(eligibleShares * dividendPerShare * 100) / 100 : 0);
-      const reinvestFee = dividend.value > 0 ? Math.min(dividend.value * reinvestRate, reinvestCap) : 0;
-      const feesIn = FEE_MONTHS.has(m) ? feeIn : 0;
-      const accredited = deductedUsd.value + dividend.value - reinvestFee - feesIn;
+      const div = DIVIDEND_MONTHS.has(m) ? dividendCash(eligibleShares, assumptions) : { gross: 0, afterTax: 0, fee: 0, net: 0 };
+      const dividend = pick(entry.dividend, div.net);
+      const reinvestFee = dividend.locked ? 0 : div.fee;
+      const dividendTax = dividend.locked ? 0 : div.gross - div.afterTax;
+      const feesIn = FEE_MONTHS.has(m) && deducted.value > 0 ? feeIn : 0;
+      const accredited = deductedUsd.value + dividend.value - feesIn;
       const previous = shares;
       const accShares = pick(entry.shares, purchasePrice > 0 ? previous + accredited / purchasePrice : previous);
       shares = accShares.value;
@@ -540,7 +550,11 @@
         month,
         deducted,
         deductedUsd,
+        rate,
+        fxToday: fx,
+        usedRate,
         dividend,
+        dividendTax,
         reinvestFee,
         feesIn,
         accredited,
@@ -554,7 +568,7 @@
     });
     return { rows, price, purchasePrice, fx };
   }
-  function summarize(ledger, { cutoff, assumptions = {}, payrollTaxUsd = 0 }) {
+  function summarize(ledger, { cutoff, assumptions = {} }) {
     const rows = cutoff ? ledger.rows.filter((r) => r.month <= cutoff) : ledger.rows;
     const last = rows.at(-1);
     const shares = last ? last.shares.value : 0;
@@ -563,11 +577,10 @@
     const untaxed = sum(rows, (r) => r.untaxed);
     const dividends = sum(rows, (r) => r.dividend.value);
     const fees = sum(rows, (r) => r.reinvestFee + r.feesIn);
-    const taxRate = toNumber(assumptions.taxRate) / 100;
+    const dividendTax = sum(rows, (r) => r.dividendTax ?? 0);
     const withdrawalFee = toNumber(assumptions.withdrawalFee);
-    const taxDueUsd = Math.max(0, taxRate * untaxed - payrollTaxUsd);
     const marketValueUsd = shares * ledger.price;
-    const withdrawalUsd = Math.max(0, marketValueUsd - withdrawalFee - taxDueUsd);
+    const withdrawalUsd = Math.max(0, marketValueUsd - withdrawalFee);
     const withdrawal = withdrawalUsd * ledger.fx;
     return {
       months: rows.length,
@@ -576,28 +589,14 @@
       deductedUsd,
       untaxed,
       dividends,
+      dividendTax,
       fees,
       marketValueUsd,
-      taxDueUsd,
+      withdrawalFee,
       withdrawalUsd,
       withdrawal,
-      profit: withdrawal - deducted,
-      netGainsUsd: untaxed - taxDueUsd - withdrawalFee
+      profit: withdrawal - deducted
     };
-  }
-  function payrollTax(events = []) {
-    return events.reduce(
-      (acc, e) => {
-        const rate = toNumber(e.rate);
-        const tax = toNumber(e.tax);
-        const gains = toNumber(e.gains);
-        acc.tax += tax;
-        acc.taxUsd += rate > 0 ? tax / rate : 0;
-        acc.gainsUsd += rate > 0 ? gains / rate : 0;
-        return acc;
-      },
-      { tax: 0, taxUsd: 0, gainsUsd: 0 }
-    );
   }
   function adjustedMonth(today, changeDay, offset = 0) {
     const settledThisMonth = today.getDate() >= toNumber(changeDay || 1);
@@ -617,6 +616,22 @@
     const inForce = monthInForce(input.months, month);
     return inForce ? { kind: "carried", month: inForce } : { kind: "pay", month: "" };
   }
+  function payslipGainFor(input, month) {
+    const entry = input.espp?.entries?.[month] ?? {};
+    const typedGain = entry.gain !== void 0 && entry.gain !== "";
+    const typedTax = entry.gainTax !== void 0 && entry.gainTax !== "";
+    const saved = input.months?.[month];
+    const savedGain = toNumber(saved?.espp?.gain) > 0;
+    if (!typedGain && !savedGain && !typedTax) return { gain: 0, tax: 0, source: "", taxTyped: false };
+    const base = saved ? withPay(input, saved) : input;
+    const r = calculate({ ...base, espp: { ...base.espp, gain: typedGain ? entry.gain : savedGain ? saved.espp.gain : "" } });
+    return {
+      gain: typedGain || savedGain ? r.esppGain / 12 : 0,
+      tax: typedTax ? toNumber(entry.gainTax) : r.esppGainTax / 12,
+      source: typedGain ? "typed" : savedGain ? "history" : "",
+      taxTyped: typedTax
+    };
+  }
   function esppReport(input, today = /* @__PURE__ */ new Date()) {
     const espp = input.espp;
     const year = Number(input.ui.esppYear || today.getFullYear());
@@ -624,22 +639,26 @@
       year,
       entries: espp.entries,
       assumptions: espp.assumptions,
-      deductionFor: esppDeductionFor(input)
+      deductionFor: esppDeductionFor(input),
+      monthRates: input.esppRates ?? {}
     });
     ledger.rows.forEach((row) => {
       row.source = deductionSource(input, row.month);
+      row.payslip = payslipGainFor(input, row.month);
     });
-    const payroll = payrollTax(espp.payrollTax);
     const cutoff = adjustedMonth(today, espp.changeDay, espp.monthOffset);
-    const options = { assumptions: espp.assumptions, payrollTaxUsd: payroll.taxUsd };
+    const options = { assumptions: espp.assumptions };
+    const gainTotals = (rows) => ({
+      payslipGain: sum(rows, (r) => r.payslip.gain),
+      payslipTax: sum(rows, (r) => r.payslip.tax)
+    });
     return {
       year,
       ledger,
-      payroll,
       cutoff,
       currentMonth: monthKey(today),
-      toDate: summarize(ledger, { ...options, cutoff }),
-      forecast: summarize(ledger, options),
+      toDate: { ...summarize(ledger, { ...options, cutoff }), ...gainTotals(ledger.rows.filter((r) => r.month <= cutoff)) },
+      forecast: { ...summarize(ledger, options), ...gainTotals(ledger.rows) },
       ready: toNumber(espp.assumptions.price) > 0 && toNumber(espp.assumptions.fx) > 0
     };
   }
@@ -722,6 +741,8 @@
     espp: {
       constPct: "",
       varPct: "",
+      /** ESPP gain on this month's payslip (EGP): taxed as pay, then taken back out ("ESPP gain offset"). */
+      gain: "",
       variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
       symbol: "IBM",
       assumptions: {
@@ -729,16 +750,17 @@
         fx: "",
         discount: "15",
         dividend: "",
+        dividendTax: "15",
         reinvestRate: "2",
         reinvestCap: "3",
         feeIn: "6",
-        taxRate: "25",
         withdrawalFee: ""
       },
       changeDay: "30",
       monthOffset: "0",
       entries: {},
-      payrollTax: []
+      /** USD rate per month ("YYYY-MM" → rate): the average of the 19th–21st, fetched for past months. */
+      rates: {}
     },
     /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
     history: [],
@@ -752,7 +774,7 @@
       period: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppVariable: false, histSaved: true, histSummary: true }
     }
   });
 
@@ -824,6 +846,11 @@
       }
     }
     state2.espp.entries = entries;
+    const rates = {};
+    for (const [month, rate] of Object.entries(saved?.espp?.rates ?? {})) {
+      if (MONTH.test(month) && Number(rate) > 0) rates[month] = String(rate);
+    }
+    state2.espp.rates = rates;
     state2.history = (state2.history ?? []).filter((h) => h && typeof h === "object" && h.field);
     return state2;
   }
@@ -1071,6 +1098,13 @@
     }
     return list;
   }
+  var CONVERSION_DAYS = [19, 20, 21];
+  async function getConversionRate(from, to, month) {
+    const days = CONVERSION_DAYS.map((d) => `${month}-${String(d).padStart(2, "0")}`);
+    const rates = (await Promise.allSettled(days.map((date) => getRate(from, to, date)))).filter((r) => r.status === "fulfilled").map((r) => r.value.rate);
+    if (!rates.length) throw new Error(`no rate for ${month}`);
+    return rates.reduce((a, b) => a + b, 0) / rates.length;
+  }
   async function getRate(from, to, date = "") {
     const { value, source } = await cached(`${from}>${to}@${date}`, () => firstValid(sources(from, to, date), (s, data) => s.read(data)));
     return { rate: value, source };
@@ -1171,12 +1205,6 @@
     ${text("deductions", i, "name", it.name, "Name")}${num("deductions", i, "amount", it.amount, "Amount", { money: true })}
     ${select("deductions", i, "per", periodOptions(it.per, itemPeriods("deductions", it)))}${removeBtn("deductions", i)}
     ${advanced("deductions", i, check("deductions", i, "pretax", it.pretax, "Before tax (reduces taxable income)"))}</div>`,
-    "espp.payrollTax": (e, i) => {
-      const p = "espp.payrollTax";
-      return `<tr><td><input type="date" data-path="${p}.${i}.date" value="${escapeHtml(e.date)}" aria-label="Payroll date"></td>
-      <td>${num(p, i, "gains", e.gains, "gains")}</td><td>${num(p, i, "tax", e.tax, "tax")}</td>
-      <td>${num(p, i, "rate", e.rate, "rate")}</td><td>${removeBtn(p, i)}</td></tr>`;
-    },
     "@.tax.brackets": (b, i) => {
       const p = "@.tax.brackets";
       return `<tr><td>${num(p, i, "rate", b.rate, "%")}</td><td>${num(p, i, "min", b.min, "0")}</td>
@@ -1506,6 +1534,7 @@
       ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? "" : ' <span class="hint">(exempt)</span>'), it.annual)),
       ...r.overtime.filter((o) => o.annual).map((o) => sub(escapeHtml(o.label), o.annual, o.netAnnual)),
       ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.netAnnual)),
+      r.esppGain ? line(`ESPP gain <span class="hint">taxed, then offset</span>`, positive(at(r.esppGain)), `sub${mine}`) : "",
       line("Gross pay", positive(at(r.grossAnnual)), "strong")
     ];
     const siNote = r.si.enabled ? `${escapeHtml(state2.profile.si.employeeRate)}%` : "n/a";
@@ -1516,6 +1545,7 @@
       ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), "", COLORS.tax)),
       ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
       r.espp.total ? line("Stocks", negative(at(r.espp.total)), mine.trim(), COLORS.other) : "",
+      r.esppGain ? line(`ESPP gain offset <span class="hint">extra tax ${at(r.esppGainTax)}</span>`, negative(at(r.esppGain)), mine.trim(), COLORS.other) : "",
       line("Total deductions", negative(at(r.totalDeductions)), "strong sep"),
       net ? line("Net pay", at(r.net), "strong net-line") : ""
     ];
@@ -1811,7 +1841,7 @@
   var fixed = (v, d = 2) => Number.isFinite(v) ? v.toFixed(d) : "";
   var usd = (v, d = 2) => `$${(Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
   var esppAdded = false;
-  var hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0;
+  var hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0 || toNumber(s.espp.gain) > 0;
   var esppShown = (s) => esppAdded || hasEsppPct(s);
   function renderEsppInputs(result, money, state2) {
     const block = $("#esppBlock");
@@ -1826,6 +1856,17 @@
     $("#esppTile").innerHTML = e?.total ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
        <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
        <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
+    renderGainTile(result, money);
+  }
+  function renderGainTile(result, money) {
+    const tile2 = $("#esppGainTile");
+    const gain = (result?.esppGain ?? 0) / 12;
+    tile2.hidden = !(gain > 0);
+    if (!gain) return;
+    const tax = (result.esppGainTax ?? 0) / 12;
+    tile2.innerHTML = `<div><span>ESPP Gains</span><b>${money(gain)}</b></div>
+    <div><span>Extra tax</span><b>${money(tax)}</b></div>
+    <div class="tot"><span>Net cost</span><b>${money(tax)}</b></div>`;
   }
   function resetEsppAdded() {
     esppAdded = false;
@@ -1838,7 +1879,7 @@
     const label = monthLabel(rep.cutoff);
     return `<div class="etiles">
     ${tile("Withdrawal", { v: money(rep.toDate.withdrawal), k: `to ${label}` }, { v: money(rep.forecast.withdrawal), k: `${rep.year} forecast` }, "w")}
-    ${tile("Profit", { v: money(rep.toDate.profit), k: `to ${label}` }, { v: money(rep.forecast.profit), k: `${rep.year} forecast` }, "p")}
+    ${tile("Profit", { v: money(rep.toDate.profit - rep.toDate.payslipTax), k: `to ${label}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), k: `${rep.year} forecast` }, "p")}
     ${tile("Shares", { v: formatNumber2(rep.toDate.shares), k: `to ${label}` }, { v: formatNumber2(rep.forecast.shares), k: `${rep.year} forecast` }, "s")}
   </div>`;
   }
@@ -1850,14 +1891,31 @@
     if (src.kind === "carried") return `From History (${monthLabel(src.month)}, still in force)`;
     return "From the Pay tab (no History month yet)";
   }
+  function dividendNote(row) {
+    if (!row.dividend.value) return "No dividend this month";
+    return `After ${usd(row.dividendTax, 4)} US tax and ${usd(row.reinvestFee, 4)} reinvest fee`;
+  }
   function cell(row, col) {
     const field = row[col.key];
     const shown = fixed(field.value, col.decimals);
     const fromHistory = col.key === "deducted" && !field.locked && row.source?.kind !== "pay" && field.value > 0;
-    const title = field.locked ? "Your value \u2014 clear it to go back to the calculated one" : `${col.key === "deducted" ? sourceNote(row) : "Calculated"} \u2014 type a value to override it`;
+    const title = col.key === "deductedUsd" && row.usedRate ? field.locked ? `Your value \u2014 IBM used 1 USD = ${row.usedRate.toFixed(4)} that month. Clear it to go back to the calculated one` : `Calculated at 1 USD = ${row.rate.toFixed(4)} (${row.rate === row.fxToday ? "today's rate" : "avg of the 19th\u201321st"}) \u2014 type Equate's USD to override it` : field.locked ? "Your value \u2014 clear it to go back to the calculated one" : `${col.key === "deducted" ? sourceNote(row) : col.key === "dividend" ? dividendNote(row) : "Calculated"} \u2014 type a value to override it`;
     return `<td class="lock${field.locked ? " on" : ""}${fromHistory ? " hist" : ""}">
     <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${col.key}"
       value="${field.locked ? escapeHtml(shown) : ""}" placeholder="${shown}" aria-label="${col.label} ${row.month}"
+      title="${escapeHtml(title)}"></td>`;
+  }
+  function payslipCell(row, key2) {
+    const p = row.payslip;
+    const typed = key2 === "gain" ? p.source === "typed" : p.taxTyped;
+    const calculated = key2 === "gain" ? p.gain : p.tax;
+    const fromHistory = !typed && p.source === "history";
+    const shown = calculated ? fixed(calculated) : "";
+    const what = key2 === "gain" ? "ESPP gain" : "Tax on the gain";
+    const title = typed ? "Your value \u2014 clear it to use the History month again" : fromHistory ? `${what} from History (${monthLabel(row.month)}) \u2014 type a value to override it` : `No ESPP gain on this payslip \u2014 add it on the Pay/History tab, or type the payslip's ${what.toLowerCase()} here`;
+    return `<td class="lock${typed ? " on" : ""}${fromHistory ? " hist" : ""}${key2 === "gainTax" ? " neg-cell" : ""}">
+    <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${key2}"
+      value="${typed ? escapeHtml(fixed(calculated)) : ""}" placeholder="${shown || "0.00"}" aria-label="${what} ${row.month}"
       title="${escapeHtml(title)}"></td>`;
   }
   function ledgerTable(rep) {
@@ -1867,37 +1925,45 @@
       ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
       <td class="r calc">${fixed(r.reinvestFee, 3)}</td><td class="r calc">${fixed(r.feesIn)}</td>
       <td class="r calc">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
-      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td></tr>`;
+      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td>
+      ${payslipCell(r, "gain")}${payslipCell(r, "gainTax")}</tr>`;
     }).join("");
     const t = rep.forecast;
     return `<div class="table-wrap espp-table"><table class="edit-table">
     <thead><tr><th>Month</th><th class="y">Deducted</th><th class="y">Deducted USD</th><th class="y">Dividend</th>
       <th class="r">Reinvest fee</th><th class="r">Fees in</th><th class="r">Accredited</th><th class="y">ACC. Shares</th>
-      <th class="r">Un-taxed</th><th class="r">Actual share</th></tr></thead>
+      <th class="r" title="Discount on shares bought this month">Discount gain</th><th class="r">Actual share</th>
+      <th class="y" title="ESPP gain on this month's payslip, EGP">Payslip gain</th><th class="y" title="Extra income tax the payslip gain caused, EGP">Gain tax</th></tr></thead>
     <tbody>${rows}
       <tr class="total"><td>Total</td><td class="r">${fixed(t.deducted)}</td><td class="r">${fixed(t.deductedUsd)}</td>
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
-        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
+        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td>
+        <td class="r">${fixed(t.payslipGain)}</td><td class="r">${fixed(t.payslipTax)}</td></tr>
     </tbody></table></div>
     <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
-      <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+      <span class="hist-dot"></span> Deducted, Payslip gain and its tax come from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
   }
   function breakdown(rep, money) {
-    const r = (label, a, b) => `<tr><td>${label}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`;
+    const r = (label, a, b, tone = "") => `<tr class="${tone}"><td>${label}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`;
+    const cost = (v, fmt) => v ? `\u2212 ${fmt(v)}` : fmt(0);
     const d = rep.toDate, f = rep.forecast;
-    return `<div class="table-wrap"><table>
+    const net = (x) => x.profit - x.payslipTax;
+    return `<div class="table-wrap"><table class="espp-sum">
     <thead><tr><th></th><th class="r">To ${monthLabel(rep.cutoff)}</th><th class="r">${rep.year} forecast</th></tr></thead>
     <tbody>
       ${r("Deducted from pay", money(d.deducted), money(f.deducted))}
       ${r("Shares held", fixed(d.shares, 5), fixed(f.shares, 5))}
-      ${r("Market value", usd(d.marketValueUsd), usd(f.marketValueUsd))}
-      ${r("Un-taxed gains", usd(d.untaxed), usd(f.untaxed))}
-      ${r("Tax still due", usd(d.taxDueUsd), usd(f.taxDueUsd))}
-      ${r("Dividends", usd(d.dividends), usd(f.dividends))}
-      ${r("Fees", usd(d.fees), usd(f.fees))}
+      ${r("Market value", usd(d.marketValueUsd), usd(f.marketValueUsd), "pos-row")}
+      ${r('Discount gain <span class="hint">taxed via payroll</span>', usd(d.untaxed), usd(f.untaxed))}
+      ${r('Dividends <span class="hint">after US tax and fee</span>', usd(d.dividends), usd(f.dividends))}
+      ${r("Dividend US tax", cost(d.dividendTax, usd), cost(f.dividendTax, usd), "neg-row")}
+      ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), "neg-row")}
+      ${r("Withdrawal fee", cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), "neg-row")}
+      ${r("Tax on payslip gains", cost(d.payslipTax, money), cost(f.payslipTax, money), "neg-row")}
       <tr class="total"><td>Withdrawal</td><td class="r">${money(d.withdrawal)}</td><td class="r">${money(f.withdrawal)}</td></tr>
-      ${r("Profit vs. deducted", money(d.profit), money(f.profit))}
-    </tbody></table></div>`;
+      ${r('Profit <span class="hint">after all costs</span>', money(net(d)), money(net(f)), "pos-row")}
+    </tbody></table></div>
+    <p class="hint">Red = money that never comes back. Fees and dividend tax are already inside <b>Shares held</b>, so they are not taken off again; the withdrawal fee is taken off the withdrawal, and the tax on payslip gains is taken off the profit.</p>`;
   }
   function renderEsppTab(rep, money) {
     const host = $('[data-view="espp"]');
@@ -1947,6 +2013,7 @@
         esppAdded = false;
         set("espp.constPct", "");
         set("espp.varPct", "");
+        set("espp.gain", "");
         return onChanged();
       }
       const live = e.target.closest("[data-espp-live]");
@@ -2292,11 +2359,11 @@
     const pickHost = $("#saveMonthPickHost");
     const ask = $("#saveMonthAsk");
     let custom = "";
-    let pending = "";
+    let pending2 = "";
     function close() {
       panel.hidden = true;
       ask.hidden = true;
-      pending = "";
+      pending2 = "";
     }
     const chosen = () => select2.hidden ? custom : select2.value;
     function drawPicker() {
@@ -2338,7 +2405,7 @@
       const month = chosen();
       if (!month) return;
       if (!getState().months[month]) return commit2(month);
-      pending = month;
+      pending2 = month;
       $("#saveMonthAskText").textContent = `${monthLabel(month, "long")} is already saved. Override it?`;
       ask.hidden = false;
     }
@@ -2370,11 +2437,11 @@
     });
     $("#saveMonthGo").addEventListener("click", done);
     $("#saveMonthYes").addEventListener("click", () => {
-      if (pending) commit2(pending);
+      if (pending2) commit2(pending2);
     });
     $("#saveMonthNo").addEventListener("click", () => {
       ask.hidden = true;
-      pending = "";
+      pending2 = "";
     });
     $("#saveMonthCancel").addEventListener("click", close);
   }
@@ -2382,6 +2449,32 @@
     const onPay = state2.ui.inTab === "pay";
     $("#saveMonthBtn").hidden = !onPay;
     if (!onPay) $("#saveMonthPanel").hidden = true;
+  }
+
+  // js/ui/esppRates.js
+  var pending = /* @__PURE__ */ new Set();
+  var isPastConversion = (month, today) => month < monthKey(today) || month === monthKey(today) && today.getDate() > 21;
+  function monthRates(state2) {
+    return state2.espp.rates ?? {};
+  }
+  function ensureMonthRates(year, onChanged, today = /* @__PURE__ */ new Date()) {
+    const state2 = getState();
+    const currency = activeProfile().currency;
+    const have = monthRates(state2);
+    const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`).filter((m) => isPastConversion(m, today) && !have[m] && !pending.has(`${currency}:${m}`));
+    if (!months.length) return;
+    months.forEach((m) => pending.add(`${currency}:${m}`));
+    Promise.allSettled(months.map((m) => getConversionRate("USD", currency, m).then((rate) => [m, rate]))).then((results) => {
+      const got = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
+      if (!got.length) return;
+      update((s) => {
+        s.espp.rates = { ...s.espp.rates ?? {} };
+        got.forEach(([m, rate]) => {
+          s.espp.rates[m] = String(Number(rate.toFixed(4)));
+        });
+      });
+      onChanged();
+    });
   }
 
   // js/ui/numberInputs.js
@@ -2438,7 +2531,11 @@
       renderHistory(input, money, pay);
       syncCollapsibles(state2);
     }
-    if (state2.ui.resTab === "espp") renderEsppTab(esppReport(input), money);
+    if (state2.ui.resTab === "espp") {
+      const report = esppReport({ ...input, esppRates: monthRates(state2) });
+      renderEsppTab(report, money);
+      ensureMonthRates(report.year, rebuild);
+    }
   }
   function rebuild() {
     const state2 = view();

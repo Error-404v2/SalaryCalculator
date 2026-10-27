@@ -39,6 +39,7 @@ Collapsible sections, in this order:
    - **Live rate ⟳** fetches today's rate with no setup or API key. It tries open.er-api.com first, then the currency-api on jsDelivr, and caches the result for an hour. The rate box turns **green** on success, or **red** if no source could be reached (enter the rate manually then; typing a rate clears the colour).
 3. **Other deductions:** taken before tax or after tax. Medical insurance (default 230.8) is *Monthly* or *Annual*; other deductions can't be daily or hourly.
    - **Stocks:** add it with *+ Stocks* (before Loan) or *+ Add Stocks*. It becomes the first deduction: *Constant %* (of basic) and *Variable %* (of whatever is ticked under More options → Settings → *Stocks: what counts as variable*), side by side, then a banner with the monthly amounts. It comes out of net pay after tax and is on whenever a % is above 0.
+     - **ESPP gains:** the one number to enter, straight from the payslip. Payroll adds it to taxable pay ("ESPP gain") and takes it straight back out ("ESPP gain offset"), so net pay only drops by the extra tax, which is worked out for you (no tax or rate to type). A banner shows the gain, the extra tax and the net cost, and it disappears when the gain is 0. Save it in a month and the ESPP tab picks it up.
 4. **More options:** **job type** first, then social insurance base override, manual taxable amount, and compact **Settings** (weeks/year, days/week, hours/day, OT base hours/month, export/import/reset).
 
 Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the right of a single line, with a faded preview of the first options on its left. Clicking it expands the options: the *taxable* / *counts toward SI base* flags, a cash award's period and taxable flag, and a deduction's before-tax flag.
@@ -64,9 +65,15 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 
   Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket, and ends with the **By period** table (annual, monthly, daily, hourly).
 - **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
-  - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares): blank means forecast; type the actual value to lock it.
-  - Forecast rules: each month's deduction comes from the saved month in force (the *Stocks* %), USD at the set rate, shares bought at price × (1 − discount), quarterly dividends (Mar/Jun/Sep/Dec) on shares held two months earlier, reinvest fee capped, an entry fee each Jan and Jul.
-  - **Withdrawal** = (shares × price − withdrawal fee − tax still due) × USD rate, where tax still due = tax % × un-taxed gains − tax already paid through payroll (*Payroll tax events*).
+  - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares) show the calculated value in grey; type the actual value to override it, clear it to go back.
+  - **Deducted** comes from that month's History entry (the *Stocks* %).
+  - **Payslip gain** and **Gain tax** come from that month's History entry too (the *ESPP gains* you saved, and the extra tax they caused). Type a value in the ESPP tab to override it, or to track a payslip without a History month; clear it to go back. The Pay/History tabs never read anything from the ESPP tab.
+  - **Deducted USD** = Deducted ÷ the USD rate IBM used. IBM converts around the 19th–21st, so a past month uses the average of those days (fetched once and saved); a month not yet converted uses today's rate. Once you type Equate's USD, the tooltip shows the exact rate IBM used.
+  - **Dividend** (Mar/Jun/Sep/Dec) = shares held two months earlier × IBM's $/share, less 15% US tax, less the 2% reinvestment fee (max $3), per the prospectus. A typed dividend changes the shares from that month on.
+  - **Fees in:** the $6 admin fee in Jan and Jul, only in a month that has a Deducted.
+  - Shares are bought at price × (1 − 15% discount). The discount is the gain taxed through payroll.
+  - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
+  - **Colours in the breakdown:** money that never comes back (dividend US tax, fees, withdrawal fee, tax on payslip gains) is red; market value and profit are green. **Profit** is after all of them.
   - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
   - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it.
 - **Employer cost:** the real tax rate, including employer social insurance.
@@ -95,7 +102,7 @@ js/
     proRata.js       month/day pro-rata input adjustment
     history.js       month keys and labels, old per-field history
     months.js        saved months (full Pay copies), gross conversion, moves
-    espp.js          ESPP ledger, summary, payroll tax, adjusted month
+    espp.js          ESPP ledger, summary, adjusted month
     esppForecast.js  ESPP report from saved months
   data/              Egypt 2026 profile, presets, currencies
   state/             store ("@." paths = active profile), migration, localStorage

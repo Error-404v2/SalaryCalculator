@@ -57,6 +57,12 @@ function restoreEntries(state, saved) {
     }
   }
   state.espp.entries = entries;
+  // Fetched per-month USD rates, also keyed by month.
+  const rates = {};
+  for (const [month, rate] of Object.entries(saved?.espp?.rates ?? {})) {
+    if (MONTH.test(month) && Number(rate) > 0) rates[month] = String(rate);
+  }
+  state.espp.rates = rates;
   state.history = (state.history ?? []).filter((h) => h && typeof h === 'object' && h.field);
   return state;
 }

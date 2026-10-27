@@ -57,16 +57,19 @@ export const DEFAULT_STATE = Object.freeze({
   espp: {
     constPct: '',
     varPct: '',
+    /** ESPP gain on this month's payslip (EGP): taxed as pay, then taken back out ("ESPP gain offset"). */
+    gain: '',
     variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
     symbol: 'IBM',
     assumptions: {
-      price: '', fx: '', discount: '15', dividend: '', reinvestRate: '2', reinvestCap: '3',
-      feeIn: '6', taxRate: '25', withdrawalFee: '',
+      price: '', fx: '', discount: '15', dividend: '', dividendTax: '15', reinvestRate: '2', reinvestCap: '3',
+      feeIn: '6', withdrawalFee: '',
     },
     changeDay: '30',
     monthOffset: '0',
     entries: {},
-    payrollTax: [],
+    /** USD rate per month ("YYYY-MM" → rate): the average of the 19th–21st, fetched for past months. */
+    rates: {},
   },
   /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
   history: [],
@@ -80,6 +83,6 @@ export const DEFAULT_STATE = Object.freeze({
     period: 'month',
     theme: '',
     taxEdit: false,
-    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true },
+    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppVariable: false, histSaved: true, histSummary: true },
   },
 });
