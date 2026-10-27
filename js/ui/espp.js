@@ -5,6 +5,9 @@ import { getRate } from '../services/exchangeRates.js';
 import { getStockPrice } from '../services/stockPrice.js';
 import * as store from '../state/store.js';
 import { toNumber } from '../utils/number.js';
+import { spinWhile, reapplySpin } from './spin.js';
+
+const REFRESH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>';
 
 /** The yellow, lockable columns of the sheet: blank = forecast, a value = actual. */
 const LOCKABLE = [
@@ -60,15 +63,16 @@ export function resetEsppAdded() {
 
 // ---------- ESPP tab ----------
 function tile(label, a, b, tone = '') {
+  const sign = (x) => (x.n > 0.005 ? 'pos' : x.n < -0.005 ? 'neg' : '');
   return `<div class="etile ${tone}"><div class="k">${label}</div>
-    <div class="pair"><div><b>${a.v}</b><small>${a.k}</small></div><div><b>${b.v}</b><small>${b.k}</small></div></div></div>`;
+    <div class="pair"><div><b class="${sign(a)}">${a.v}</b><small>${a.k}</small></div><div><b class="${sign(b)}">${b.v}</b><small>${b.k}</small></div></div></div>`;
 }
 
 function topTiles(rep, money) {
   const label = monthLabel(rep.cutoff);
   return `<div class="etiles">
     ${tile('Withdrawal', { v: money(rep.toDate.withdrawal), k: `to ${label}` }, { v: money(rep.forecast.withdrawal), k: `${rep.year} forecast` }, 'w')}
-    ${tile('Profit', { v: money(rep.toDate.profit - rep.toDate.payslipTax), k: `to ${label}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), k: `${rep.year} forecast` }, 'p')}
+    ${tile('Profit', { v: money(rep.toDate.profit - rep.toDate.payslipTax), n: rep.toDate.profit - rep.toDate.payslipTax, k: `to ${label}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), n: rep.forecast.profit - rep.forecast.payslipTax, k: `${rep.year} forecast` }, 'p')}
     ${tile('Shares', { v: formatNumber2(rep.toDate.shares), k: `to ${label}` }, { v: formatNumber2(rep.forecast.shares), k: `${rep.year} forecast` }, 's')}
   </div>`;
 }
@@ -139,10 +143,10 @@ function ledgerTable(rep) {
   }).join('');
   const t = rep.forecast;
   return `<div class="table-wrap espp-table"><table class="edit-table">
-    <thead><tr><th>Month</th><th class="y">Deducted</th><th class="y">Deducted USD</th><th class="y">Dividend</th>
-      <th class="r">Reinvest fee</th><th class="r">Fees in</th><th class="r">Accredited</th><th class="y">ACC. Shares</th>
-      <th class="r" title="Discount on shares bought this month">Discount gain</th><th class="r">Actual share</th>
-      <th class="y" title="ESPP gain on this month's payslip, EGP">Payslip gain</th><th class="y" title="Extra income tax the payslip gain caused, EGP">Gain tax</th></tr></thead>
+    <thead><tr><th>Month</th><th class="y" title="Taken from your pay, EGP">Deducted EGP</th><th class="y" title="US dollars">Deducted USD</th><th class="y" title="US dollars">Dividend $</th>
+      <th class="r" title="US dollars">Reinvest fee $</th><th class="r" title="US dollars">Fees in $</th><th class="r" title="US dollars">Accredited $</th><th class="y">ACC. Shares</th>
+      <th class="r" title="US dollars: what the shares bought this month are worth minus what went in">Discount gain $</th><th class="r" title="US dollars">Actual share $</th>
+      <th class="y" title="ESPP gain on this month's payslip, in EGP">Payslip gain EGP</th><th class="y" title="Extra income tax the payslip gain caused, in EGP">Gain tax EGP</th></tr></thead>
     <tbody>${rows}
       <tr class="total"><td>Total</td><td class="r">${fixed(t.deducted)}</td><td class="r">${fixed(t.deductedUsd)}</td>
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
@@ -153,26 +157,31 @@ function ledgerTable(rep) {
       <span class="hist-dot"></span> Deducted, Payslip gain and its tax come from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
 }
 
+/** Money that never comes back is red only when there is some; value and profit are green above 0 and red below it. */
+const colourOf = (kind, n) => (kind === 'cost' ? (n > 0.005 ? 'neg' : '') : n > 0.005 ? 'pos' : n < -0.005 ? 'neg' : '');
+
 function breakdown(rep, money) {
-  const r = (label, a, b, tone = '') => `<tr class="${tone}"><td>${label}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`;
-  const cost = (v, fmt) => (v ? `− ${fmt(v)}` : fmt(0));
+  /** `a` and `b` are [text, number] so the colour follows the value. `kind`: 'cost' (red when > 0) or 'gain' (green / red). */
+  const r = (label, a, b, kind = '') => `<tr><td>${label}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
+  const plain = (text) => [text, 0];
+  const cost = (v, fmt) => [v ? `− ${fmt(v)}` : fmt(0), v];
   const d = rep.toDate, f = rep.forecast;
   // Profit after every cost that isn't coming back: the tax the payslip gains caused is also paid out of pocket.
   const net = (x) => x.profit - x.payslipTax;
   return `<div class="table-wrap"><table class="espp-sum">
     <thead><tr><th></th><th class="r">To ${monthLabel(rep.cutoff)}</th><th class="r">${rep.year} forecast</th></tr></thead>
     <tbody>
-      ${r('Deducted from pay', money(d.deducted), money(f.deducted))}
-      ${r('Shares held', fixed(d.shares, 5), fixed(f.shares, 5))}
-      ${r('Market value', usd(d.marketValueUsd), usd(f.marketValueUsd), 'pos-row')}
-      ${r('Discount gain <span class="hint">taxed via payroll</span>', usd(d.untaxed), usd(f.untaxed))}
-      ${r('Dividends <span class="hint">after US tax and fee</span>', usd(d.dividends), usd(f.dividends))}
-      ${r('Dividend US tax', cost(d.dividendTax, usd), cost(f.dividendTax, usd), 'neg-row')}
-      ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), 'neg-row')}
-      ${r('Withdrawal fee', cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), 'neg-row')}
-      ${r('Tax on payslip gains', cost(d.payslipTax, money), cost(f.payslipTax, money), 'neg-row')}
+      ${r('Deducted from pay', plain(money(d.deducted)), plain(money(f.deducted)))}
+      ${r('Shares held', plain(fixed(d.shares, 5)), plain(fixed(f.shares, 5)))}
+      ${r('Market value', [usd(d.marketValueUsd), d.marketValueUsd], [usd(f.marketValueUsd), f.marketValueUsd], 'gain')}
+      ${r('Discount gain <span class="hint">shares worth − what went in</span>', plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
+      ${r('Dividends <span class="hint">after US tax and fee</span>', plain(usd(d.dividends)), plain(usd(f.dividends)))}
+      ${r('Dividend US tax', cost(d.dividendTax, usd), cost(f.dividendTax, usd), 'cost')}
+      ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), 'cost')}
+      ${r('Withdrawal fee', cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), 'cost')}
+      ${r('Tax on payslip gains', cost(d.payslipTax, money), cost(f.payslipTax, money), 'cost')}
       <tr class="total"><td>Withdrawal</td><td class="r">${money(d.withdrawal)}</td><td class="r">${money(f.withdrawal)}</td></tr>
-      ${r('Profit <span class="hint">after all costs</span>', money(net(d)), money(net(f)), 'pos-row')}
+      ${r('Profit <span class="hint">after all costs</span>', [money(net(d)), net(d)], [money(net(f)), net(f)], 'gain')}
     </tbody></table></div>
     <p class="hint">Red = money that never comes back. Fees and dividend tax are already inside <b>Shares held</b>, so they are not taken off again; the withdrawal fee is taken off the withdrawal, and the tax on payslip gains is taken off the profit.</p>`;
 }
@@ -190,35 +199,43 @@ export function renderEsppTab(rep, money) {
     <div class="row between" style="margin:4px 0 10px">
       <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1]
         .map((y) => `<button type="button" data-v="${y}" aria-pressed="${y === rep.year}" aria-label="${y === rep.year ? `${y} (shown)` : `Show ${y}`}">${y}</button>`).join('')}</div>
-      <span class="hint">Price ${a.price ? usd(a.price) : '—'} · 1 USD = ${a.fx || '—'}</span>
+      <span class="hint live-line">Price ${a.price ? usd(a.price) : '—'} · 1 USD = ${a.fx || '—'}
+        <button type="button" class="btn sm ghost live" data-espp-live="both" aria-label="Refresh the share price and USD rate" title="Refresh the share price and USD rate online">${REFRESH_ICON}</button></span>
     </div>
     ${breakdown(rep, money)}
     <div class="spacer"></div>
     ${ledgerTable(rep)}`;
+  reapplySpin();
 }
 
 // ---------- live price / FX ----------
-async function fetchLive(kind, button) {
+/** Looks up one value ('price' or 'fx') and stores it; the box turns green, or red when no source answered. */
+async function fetchOne(kind) {
   const input = $(`[data-bind="espp.assumptions.${kind}"]`);
-  button.classList.add('loading');
-  button.disabled = true;
   try {
     const value = kind === 'price'
-      ? (await getStockPrice(store.getState().espp.symbol)).price
-      : (await getRate('USD', store.activeProfile().currency)).rate;
+      ? (await getStockPrice(store.getState().espp.symbol, true)).price
+      : (await getRate('USD', store.activeProfile().currency, '', true)).rate;
     store.set(`espp.assumptions.${kind}`, String(Number(value.toFixed(4))));
-    input.classList.add('rate-ok');
-    input.classList.remove('rate-error');
-    input.title = 'Live value';
+    const box = $(`[data-bind="espp.assumptions.${kind}"]`);
+    box?.classList.add('rate-ok');
+    box?.classList.remove('rate-error');
+    if (box) box.title = 'Live value';
+    return true;
   } catch (err) {
-    input.classList.add('rate-error');
-    input.classList.remove('rate-ok');
-    input.title = `Could not fetch (${err.message}). Enter it manually.`;
-    toast('Live value unavailable — enter it manually');
-  } finally {
-    button.classList.remove('loading');
-    button.disabled = false;
+    input?.classList.add('rate-error');
+    input?.classList.remove('rate-ok');
+    if (input) input.title = `Could not fetch (${err.message}). Enter it manually.`;
+    return false;
   }
+}
+
+/** `kind` is 'price', 'fx' or 'both' (the arrow next to the price in the ESPP tab). Every arrow of the lookup spins. */
+async function fetchLive(kind) {
+  const kinds = kind === 'both' ? ['price', 'fx'] : [kind];
+  const arrows = kind === 'both' ? '[data-espp-live]' : `[data-espp-live="${kind}"], [data-espp-live="both"]`;
+  const results = await spinWhile(arrows, () => Promise.all(kinds.map(fetchOne)));
+  if (results.includes(false)) toast('Live value unavailable — enter it manually');
 }
 
 export function initEspp(onChanged) {
@@ -237,7 +254,7 @@ export function initEspp(onChanged) {
       return onChanged();
     }
     const live = e.target.closest('[data-espp-live]');
-    if (live) return fetchLive(live.dataset.esppLive, live);
+    if (live) return fetchLive(live.dataset.esppLive);
     const year = e.target.closest('[data-espp-year] button');
     if (year) store.set('ui.esppYear', year.dataset.v);
   });

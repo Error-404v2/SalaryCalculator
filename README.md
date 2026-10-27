@@ -75,7 +75,10 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
   - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. The withdrawal fee defaults to **$54.95** ($35 + the $19.95 market-sale order fee); type 0 for none. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
   - **Colours in the breakdown:** money that never comes back (dividend US tax, fees, withdrawal fee, tax on payslip gains) is red; market value and profit are green. **Profit** is after all of them.
   - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
-  - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it.
+  - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it. The arrow beside *Price … · 1 USD = …* refreshes both at once.
+  - **Every refresh arrow spins while it looks the data up** (at least one full turn), and spins again each time it is pressed; a pressed arrow always asks the source again instead of reusing a saved answer.
+  - **Live from History:** while a History month is open, the ESPP tab follows every change (the Stocks %, the ESPP gain) straight away, before you press Save.
+  - Column headers say the currency: *EGP* or *$*.
 - **Employer cost:** the real tax rate, including employer social insurance.
 
 ### How the net effect of overtime and cash awards is calculated

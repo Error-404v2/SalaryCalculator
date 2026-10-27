@@ -1,4 +1,4 @@
-import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport } from './core/index.js';
+import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport, monthsWithDraft, grossPay } from './core/index.js';
 import { toNumber } from './utils/number.js';
 import { createMoneyFormatter } from './utils/format.js';
 import * as store from './state/store.js';
@@ -66,7 +66,10 @@ function render(state) {
     syncCollapsibles(state);
   }
   if (state.ui.resTab === 'espp') {
-    const report = esppReport({ ...input, esppRates: monthRates(state) });
+    // The History month being edited counts as soon as it changes, saved or not.
+    const draft = store.scopePay();
+    const months = monthsWithDraft(state.months, store.scopeMonth(), draft && grossPay(draft, input), store.scopeDirty());
+    const report = esppReport({ ...input, months, esppRates: monthRates(state) });
     renderEsppTab(report, money);
     ensureMonthRates(report.year, rebuild);
   }

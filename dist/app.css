@@ -833,6 +833,22 @@ input.rate-error {
   padding: 0;
   flex: 0 0 auto;
 }
+.live-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.live-line .btn.live {
+  height: 24px;
+  width: 24px;
+  min-height: 0;
+  padding: 0;
+  justify-content: center;
+}
+.live-line .btn.live svg {
+  width: 14px;
+  height: 14px;
+}
 .check-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -891,8 +907,11 @@ input.rate-error {
 .etile.p {
   border-left: 3px solid var(--pos);
 }
-.etile.p b {
+.etile b.pos {
   color: var(--pos);
+}
+.etile b.neg {
+  color: var(--danger);
 }
 .etile.s {
   border-left: 3px solid var(--c-net);
@@ -1009,10 +1028,10 @@ input.rate-error {
   margin: 0 2px 1px 4px;
   vertical-align: middle;
 }
-.espp-sum tr.neg-row td.r {
+.espp-sum td.r.neg {
   color: var(--danger);
 }
-.espp-sum tr.pos-row td.r {
+.espp-sum td.r.pos {
   color: var(--pos);
   font-weight: 600;
 }

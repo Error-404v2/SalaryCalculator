@@ -61,6 +61,15 @@ export function applyPay(state, pay) {
   return state;
 }
 
+/**
+ * The saved months with the History entry being edited laid over them, so the ESPP tab follows every keystroke
+ * instead of waiting for Save. An open month that is neither saved nor edited yet stays out (it is only a copy).
+ */
+export function monthsWithDraft(months, month, pay, dirty) {
+  if (!month || !pay || !(months?.[month] || dirty)) return months ?? {};
+  return { ...months, [month]: pay };
+}
+
 /** Saved months, newest first. */
 export const monthList = (months) => Object.keys(months ?? {}).sort((a, b) => b.localeCompare(a));
 

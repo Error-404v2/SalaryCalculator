@@ -459,6 +459,10 @@
     }
     return state2;
   }
+  function monthsWithDraft(months, month, pay, dirty) {
+    if (!month || !pay || !(months?.[month] || dirty)) return months ?? {};
+    return { ...months, [month]: pay };
+  }
   var monthList = (months) => Object.keys(months ?? {}).sort((a, b) => b.localeCompare(a));
   function monthInForce(months, month) {
     return monthList(months).find((m) => m <= month) ?? "";
@@ -482,22 +486,22 @@
     const months = {};
     for (const month of froms) {
       const pay = snapshotPay(base);
-      const latest = (field) => entries.filter((e) => e.field === field && e.from <= month).sort((a, b) => a.from.localeCompare(b.from)).at(-1);
-      const salary = latest("salary");
+      const latest3 = (field) => entries.filter((e) => e.field === field && e.from <= month).sort((a, b) => a.from.localeCompare(b.from)).at(-1);
+      const salary = latest3("salary");
       if (salary) {
         pay.amount = salary.value;
         pay.per = "month";
         pay.mode = "gross";
       }
       for (const [field, [list, prefix, name]] of Object.entries(FIELD_TO_ITEM)) {
-        const entry = latest(field);
+        const entry = latest3(field);
         if (!entry) continue;
         const i = pay[list].findIndex((it) => it.name?.toLowerCase().startsWith(prefix));
         if (i >= 0) pay[list][i] = { ...pay[list][i], amount: entry.value };
         else pay[list].push(list === "incomes" ? { name, amount: entry.value, per: "month", taxable: true, insurable: false } : { name, amount: entry.value, per: "month", pretax: false });
       }
-      const c = latest("esppConst");
-      const v = latest("esppVar");
+      const c = latest3("esppConst");
+      const v = latest3("esppVar");
       if (c) pay.espp.constPct = c.value;
       if (v) pay.espp.varPct = v.value;
       months[month] = pay;
@@ -1070,9 +1074,9 @@
   }
   function memo(ttlMs) {
     const cache = /* @__PURE__ */ new Map();
-    return async (key2, load) => {
+    return async (key2, load, fresh = false) => {
       const hit = cache.get(key2);
-      if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+      if (!fresh && hit && Date.now() - hit.at < ttlMs) return hit.value;
       const value = await load();
       cache.set(key2, { at: Date.now(), value });
       return value;
@@ -1104,14 +1108,42 @@
     if (!rates.length) throw new Error(`no rate for ${month}`);
     return rates.reduce((a, b) => a + b, 0) / rates.length;
   }
-  async function getRate(from, to, date = "") {
-    const { value, source } = await cached(`${from}>${to}@${date}`, () => firstValid(sources(from, to, date), (s, data) => s.read(data)));
+  async function getRate(from, to, date = "", fresh = false) {
+    const { value, source } = await cached(`${from}>${to}@${date}`, () => firstValid(sources(from, to, date), (s, data) => s.read(data)), fresh);
     return { rate: value, source };
+  }
+
+  // js/ui/spin.js
+  var MIN_SPIN_MS = 800;
+  var latest = /* @__PURE__ */ new Map();
+  var spinning = /* @__PURE__ */ new Set();
+  var wait = (ms) => new Promise((resolve2) => setTimeout(resolve2, ms));
+  var buttonsOf = (target) => typeof target === "string" ? [...globalThis.document?.querySelectorAll(target) ?? []] : [target];
+  async function spinWhile(target, task, minMs = MIN_SPIN_MS) {
+    const id = (latest.get(target) ?? 0) + 1;
+    latest.set(target, id);
+    spinning.add(target);
+    buttonsOf(target).forEach((b) => {
+      b.classList.remove("loading");
+      void b.offsetWidth;
+      b.classList.add("loading");
+    });
+    const [result] = await Promise.allSettled([task(), wait(minMs)]);
+    if (latest.get(target) === id) {
+      spinning.delete(target);
+      buttonsOf(target).forEach((b) => b.classList.remove("loading"));
+    }
+    if (result.status === "rejected") throw result.reason;
+    return result.value;
+  }
+  function reapplySpin() {
+    spinning.forEach((target) => buttonsOf(target).forEach((b) => b.classList.add("loading")));
   }
 
   // js/ui/rateFetcher.js
   var RATE_DECIMALS = 4;
   var status = /* @__PURE__ */ new Map();
+  var latest2 = /* @__PURE__ */ new Map();
   var rateStatus = (index) => status.get(index) ?? "";
   function paint(index) {
     const input = $(`[data-path="cashAwards.${index}.rate"]`);
@@ -1119,19 +1151,19 @@
     const state2 = rateStatus(index);
     input?.classList.toggle("rate-ok", state2 === "ok");
     input?.classList.toggle("rate-error", state2 === "error");
-    if (button) {
-      button.classList.toggle("loading", state2 === "loading");
-      button.disabled = state2 === "loading";
-    }
+    button?.classList.toggle("loading", state2 === "loading");
   }
-  async function fetchRateFor(index) {
+  async function fetchRateFor(index, button) {
     const award = get("cashAwards")[index];
     const to = activeProfile().currency;
     if (!award || award.currency === to) return;
+    const run = (latest2.get(index) ?? 0) + 1;
+    latest2.set(index, run);
     status.set(index, "loading");
     paint(index);
     try {
-      const { rate, source } = await getRate(award.currency, to);
+      const { rate, source } = await spinWhile(button, () => getRate(award.currency, to, "", true));
+      if (latest2.get(index) !== run) return;
       set(`cashAwards.${index}.rate`, String(Number(rate.toFixed(RATE_DECIMALS))));
       status.set(index, "ok");
       const input = $(`[data-path="cashAwards.${index}.rate"]`);
@@ -1140,6 +1172,7 @@
         input.title = `Live rate from ${source}`;
       }
     } catch (err) {
+      if (latest2.get(index) !== run) return;
       status.set(index, "error");
       const input = $(`[data-path="cashAwards.${index}.rate"]`);
       if (input) input.title = `Could not get a live rate (${err.message}). Enter it manually.`;
@@ -1149,7 +1182,7 @@
   function initRateFetcher() {
     document.addEventListener("click", (e) => {
       const btn = e.target.closest("[data-fetch-rate]");
-      if (btn) fetchRateFor(Number(btn.dataset.fetchRate));
+      if (btn) fetchRateFor(Number(btn.dataset.fetchRate), btn);
     });
     document.addEventListener("input", (e) => {
       const m = e.target.dataset.path?.match(/^cashAwards\.(\d+)\.rate$/);
@@ -1189,7 +1222,7 @@
       const currencies = [.../* @__PURE__ */ new Set([...CURRENCIES, ctx2.currency, it.currency])].map((c) => ({ value: c, label: c }));
       const tone = { ok: " rate-ok", error: " rate-error" }[rateStatus(i)] ?? "";
       const rateRow = `<div class="flags"><label class="inline">1 ${escapeHtml(it.currency)} = ${num("cashAwards", i, "rate", it.rate, "rate", { cls: `xs${tone}` })} ${escapeHtml(ctx2.currency)}</label>
-      <button type="button" class="btn sm ghost live" data-fetch-rate="${i}" title="Get the current rate online">
+      <button type="button" class="btn sm ghost live${rateStatus(i) === "loading" ? " loading" : ""}" data-fetch-rate="${i}" title="Get the current rate online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Live rate</button></div>`;
       const impact = ctx2.impacts.cashAwards[i];
       const net = impact && impact.annual > 0 ? `<div class="impact"><span>${ctx2.money(impact.annual * ctx2.factor)} gross / yr</span><b>${ctx2.money(impact.netAnnual * ctx2.factor)} net / yr</b></div>` : "";
@@ -1820,17 +1853,18 @@
     name: "Alpha Vantage (demo)",
     url: `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=demo`
   }];
-  async function getStockPrice(symbol) {
+  async function getStockPrice(symbol, fresh = false) {
     const clean = String(symbol || "").trim().toUpperCase();
     if (!clean) throw new Error("No symbol set");
     const { value, source } = await cached2(clean, () => firstValid(sources2(clean), (_, data) => {
       if (data.Information || data.Note) throw new Error("demo key only covers a few symbols, such as IBM");
       return data["Global Quote"]?.["05. price"];
-    }));
+    }), fresh);
     return { price: value, source };
   }
 
   // js/ui/espp.js
+  var REFRESH_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>';
   var LOCKABLE = [
     { key: "deducted", label: "Deducted", decimals: 2 },
     { key: "deductedUsd", label: "Deducted USD", decimals: 2 },
@@ -1871,14 +1905,15 @@
     esppAdded = false;
   }
   function tile(label, a, b, tone = "") {
+    const sign = (x) => x.n > 5e-3 ? "pos" : x.n < -5e-3 ? "neg" : "";
     return `<div class="etile ${tone}"><div class="k">${label}</div>
-    <div class="pair"><div><b>${a.v}</b><small>${a.k}</small></div><div><b>${b.v}</b><small>${b.k}</small></div></div></div>`;
+    <div class="pair"><div><b class="${sign(a)}">${a.v}</b><small>${a.k}</small></div><div><b class="${sign(b)}">${b.v}</b><small>${b.k}</small></div></div></div>`;
   }
   function topTiles(rep, money) {
     const label = monthLabel(rep.cutoff);
     return `<div class="etiles">
     ${tile("Withdrawal", { v: money(rep.toDate.withdrawal), k: `to ${label}` }, { v: money(rep.forecast.withdrawal), k: `${rep.year} forecast` }, "w")}
-    ${tile("Profit", { v: money(rep.toDate.profit - rep.toDate.payslipTax), k: `to ${label}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), k: `${rep.year} forecast` }, "p")}
+    ${tile("Profit", { v: money(rep.toDate.profit - rep.toDate.payslipTax), n: rep.toDate.profit - rep.toDate.payslipTax, k: `to ${label}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), n: rep.forecast.profit - rep.forecast.payslipTax, k: `${rep.year} forecast` }, "p")}
     ${tile("Shares", { v: formatNumber2(rep.toDate.shares), k: `to ${label}` }, { v: formatNumber2(rep.forecast.shares), k: `${rep.year} forecast` }, "s")}
   </div>`;
   }
@@ -1928,10 +1963,10 @@
     }).join("");
     const t = rep.forecast;
     return `<div class="table-wrap espp-table"><table class="edit-table">
-    <thead><tr><th>Month</th><th class="y">Deducted</th><th class="y">Deducted USD</th><th class="y">Dividend</th>
-      <th class="r">Reinvest fee</th><th class="r">Fees in</th><th class="r">Accredited</th><th class="y">ACC. Shares</th>
-      <th class="r" title="Discount on shares bought this month">Discount gain</th><th class="r">Actual share</th>
-      <th class="y" title="ESPP gain on this month's payslip, EGP">Payslip gain</th><th class="y" title="Extra income tax the payslip gain caused, EGP">Gain tax</th></tr></thead>
+    <thead><tr><th>Month</th><th class="y" title="Taken from your pay, EGP">Deducted EGP</th><th class="y" title="US dollars">Deducted USD</th><th class="y" title="US dollars">Dividend $</th>
+      <th class="r" title="US dollars">Reinvest fee $</th><th class="r" title="US dollars">Fees in $</th><th class="r" title="US dollars">Accredited $</th><th class="y">ACC. Shares</th>
+      <th class="r" title="US dollars: what the shares bought this month are worth minus what went in">Discount gain $</th><th class="r" title="US dollars">Actual share $</th>
+      <th class="y" title="ESPP gain on this month's payslip, in EGP">Payslip gain EGP</th><th class="y" title="Extra income tax the payslip gain caused, in EGP">Gain tax EGP</th></tr></thead>
     <tbody>${rows}
       <tr class="total"><td>Total</td><td class="r">${fixed(t.deducted)}</td><td class="r">${fixed(t.deductedUsd)}</td>
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
@@ -1941,25 +1976,27 @@
     <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
       <span class="hist-dot"></span> Deducted, Payslip gain and its tax come from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
   }
+  var colourOf = (kind, n) => kind === "cost" ? n > 5e-3 ? "neg" : "" : n > 5e-3 ? "pos" : n < -5e-3 ? "neg" : "";
   function breakdown(rep, money) {
-    const r = (label, a, b, tone = "") => `<tr class="${tone}"><td>${label}</td><td class="r">${a}</td><td class="r">${b}</td></tr>`;
-    const cost = (v, fmt) => v ? `\u2212 ${fmt(v)}` : fmt(0);
+    const r = (label, a, b, kind = "") => `<tr><td>${label}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
+    const plain = (text2) => [text2, 0];
+    const cost = (v, fmt) => [v ? `\u2212 ${fmt(v)}` : fmt(0), v];
     const d = rep.toDate, f = rep.forecast;
     const net = (x) => x.profit - x.payslipTax;
     return `<div class="table-wrap"><table class="espp-sum">
     <thead><tr><th></th><th class="r">To ${monthLabel(rep.cutoff)}</th><th class="r">${rep.year} forecast</th></tr></thead>
     <tbody>
-      ${r("Deducted from pay", money(d.deducted), money(f.deducted))}
-      ${r("Shares held", fixed(d.shares, 5), fixed(f.shares, 5))}
-      ${r("Market value", usd(d.marketValueUsd), usd(f.marketValueUsd), "pos-row")}
-      ${r('Discount gain <span class="hint">taxed via payroll</span>', usd(d.untaxed), usd(f.untaxed))}
-      ${r('Dividends <span class="hint">after US tax and fee</span>', usd(d.dividends), usd(f.dividends))}
-      ${r("Dividend US tax", cost(d.dividendTax, usd), cost(f.dividendTax, usd), "neg-row")}
-      ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), "neg-row")}
-      ${r("Withdrawal fee", cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), "neg-row")}
-      ${r("Tax on payslip gains", cost(d.payslipTax, money), cost(f.payslipTax, money), "neg-row")}
+      ${r("Deducted from pay", plain(money(d.deducted)), plain(money(f.deducted)))}
+      ${r("Shares held", plain(fixed(d.shares, 5)), plain(fixed(f.shares, 5)))}
+      ${r("Market value", [usd(d.marketValueUsd), d.marketValueUsd], [usd(f.marketValueUsd), f.marketValueUsd], "gain")}
+      ${r('Discount gain <span class="hint">shares worth \u2212 what went in</span>', plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
+      ${r('Dividends <span class="hint">after US tax and fee</span>', plain(usd(d.dividends)), plain(usd(f.dividends)))}
+      ${r("Dividend US tax", cost(d.dividendTax, usd), cost(f.dividendTax, usd), "cost")}
+      ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), "cost")}
+      ${r("Withdrawal fee", cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), "cost")}
+      ${r("Tax on payslip gains", cost(d.payslipTax, money), cost(f.payslipTax, money), "cost")}
       <tr class="total"><td>Withdrawal</td><td class="r">${money(d.withdrawal)}</td><td class="r">${money(f.withdrawal)}</td></tr>
-      ${r('Profit <span class="hint">after all costs</span>', money(net(d)), money(net(f)), "pos-row")}
+      ${r('Profit <span class="hint">after all costs</span>', [money(net(d)), net(d)], [money(net(f)), net(f)], "gain")}
     </tbody></table></div>
     <p class="hint">Red = money that never comes back. Fees and dividend tax are already inside <b>Shares held</b>, so they are not taken off again; the withdrawal fee is taken off the withdrawal, and the tax on payslip gains is taken off the profit.</p>`;
   }
@@ -1973,31 +2010,36 @@
     host.innerHTML = `${warn}${topTiles(rep, money)}
     <div class="row between" style="margin:4px 0 10px">
       <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1].map((y) => `<button type="button" data-v="${y}" aria-pressed="${y === rep.year}" aria-label="${y === rep.year ? `${y} (shown)` : `Show ${y}`}">${y}</button>`).join("")}</div>
-      <span class="hint">Price ${a.price ? usd(a.price) : "\u2014"} \xB7 1 USD = ${a.fx || "\u2014"}</span>
+      <span class="hint live-line">Price ${a.price ? usd(a.price) : "\u2014"} \xB7 1 USD = ${a.fx || "\u2014"}
+        <button type="button" class="btn sm ghost live" data-espp-live="both" aria-label="Refresh the share price and USD rate" title="Refresh the share price and USD rate online">${REFRESH_ICON}</button></span>
     </div>
     ${breakdown(rep, money)}
     <div class="spacer"></div>
     ${ledgerTable(rep)}`;
+    reapplySpin();
   }
-  async function fetchLive(kind, button) {
+  async function fetchOne(kind) {
     const input = $(`[data-bind="espp.assumptions.${kind}"]`);
-    button.classList.add("loading");
-    button.disabled = true;
     try {
-      const value = kind === "price" ? (await getStockPrice(getState().espp.symbol)).price : (await getRate("USD", activeProfile().currency)).rate;
+      const value = kind === "price" ? (await getStockPrice(getState().espp.symbol, true)).price : (await getRate("USD", activeProfile().currency, "", true)).rate;
       set(`espp.assumptions.${kind}`, String(Number(value.toFixed(4))));
-      input.classList.add("rate-ok");
-      input.classList.remove("rate-error");
-      input.title = "Live value";
+      const box = $(`[data-bind="espp.assumptions.${kind}"]`);
+      box?.classList.add("rate-ok");
+      box?.classList.remove("rate-error");
+      if (box) box.title = "Live value";
+      return true;
     } catch (err) {
-      input.classList.add("rate-error");
-      input.classList.remove("rate-ok");
-      input.title = `Could not fetch (${err.message}). Enter it manually.`;
-      toast("Live value unavailable \u2014 enter it manually");
-    } finally {
-      button.classList.remove("loading");
-      button.disabled = false;
+      input?.classList.add("rate-error");
+      input?.classList.remove("rate-ok");
+      if (input) input.title = `Could not fetch (${err.message}). Enter it manually.`;
+      return false;
     }
+  }
+  async function fetchLive(kind) {
+    const kinds = kind === "both" ? ["price", "fx"] : [kind];
+    const arrows = kind === "both" ? "[data-espp-live]" : `[data-espp-live="${kind}"], [data-espp-live="both"]`;
+    const results = await spinWhile(arrows, () => Promise.all(kinds.map(fetchOne)));
+    if (results.includes(false)) toast("Live value unavailable \u2014 enter it manually");
   }
   function initEspp(onChanged) {
     document.addEventListener("click", (e) => {
@@ -2015,7 +2057,7 @@
         return onChanged();
       }
       const live = e.target.closest("[data-espp-live]");
-      if (live) return fetchLive(live.dataset.esppLive, live);
+      if (live) return fetchLive(live.dataset.esppLive);
       const year = e.target.closest("[data-espp-year] button");
       if (year) set("ui.esppYear", year.dataset.v);
     });
@@ -2530,7 +2572,9 @@
       syncCollapsibles(state2);
     }
     if (state2.ui.resTab === "espp") {
-      const report = esppReport({ ...input, esppRates: monthRates(state2) });
+      const draft = scopePay();
+      const months = monthsWithDraft(state2.months, scopeMonth(), draft && grossPay(draft, input), scopeDirty());
+      const report = esppReport({ ...input, months, esppRates: monthRates(state2) });
       renderEsppTab(report, money);
       ensureMonthRates(report.year, rebuild);
     }

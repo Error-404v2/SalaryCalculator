@@ -35,9 +35,9 @@ export async function getConversionRate(from, to, month) {
   return rates.reduce((a, b) => a + b, 0) / rates.length;
 }
 
-/** Resolves `{ rate, source }`: 1 `from` expressed in `to`, today or on `date`. */
-export async function getRate(from, to, date = '') {
+/** Resolves `{ rate, source }`: 1 `from` expressed in `to`, today or on `date`. `fresh` ignores the saved answer. */
+export async function getRate(from, to, date = '', fresh = false) {
   const { value, source } = await cached(`${from}>${to}@${date}`, () =>
-    firstValid(sources(from, to, date), (s, data) => s.read(data)));
+    firstValid(sources(from, to, date), (s, data) => s.read(data)), fresh);
   return { rate: value, source };
 }

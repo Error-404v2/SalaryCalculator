@@ -31,9 +31,10 @@ export async function firstValid(sources, read) {
 
 export function memo(ttlMs) {
   const cache = new Map();
-  return async (key, load) => {
+  /** `fresh` (a pressed refresh arrow) skips the saved answer but still saves the new one. */
+  return async (key, load, fresh = false) => {
     const hit = cache.get(key);
-    if (hit && Date.now() - hit.at < ttlMs) return hit.value;
+    if (!fresh && hit && Date.now() - hit.at < ttlMs) return hit.value;
     const value = await load();
     cache.set(key, { at: Date.now(), value });
     return value;
