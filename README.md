@@ -67,18 +67,19 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 - **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
   - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares) show the calculated value in grey; type the actual value to override it, clear it to go back.
   - **Deducted** comes only from that month's own History entry (its *Stocks* %). A month with no History entry is **0**: the Pay tab and other months never feed it, so saving August changes August only. Type a value to override a History month or to fill a month that has none; clear it to go back.
-  - **Payslip gain** and **Gain tax** come from that month's History entry too (the *ESPP gains* you saved, and the extra tax they caused). Type a value in the ESPP tab to override it, or to track a payslip without a History month; clear it to go back. The Pay/History tabs never read anything from the ESPP tab.
+  - **ESPP Gains** (collapsible, under *Assumptions & live data*): one compact line per payslip month, newest first: *Month* (a dropdown of your saved History months nearest first, ending in *Custom…* which opens the month picker, like Save Month), the *Gain tax* in the middle, and the *Payslip gain* on the right. The gain is what you typed, else that month's History *ESPP gain*, else 0. The tax is always calculated from that month's History entry, or from the Pay tab when the month has none. History months with a gain are listed by themselves; *+ Add entry* adds a month (this month, or the nearest earlier free one), and the red cross removes it. The Pay/History tabs never read anything from the ESPP tab.
+  - The **Monthly ledger** is collapsible and sits under the year selector, above the breakdown.
   - **Deducted USD** = Deducted ÷ the USD rate IBM used. IBM converts around the 19th–21st, so a past month uses the average of those days (fetched once and saved); a month not yet converted uses today's rate. Once you type Equate's USD, the tooltip shows the exact rate IBM used.
   - **Dividend** (Mar/Jun/Sep/Dec) = shares held two months earlier × IBM's $/share, less 15% US tax, less the 2% reinvestment fee (max $3), per the prospectus. A typed dividend changes the shares from that month on.
   - **Fees in:** the $6 admin fee in Jan and Jul, only in a month that has a Deducted.
   - Shares are bought at price × (1 − 15% discount). The discount is the gain taxed through payroll.
-  - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. The withdrawal fee defaults to **$54.95** ($35 + the $19.95 market-sale order fee); type 0 for none. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
-  - **Colours in the breakdown:** money that never comes back (dividend US tax, fees, withdrawal fee, tax on payslip gains) is red; market value and profit are green. **Profit** is after all of them.
+  - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. The withdrawal fee defaults to **$35**; type 0 for none. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
+  - **Colours in the breakdown:** money that never comes back (dividend US tax, fees, withdrawal fee, tax on payslip gains) is always red; market value, dividends and profit are green (red if negative). **Profit** is after all of them.
   - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
   - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it. The arrow beside *Price … · 1 USD = …* refreshes both at once.
   - **Every refresh arrow spins while it looks the data up** (at least one full turn), and spins again each time it is pressed; a pressed arrow always asks the source again instead of reusing a saved answer.
   - **Live from History:** while a History month is open, the ESPP tab follows every change (the Stocks %, the ESPP gain) straight away, before you press Save.
-  - Column headers say the currency: *EGP* or *$*.
+  - **Tax tab → Brackets:** an *Annual | Monthly* toggle on the right of the title (the highlight slides) switches the ranges, taxed amounts and tax between per year and per month.
 - **Employer cost:** the real tax rate, including employer social insurance.
 
 ### How the net effect of overtime and cash awards is calculated

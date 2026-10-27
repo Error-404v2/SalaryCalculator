@@ -1,6 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildLedger, summarize, adjustedMonth, valueAt, calculate, esppReport, dividendCash, payslipGainFor } from '../js/core/index.js';
+import {
+  buildLedger, summarize, adjustedMonth, valueAt, calculate, esppReport, dividendCash, payslipGainFor,
+  gainRows, addGainMonth, setGain, removeGain, moveGain, freeGainMonth,
+} from '../js/core/index.js';
 import { DEFAULT_STATE, DEFAULT_PROFILE } from '../js/data/defaults.js';
 import { hydrate } from '../js/state/migrate.js';
 
@@ -123,25 +126,91 @@ test('payslip gain and its tax come from that month in History, not from the Pay
   assert.equal(apr.source, 'history');
   assert.ok(apr.tax > 0);
   near(apr.tax, calculate({ ...s, ...month, espp: { ...s.espp, ...month.espp } }).esppGainTax / 12);
-  assert.deepEqual(payslipGainFor(s, '2030-05'), { gain: 0, tax: 0, source: '', taxTyped: false });
+  assert.deepEqual(payslipGainFor(s, '2030-05'), { gain: 0, tax: 0, source: '', historyGain: 0 });
   assert.equal(payslipGainFor(s, '2030-03').gain, 0);
 });
 
-test('a gain or tax typed in the ESPP tab overrides History, and works with no History month at all', () => {
+test('a gain typed in the ESPP tab overrides History, and works with no History month; its tax is always calculated', () => {
   const month = { amount: '20000', per: 'month', espp: { constPct: '', varPct: '', variable: {}, gain: '1000' } };
-  const entries = { '2030-04': { gain: '2000' }, '2030-06': { gain: '500', gainTax: '99' }, '2030-08': { gainTax: '12' } };
+  const entries = { '2030-04': { gain: '2000' }, '2030-06': { gain: '500' } };
   const s = gainState({ months: { '2030-04': month }, espp: { ...gainState().espp, entries } });
   const apr = payslipGainFor(s, '2030-04');
   near(apr.gain, 2000);
   assert.equal(apr.source, 'typed');
+  near(apr.historyGain, 1000);
   assert.ok(apr.tax > payslipGainFor({ ...s, espp: { ...s.espp, entries: {} } }, '2030-04').tax, 'a bigger gain costs more tax');
   const jun = payslipGainFor(s, '2030-06');
   near(jun.gain, 500);
-  near(jun.tax, 99);
-  assert.equal(jun.taxTyped, true);
-  const aug = payslipGainFor(s, '2030-08');
-  assert.equal(aug.gain, 0);
-  near(aug.tax, 12);
+  assert.ok(jun.tax > 0, 'no History month: taxed on the Pay tab');
+  assert.equal(jun.source, 'typed');
+  assert.deepEqual(payslipGainFor(s, '2030-08'), { gain: 0, tax: 0, source: '', historyGain: 0 });
+});
+
+test('gain entries: newest first, History months with a gain are listed on their own, added months stay', () => {
+  const m = (gain) => ({ amount: '20000', per: 'month', espp: { constPct: '', varPct: '', variable: {}, gain } });
+  const s = gainState({
+    months: { '2029-11': m('800'), '2030-02': m('1000'), '2030-03': m('') },
+    espp: { ...gainState().espp, gainMonths: ['2030-05', '2030-02'], entries: { '2030-07': { gain: '300' } } },
+  });
+  const rows = gainRows(s);
+  assert.deepEqual(rows.map((r) => r.month), ['2030-07', '2030-05', '2030-02', '2029-11']);
+  const by = Object.fromEntries(rows.map((r) => [r.month, r]));
+  assert.equal(by['2030-02'].derived, false, 'listed by hand and in History: not derived');
+  assert.equal(by['2029-11'].derived, true, 'only in History');
+  assert.equal(by['2030-07'].derived, false, 'a typed gain');
+  assert.equal(by['2030-05'].gain, 0, 'an added month starts at 0');
+  assert.equal(by['2030-05'].source, '');
+  near(by['2030-02'].gain, 1000);
+  assert.equal(by['2030-02'].source, 'history');
+  assert.ok(by['2029-11'].tax > 0 && by['2030-07'].tax > 0);
+});
+
+test('gain entries: add, type, clear, move and remove', () => {
+  const espp = { entries: {}, gainMonths: [] };
+  addGainMonth(espp, '2030-04');
+  addGainMonth(espp, '2030-04');
+  assert.deepEqual(espp.gainMonths, ['2030-04']);
+  setGain(espp, '2030-04', ' 1500 ');
+  assert.equal(espp.entries['2030-04'].gain, '1500');
+  setGain(espp, '2030-04', '');
+  assert.deepEqual(espp.entries, {}, 'clearing leaves no empty entry');
+  assert.deepEqual(espp.gainMonths, ['2030-04'], 'but the month stays in the list');
+
+  setGain(espp, '2030-04', '900');
+  assert.equal(moveGain(espp, '2030-04', '2030-06'), true);
+  assert.deepEqual(espp.gainMonths, ['2030-06']);
+  assert.equal(espp.entries['2030-06'].gain, '900');
+  assert.equal(espp.entries['2030-04'], undefined);
+
+  addGainMonth(espp, '2030-09');
+  assert.equal(moveGain(espp, '2030-06', '2030-09'), false, 'a month that already has an entry is refused');
+  assert.equal(moveGain(espp, '2030-06', '2030-10', new Set(['2030-10'])), false, 'and so is one taken elsewhere');
+  assert.equal(espp.entries['2030-06'].gain, '900');
+
+  removeGain(espp, '2030-06');
+  assert.deepEqual(espp.gainMonths, ['2030-09']);
+  assert.deepEqual(espp.entries, {});
+});
+
+test('a new gain entry starts on this month, or the nearest earlier free one', () => {
+  const today = new Date(2030, 4, 12);
+  assert.equal(freeGainMonth(new Set(), today), '2030-05');
+  assert.equal(freeGainMonth(new Set(['2030-05']), today), '2030-04');
+  assert.equal(freeGainMonth(new Set(['2030-05', '2030-04', '2030-03']), today), '2030-02');
+  assert.equal(freeGainMonth(new Set(['2030-01', '2030-02', '2030-03', '2030-04', '2030-05']), today), '2029-12');
+});
+
+test('saved ESPP data: gain months survive, a typed gain tax from an older version is dropped', () => {
+  const s = hydrate({ espp: { gainMonths: ['2030-04', 'bad', '2030-04', '2030-01'], entries: { '2030-04': { gain: '5', gainTax: '2' }, '2030-05': { gainTax: '9' } } } });
+  assert.deepEqual(s.espp.gainMonths, ['2030-04', '2030-01']);
+  assert.deepEqual(s.espp.entries, { '2030-04': { gain: '5' } });
+  assert.deepEqual(hydrate({}).espp.gainMonths, []);
+});
+
+test('the Tax tab brackets default to Monthly; anything else on load falls back to it', () => {
+  assert.equal(hydrate({}).ui.bracketPeriod, 'month');
+  assert.equal(hydrate({ ui: { bracketPeriod: 'year' } }).ui.bracketPeriod, 'year');
+  assert.equal(hydrate({ ui: { bracketPeriod: 'week' } }).ui.bracketPeriod, 'month');
 });
 
 test('the ESPP report totals payslip gains and their tax to the cutoff and for the year', () => {
@@ -222,10 +291,11 @@ test('a History month changes only itself: every other month is 0, whatever the 
   assert.deepEqual(rows[7].source, { kind: 'month', month: '2030-08' });
 });
 
-test('the withdrawal fee defaults to $54.95, and a blank saved one is filled on load; 0 means no fee', () => {
-  assert.equal(DEFAULT_STATE.espp.assumptions.withdrawalFee, '54.95');
-  assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '' } } }).espp.assumptions.withdrawalFee, '54.95');
-  assert.equal(hydrate({}).espp.assumptions.withdrawalFee, '54.95');
+test('the withdrawal fee defaults to $35, a blank (or the old 54.95 default) is filled on load; 0 means no fee', () => {
+  assert.equal(DEFAULT_STATE.espp.assumptions.withdrawalFee, '35');
+  assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '' } } }).espp.assumptions.withdrawalFee, '35');
+  assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '54.95' } } }).espp.assumptions.withdrawalFee, '35');
+  assert.equal(hydrate({}).espp.assumptions.withdrawalFee, '35');
   assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '0' } } }).espp.assumptions.withdrawalFee, '0');
   assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '20' } } }).espp.assumptions.withdrawalFee, '20');
 });

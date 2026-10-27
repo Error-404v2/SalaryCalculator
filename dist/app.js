@@ -609,6 +609,72 @@
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
   }
 
+  // js/core/esppGains.js
+  function payBaseOf(input) {
+    const tab = input.payTab ?? input;
+    return withPay(tab, grossPay(snapshotPay(tab), tab));
+  }
+  function payslipGainFor(input, month, payBase = input) {
+    const typedRaw = input.espp?.entries?.[month]?.gain;
+    const typed = isFilled(typedRaw);
+    const saved = input.months?.[month];
+    const historyGain = saved ? toNumber(saved.espp?.gain) : 0;
+    const used = typed ? typedRaw : historyGain > 0 ? saved.espp.gain : "";
+    if (!(toNumber(used) > 0)) return { gain: 0, tax: 0, source: "", historyGain };
+    const base = saved ? withPay(input, saved) : payBase;
+    const r = calculate({ ...base, espp: { ...base.espp, gain: used } });
+    return { gain: r.esppGain / 12, tax: r.esppGainTax / 12, source: typed ? "typed" : "history", historyGain };
+  }
+  function gainRows(input, payBase = input) {
+    const espp = input.espp ?? {};
+    const listed = new Set(espp.gainMonths ?? []);
+    const typedValue = (m) => isFilled(espp.entries?.[m]?.gain) ? String(espp.entries[m].gain) : "";
+    const months = /* @__PURE__ */ new Set([
+      ...listed,
+      ...Object.keys(espp.entries ?? {}).filter((m) => typedValue(m)),
+      ...Object.keys(input.months ?? {}).filter((m) => toNumber(input.months[m].espp?.gain) > 0)
+    ]);
+    return [...months].sort((a, b) => b.localeCompare(a)).map((month) => ({
+      month,
+      typedValue: typedValue(month),
+      derived: !listed.has(month) && !typedValue(month),
+      ...payslipGainFor(input, month, payBase)
+    }));
+  }
+  function freeGainMonth(taken, today = /* @__PURE__ */ new Date()) {
+    const d = new Date(today.getFullYear(), today.getMonth(), 1);
+    while (taken.has(monthKey(d))) d.setMonth(d.getMonth() - 1);
+    return monthKey(d);
+  }
+  var prune = (espp, month) => {
+    if (espp.entries[month] && !Object.keys(espp.entries[month]).length) delete espp.entries[month];
+  };
+  function addGainMonth(espp, month) {
+    if (!espp.gainMonths.includes(month)) espp.gainMonths.push(month);
+  }
+  function setGain(espp, month, value) {
+    addGainMonth(espp, month);
+    const text2 = String(value ?? "").trim();
+    espp.entries[month] = { ...espp.entries[month] ?? {} };
+    if (text2) espp.entries[month].gain = text2;
+    else delete espp.entries[month].gain;
+    prune(espp, month);
+  }
+  function removeGain(espp, month) {
+    espp.gainMonths = espp.gainMonths.filter((m) => m !== month);
+    if (espp.entries[month]) delete espp.entries[month].gain;
+    prune(espp, month);
+  }
+  function moveGain(espp, from, to, taken = /* @__PURE__ */ new Set()) {
+    if (from === to) return true;
+    if (taken.has(to) || espp.gainMonths.includes(to)) return false;
+    const typed = espp.entries[from]?.gain;
+    removeGain(espp, from);
+    addGainMonth(espp, to);
+    if (typed !== void 0) setGain(espp, to, typed);
+    return true;
+  }
+
   // js/core/esppForecast.js
   var esppDeductionFor = (input) => (month) => {
     const saved = input.months?.[month];
@@ -617,25 +683,10 @@
   function deductionSource(input, month) {
     return input.months?.[month] ? { kind: "month", month } : { kind: "none", month: "" };
   }
-  function payslipGainFor(input, month) {
-    const entry = input.espp?.entries?.[month] ?? {};
-    const typedGain = entry.gain !== void 0 && entry.gain !== "";
-    const typedTax = entry.gainTax !== void 0 && entry.gainTax !== "";
-    const saved = input.months?.[month];
-    const savedGain = toNumber(saved?.espp?.gain) > 0;
-    if (!typedGain && !savedGain && !typedTax) return { gain: 0, tax: 0, source: "", taxTyped: false };
-    const base = saved ? withPay(input, saved) : input;
-    const r = calculate({ ...base, espp: { ...base.espp, gain: typedGain ? entry.gain : savedGain ? saved.espp.gain : "" } });
-    return {
-      gain: typedGain || savedGain ? r.esppGain / 12 : 0,
-      tax: typedTax ? toNumber(entry.gainTax) : r.esppGainTax / 12,
-      source: typedGain ? "typed" : savedGain ? "history" : "",
-      taxTyped: typedTax
-    };
-  }
   function esppReport(input, today = /* @__PURE__ */ new Date()) {
     const espp = input.espp;
     const year = Number(input.ui.esppYear || today.getFullYear());
+    const payBase = payBaseOf(input);
     const ledger = buildLedger({
       year,
       entries: espp.entries,
@@ -645,7 +696,7 @@
     });
     ledger.rows.forEach((row) => {
       row.source = deductionSource(input, row.month);
-      row.payslip = payslipGainFor(input, row.month);
+      row.payslip = payslipGainFor(input, row.month, payBase);
     });
     const cutoff = adjustedMonth(today, espp.changeDay, espp.monthOffset);
     const options = { assumptions: espp.assumptions };
@@ -660,6 +711,8 @@
       currentMonth: monthKey(today),
       toDate: { ...summarize(ledger, { ...options, cutoff }), ...gainTotals(ledger.rows.filter((r) => r.month <= cutoff)) },
       forecast: { ...summarize(ledger, options), ...gainTotals(ledger.rows) },
+      gains: gainRows(input, payBase),
+      historyMonths: input.months ?? {},
       ready: toNumber(espp.assumptions.price) > 0 && toNumber(espp.assumptions.fx) > 0
     };
   }
@@ -699,7 +752,7 @@
     max: String(max),
     exclusion: String(exclusion)
   }));
-  var DEFAULT_WITHDRAWAL_FEE = "54.95";
+  var DEFAULT_WITHDRAWAL_FEE = "35";
   var CURRENCIES = ["EGP", "USD", "EUR", "GBP", "SAR", "AED", "KWD", "QAR"];
   var DEFAULT_PROFILE = Object.freeze({
     id: "eg-2026",
@@ -761,6 +814,8 @@
       changeDay: "30",
       monthOffset: "0",
       entries: {},
+      /** Months with an entry in the ESPP tab's "ESPP Gains" list ("YYYY-MM"); History months with a gain are listed on their own. */
+      gainMonths: [],
       /** USD rate per month ("YYYY-MM" → rate): the average of the 19th–21st, fetched for past months. */
       rates: {}
     },
@@ -774,9 +829,11 @@
       esppYear: "",
       histMonth: "",
       period: "month",
+      /** Tax tab → Brackets: show the ranges and amounts per year or per month. */
+      bracketPeriod: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppVariable: false, histSaved: true, histSummary: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, histSaved: true, histSummary: true }
     }
   });
 
@@ -836,7 +893,9 @@
       if (!isItemPeriod(item.per)) item.per = "month";
     });
     sortOvertime(state2.overtime);
-    if (!String(state2.espp.assumptions.withdrawalFee ?? "").trim()) state2.espp.assumptions.withdrawalFee = DEFAULT_WITHDRAWAL_FEE;
+    const fee = String(state2.espp.assumptions.withdrawalFee ?? "").trim();
+    if (!fee || fee === "54.95") state2.espp.assumptions.withdrawalFee = DEFAULT_WITHDRAWAL_FEE;
+    if (!["year", "month"].includes(state2.ui.bracketPeriod)) state2.ui.bracketPeriod = "month";
     return state2;
   }
   var MONTH = /^\d{4}-\d{2}$/;
@@ -845,10 +904,14 @@
     const entries = {};
     if (raw && typeof raw === "object") {
       for (const [month, row] of Object.entries(raw)) {
-        if (MONTH.test(month) && row && typeof row === "object") entries[month] = { ...row };
+        if (!MONTH.test(month) || !row || typeof row !== "object") continue;
+        const { gainTax, ...rest } = row;
+        if (Object.keys(rest).length) entries[month] = rest;
       }
     }
     state2.espp.entries = entries;
+    const listed = Array.isArray(saved?.espp?.gainMonths) ? saved.espp.gainMonths : [];
+    state2.espp.gainMonths = [...new Set(listed.filter((m) => typeof m === "string" && MONTH.test(m)))];
     const rates = {};
     for (const [month, rate] of Object.entries(saved?.espp?.rates ?? {})) {
       if (MONTH.test(month) && Number(rate) > 0) rates[month] = String(rate);
@@ -1657,22 +1720,31 @@
         ${row(`Taxable income${r.overridden ? " (manual)" : ""}`, r.taxableAnnual, "total")}
       </tbody></table></div>`;
   }
-  function bracketTable(r, money) {
+  var SIDE = { year: 0, month: 1 };
+  var shownPeriod = null;
+  function periodToggle(active) {
+    const from = shownPeriod ?? active;
+    shownPeriod = active;
+    const btn = (id, label) => `<button type="button" data-v="${id}" aria-pressed="${id === active}">${label}</button>`;
+    return `<div class="seg slide" data-seg="ui.bracketPeriod" style="--i:${SIDE[from]}" data-to="${SIDE[active]}">${btn("year", "Annual")}${btn("month", "Monthly")}</div>`;
+  }
+  function bracketTable(r, money, period) {
+    const k = period === "year" ? 1 : 12;
     const statusOf = (b) => b.excluded ? "Excluded" : b.portion > 0 ? "Applied" : "\u2014";
     const classOf = (b) => b.excluded ? "excluded" : b.portion > 0 ? "active" : "muted";
     const rows = r.bracketRows.map((b) => `<tr class="${classOf(b)}">
       <td>${b.rate}%</td>
-      <td>${formatNumber(b.from)} \u2013 ${b.max === Infinity ? "\u221E" : formatNumber(b.max)}</td>
+      <td>${formatNumber(b.from / k)} \u2013 ${b.max === Infinity ? "\u221E" : formatNumber(b.max / k)}</td>
       <td>${statusOf(b)}</td>
-      <td class="r">${money(b.portion / 12)}</td><td class="r">${money(b.tax / 12)}</td>
+      <td class="r">${money(b.portion / k)}</td><td class="r">${money(b.tax / k)}</td>
     </tr>`).join("");
     const excluded = r.bracketRows.filter((b) => b.excluded);
-    const note = excluded.length ? `<p class="hint">Taxable income exceeds ${money(excluded.at(-1).exclusion)}, so the
+    const note = excluded.length ? `<p class="hint">Taxable income exceeds ${money(excluded.at(-1).exclusion / k)}, so the
         ${excluded.map((b) => `${b.rate}%`).join(", ")} bracket${excluded.length > 1 ? "s are" : " is"} excluded.</p>` : "";
-    return `<div class="section-title">Brackets</div>
+    return `<div class="section-title"><span>Brackets</span>${periodToggle(period)}</div>
     <div class="table-wrap"><table>
-      <thead><tr><th>Rate</th><th>Range (annual)</th><th>Status</th><th class="r">Taxed amount / month</th><th class="r">Tax / month</th></tr></thead>
-      <tbody>${rows}<tr class="total"><td colspan="4">Income tax</td><td class="r">${money(r.incomeTax / 12)}</td></tr></tbody>
+      <thead><tr><th>Rate</th><th>Range</th><th>Status</th><th class="r">Taxed amount</th><th class="r">Tax</th></tr></thead>
+      <tbody>${rows}<tr class="total"><td colspan="4">Income tax</td><td class="r">${money(r.incomeTax / k)}</td></tr></tbody>
     </table></div>${note}`;
   }
   function leviesNote(r, money) {
@@ -1680,7 +1752,7 @@
   }
   function renderTaxDetail(r, state2, money) {
     const body = r.flat ? `<div class="callout">This job type uses a <b>flat ${r.marginalRate}%</b> rate:
-        ${money(r.taxableAnnual)} \xD7 ${r.marginalRate}% = <b>${money(r.incomeTax)}</b> / year.</div>` : bracketTable(r, money);
+        ${money(r.taxableAnnual)} \xD7 ${r.marginalRate}% = <b>${money(r.incomeTax)}</b> / year.</div>` : bracketTable(r, money, state2.ui.bracketPeriod === "year" ? "year" : "month");
     return `<div class="spacer"></div>${taxableTable(r, money)}<div class="spacer"></div>${body}${leviesNote(r, money)}`;
   }
 
@@ -1743,6 +1815,10 @@
     $$("[data-view]").forEach((host) => {
       if (host.dataset.view !== active || !VIEWS[active]) return;
       host.innerHTML = result ? VIEWS[active](result, state2, money, pay) : EMPTY;
+      $$(".seg.slide[data-to]", host).forEach((seg) => {
+        void seg.offsetWidth;
+        seg.style.setProperty("--i", seg.dataset.to);
+      });
     });
   }
 
@@ -1938,19 +2014,6 @@
       value="${field.locked ? escapeHtml(shown) : ""}" placeholder="${shown}" aria-label="${col.label} ${row.month}"
       title="${escapeHtml(title)}"></td>`;
   }
-  function payslipCell(row, key2) {
-    const p = row.payslip;
-    const typed = key2 === "gain" ? p.source === "typed" : p.taxTyped;
-    const calculated = key2 === "gain" ? p.gain : p.tax;
-    const fromHistory = !typed && p.source === "history";
-    const shown = calculated ? fixed(calculated) : "";
-    const what = key2 === "gain" ? "ESPP gain" : "Tax on the gain";
-    const title = typed ? "Your value \u2014 clear it to use the History month again" : fromHistory ? `${what} from History (${monthLabel(row.month)}) \u2014 type a value to override it` : `No ESPP gain on this payslip \u2014 add it on the Pay/History tab, or type the payslip's ${what.toLowerCase()} here`;
-    return `<td class="lock${typed ? " on" : ""}${fromHistory ? " hist" : ""}${key2 === "gainTax" ? " neg-cell" : ""}">
-    <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${key2}"
-      value="${typed ? escapeHtml(fixed(calculated)) : ""}" placeholder="${shown || "0.00"}" aria-label="${what} ${row.month}"
-      title="${escapeHtml(title)}"></td>`;
-  }
   function ledgerTable(rep) {
     const rows = rep.ledger.rows.map((r) => {
       const cls = [r.month > rep.cutoff ? "future" : "", r.month === rep.cutoff ? "active" : ""].join(" ");
@@ -1958,47 +2021,43 @@
       ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
       <td class="r calc">${fixed(r.reinvestFee, 3)}</td><td class="r calc">${fixed(r.feesIn)}</td>
       <td class="r calc">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
-      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td>
-      ${payslipCell(r, "gain")}${payslipCell(r, "gainTax")}</tr>`;
+      <td class="r calc">${fixed(r.actualShare)}</td></tr>`;
     }).join("");
     const t = rep.forecast;
     return `<div class="table-wrap espp-table"><table class="edit-table">
     <thead><tr><th>Month</th><th class="y" title="Taken from your pay, EGP">Deducted EGP</th><th class="y" title="US dollars">Deducted USD</th><th class="y" title="US dollars">Dividend $</th>
       <th class="r" title="US dollars">Reinvest fee $</th><th class="r" title="US dollars">Fees in $</th><th class="r" title="US dollars">Accredited $</th><th class="y">ACC. Shares</th>
-      <th class="r" title="US dollars: what the shares bought this month are worth minus what went in">Discount gain $</th><th class="r" title="US dollars">Actual share $</th>
-      <th class="y" title="ESPP gain on this month's payslip, in EGP">Payslip gain EGP</th><th class="y" title="Extra income tax the payslip gain caused, in EGP">Gain tax EGP</th></tr></thead>
+      <th class="r" title="US dollars">Actual share $</th></tr></thead>
     <tbody>${rows}
       <tr class="total"><td>Total</td><td class="r">${fixed(t.deducted)}</td><td class="r">${fixed(t.deductedUsd)}</td>
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
-        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td>
-        <td class="r">${fixed(t.payslipGain)}</td><td class="r">${fixed(t.payslipTax)}</td></tr>
+        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
     </tbody></table></div>
-    <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
-      <span class="hist-dot"></span> Deducted, Payslip gain and its tax come from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+    <p class="hint">Grey = calculated. Type a value to override it; clear it to go back.<br>
+      <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
   }
-  var colourOf = (kind, n) => kind === "cost" ? n > 5e-3 ? "neg" : "" : n > 5e-3 ? "pos" : n < -5e-3 ? "neg" : "";
+  var colourOf = (kind, n) => kind === "cost" ? "neg" : n > 5e-3 ? "pos" : n < -5e-3 ? "neg" : "";
   function breakdown(rep, money) {
     const r = (label, a, b, kind = "") => `<tr><td>${label}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
-    const plain = (text2) => [text2, 0];
+    const plain2 = (text2) => [text2, 0];
     const cost = (v, fmt) => [v ? `\u2212 ${fmt(v)}` : fmt(0), v];
     const d = rep.toDate, f = rep.forecast;
     const net = (x) => x.profit - x.payslipTax;
     return `<div class="table-wrap"><table class="espp-sum">
     <thead><tr><th></th><th class="r">To ${monthLabel(rep.cutoff)}</th><th class="r">${rep.year} forecast</th></tr></thead>
     <tbody>
-      ${r("Deducted from pay", plain(money(d.deducted)), plain(money(f.deducted)))}
-      ${r("Shares held", plain(fixed(d.shares, 5)), plain(fixed(f.shares, 5)))}
+      ${r("Deducted from pay", plain2(money(d.deducted)), plain2(money(f.deducted)))}
+      ${r("Shares held", plain2(fixed(d.shares, 5)), plain2(fixed(f.shares, 5)))}
       ${r("Market value", [usd(d.marketValueUsd), d.marketValueUsd], [usd(f.marketValueUsd), f.marketValueUsd], "gain")}
-      ${r('Discount gain <span class="hint">shares worth \u2212 what went in</span>', plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
-      ${r('Dividends <span class="hint">after US tax and fee</span>', plain(usd(d.dividends)), plain(usd(f.dividends)))}
+      ${r('Total shares discount worth <span class="hint">shares worth \u2212 what went in</span>', plain2(usd(d.untaxed)), plain2(usd(f.untaxed)))}
+      ${r('Dividends <span class="hint">after US tax and fee</span>', [usd(d.dividends), d.dividends], [usd(f.dividends), f.dividends], "gain")}
       ${r("Dividend US tax", cost(d.dividendTax, usd), cost(f.dividendTax, usd), "cost")}
       ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), "cost")}
       ${r("Withdrawal fee", cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), "cost")}
       ${r("Tax on payslip gains", cost(d.payslipTax, money), cost(f.payslipTax, money), "cost")}
       <tr class="total"><td>Withdrawal</td><td class="r">${money(d.withdrawal)}</td><td class="r">${money(f.withdrawal)}</td></tr>
       ${r('Profit <span class="hint">after all costs</span>', [money(net(d)), net(d)], [money(net(f)), net(f)], "gain")}
-    </tbody></table></div>
-    <p class="hint">Red = money that never comes back. Fees and dividend tax are already inside <b>Shares held</b>, so they are not taken off again; the withdrawal fee is taken off the withdrawal, and the tax on payslip gains is taken off the profit.</p>`;
+    </tbody></table></div>`;
   }
   function renderEsppTab(rep, money) {
     const host = $('[data-view="espp"]');
@@ -2013,9 +2072,11 @@
       <span class="hint live-line">Price ${a.price ? usd(a.price) : "\u2014"} \xB7 1 USD = ${a.fx || "\u2014"}
         <button type="button" class="btn sm ghost live" data-espp-live="both" aria-label="Refresh the share price and USD rate" title="Refresh the share price and USD rate online">${REFRESH_ICON}</button></span>
     </div>
-    ${breakdown(rep, money)}
-    <div class="spacer"></div>
-    ${ledgerTable(rep)}`;
+    <details class="more" data-open="esppTable"${getState().ui.open.esppTable ? " open" : ""}>
+      <summary>Monthly ledger</summary>
+      <div class="inner">${ledgerTable(rep)}</div>
+    </details>
+    ${breakdown(rep, money)}`;
     reapplySpin();
   }
   async function fetchOne(kind) {
@@ -2168,6 +2229,106 @@
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeAll();
+    });
+  }
+
+  // js/ui/esppGains.js
+  var CUSTOM2 = "custom";
+  var CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  var pickerFor = "";
+  var plain = (n) => (Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
+  var taxText = (row, money) => row.tax > 0 ? `\u2212 ${money(row.tax)}` : money(0);
+  var takenMonths = () => new Set($$("[data-gain-row]").map((r) => r.dataset.gainRow));
+  function monthControl(row, taken, historyMonths) {
+    if (pickerFor === row.month) return monthPickerHtml("gain", row.month, Object.keys(historyMonths));
+    const options = monthChoices(historyMonths, monthKey(/* @__PURE__ */ new Date()), row.month).filter((c) => c.month === row.month || !taken.has(c.month)).map((c) => `<option value="${c.month}"${c.month === row.month ? " selected" : ""}>${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`).join("");
+    const locked = row.derived ? ' disabled title="This month comes from History"' : "";
+    return `<select class="sm" data-gain-month="${row.month}" aria-label="Month"${locked}>${options}<option value="${CUSTOM2}">Custom\u2026</option></select>`;
+  }
+  function rowHtml(row, taken, historyMonths, money) {
+    const m = row.month;
+    const name = monthLabel(m, "long");
+    const typed = row.typedValue !== "";
+    const fromHistory = row.historyGain > 0;
+    const title = typed ? "Your value \u2014 clear it to use History again" : fromHistory ? `From History (${monthLabel(m)}) \u2014 type a value to override it` : "Nothing in History for this month \u2014 type the payslip gain";
+    return `<div class="gain-row" data-gain-row="${m}">
+    <div class="gain-month">${monthControl(row, taken, historyMonths)}</div>
+    <span class="gain-tax" data-gain-tax="${m}" title="Extra income tax this gain causes">${taxText(row, money)}</span>
+    <input type="text" inputmode="decimal" data-gain-input="${m}"${typed ? ' class="typed"' : ""} value="${escapeHtml(row.typedValue)}"
+      placeholder="${fromHistory ? plain(row.historyGain) : "0"}" aria-label="Payslip gain ${name}" title="${escapeHtml(title)}">
+    ${row.derived ? "<span></span>" : `<button type="button" class="btn icon ghost danger" data-gain-del="${m}" aria-label="Remove ${name}" title="Remove entry">${CROSS}</button>`}
+  </div>`;
+  }
+  function renderGainEntries(rep, money) {
+    const host = $("[data-espp-gains]");
+    if (!host) return;
+    $("[data-gains-count]").textContent = rep.gains.length ? String(rep.gains.length) : "";
+    const focused = document.activeElement;
+    if (host.contains(focused) && focused.tagName === "INPUT") {
+      rep.gains.forEach((g) => {
+        const el = host.querySelector(`[data-gain-tax="${g.month}"]`);
+        if (el) el.textContent = taxText(g, money);
+      });
+      return;
+    }
+    const taken = new Set(rep.gains.map((g) => g.month));
+    const currency = escapeHtml(activeProfile().currency);
+    host.innerHTML = rep.gains.length ? `<div class="gain-list">
+        <div class="gain-head"><span>Month</span><span class="r">Gain tax ${currency}</span><span class="r">Payslip gain ${currency}</span><span></span></div>
+        ${rep.gains.map((g) => rowHtml(g, taken, rep.historyMonths, money)).join("")}</div>` : '<div class="hint">No ESPP gains yet. A History month with an ESPP gain shows up here by itself.</div>';
+  }
+  function initGainEntries(onChanged) {
+    const edit = (fn) => {
+      update((s) => fn(s.espp));
+      onChanged();
+    };
+    function moveTo(from, to) {
+      if (!from || !to || from === to) return onChanged();
+      if (takenMonths().has(to)) {
+        toast(`${monthLabel(to, "long")} already has an entry`);
+        return onChanged();
+      }
+      edit((espp) => moveGain(espp, from, to));
+    }
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-gain-add]")) {
+        const month = freeGainMonth(takenMonths());
+        edit((espp) => addGainMonth(espp, month));
+        $(`[data-gain-input="${month}"]`)?.focus();
+        return;
+      }
+      const del = e.target.closest("[data-gain-del]");
+      if (del) edit((espp) => removeGain(espp, del.dataset.gainDel));
+    });
+    document.addEventListener("change", (e) => {
+      const select2 = e.target.closest?.("[data-gain-month]");
+      if (!select2) return;
+      if (select2.value !== CUSTOM2) return moveTo(select2.dataset.gainMonth, select2.value);
+      pickerFor = select2.dataset.gainMonth;
+      onChanged();
+      openMonthPicker("gain");
+    });
+    onMonthPick("gain", (month) => {
+      const from = pickerFor;
+      pickerFor = "";
+      moveTo(from, month);
+    });
+    onMonthBack("gain", () => {
+      pickerFor = "";
+      onChanged();
+    });
+    onMonthClose("gain", () => {
+      if (pickerFor) {
+        pickerFor = "";
+        onChanged();
+      }
+    });
+    document.addEventListener("input", (e) => {
+      const month = e.target.dataset?.gainInput;
+      if (month) update((s) => setGain(s.espp, month, e.target.value));
+    });
+    document.addEventListener("focusout", (e) => {
+      if (e.target.dataset?.gainInput) setTimeout(onChanged);
     });
   }
 
@@ -2392,7 +2553,7 @@
   }
 
   // js/ui/saveMonth.js
-  var CUSTOM2 = "custom";
+  var CUSTOM3 = "custom";
   function initSaveMonth(onChanged, onSaved) {
     const panel = $("#saveMonthPanel");
     const select2 = $("#saveMonthSel");
@@ -2416,7 +2577,7 @@
       select2.innerHTML = [
         '<option value="" disabled>Choose a month\u2026</option>',
         ...choices.map((c) => `<option value="${c.month}">${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`),
-        `<option value="${CUSTOM2}">Custom\u2026</option>`
+        `<option value="${CUSTOM3}">Custom\u2026</option>`
       ].join("");
       select2.value = choices.some((c) => c.month === value) ? value : "";
     }
@@ -2462,7 +2623,7 @@
     $("#saveMonthBtn").addEventListener("click", () => panel.hidden ? open3() : close());
     select2.addEventListener("change", () => {
       ask.hidden = true;
-      if (select2.value !== CUSTOM2) return;
+      if (select2.value !== CUSTOM3) return;
       if (!custom) custom = monthKey(/* @__PURE__ */ new Date());
       drawPicker();
       openMonthPicker("save");
@@ -2574,8 +2735,10 @@
     if (state2.ui.resTab === "espp") {
       const draft = scopePay();
       const months = monthsWithDraft(state2.months, scopeMonth(), draft && grossPay(draft, input), scopeDirty());
-      const report = esppReport({ ...input, months, esppRates: monthRates(state2) });
+      const payTab = { ...getState(), profile: input.profile };
+      const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state2) });
       renderEsppTab(report, money);
+      renderGainEntries(report, money);
       ensureMonthRates(report.year, rebuild);
     }
   }
@@ -2597,6 +2760,7 @@
   initSteppers();
   initRateFetcher();
   initEspp(rebuild);
+  initGainEntries(rebuild);
   initHistory(rebuild);
   initSaveMonth(rebuild, (month) => {
     showTab("history", month);

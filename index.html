@@ -116,7 +116,7 @@
                 <label class="espp-field"><span>Variable % <span class="hint">of extras</span></span><input type="text" inputmode="decimal" data-bind="espp.varPct" placeholder="0"></label>
               </div>
               <div class="quick-tile" id="esppTile"></div>
-              <label class="espp-field espp-gain"><span>ESPP gain <span class="hint">on this payslip — its tax is worked out for you</span></span><input type="text" inputmode="decimal" data-bind="espp.gain" data-money placeholder="0"></label>
+              <label class="espp-field espp-gain"><span>ESPP gain <span class="hint">on this payslip</span></span><input type="text" inputmode="decimal" data-bind="espp.gain" data-money placeholder="0"></label>
               <div class="quick-tile gain-tile" id="esppGainTile" hidden></div>
             </div>
             <div class="list" data-list="deductions" data-quiet></div>
@@ -304,11 +304,19 @@
                 <label title="Dividend reinvestment fee: 2% of the dividend (prospectus)">Reinvest fee %<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestRate"></label>
                 <label title="Most the reinvestment fee can be per dividend: $3 (prospectus)">Reinvest cap $<input type="text" inputmode="decimal" data-bind="espp.assumptions.reinvestCap"></label>
                 <label title="Admin fee: $6 once per offering period, taken from the first contribution (Jan and Jul)">Fee in $ (Jan/Jul)<input type="text" inputmode="decimal" data-bind="espp.assumptions.feeIn"></label>
-                <label title="Taken off the withdrawal: $35 + $19.95 market-sale order fee = $54.95. Type 0 for no fee">Withdrawal fee $<input type="text" inputmode="decimal" data-bind="espp.assumptions.withdrawalFee"></label>
+                <label title="Taken off the withdrawal. Type 0 for no fee">Withdrawal fee $<input type="text" inputmode="decimal" data-bind="espp.assumptions.withdrawalFee"></label>
                 <label title="Before this day of the month, the current month is not settled yet">Change day<input type="text" inputmode="numeric" data-bind="espp.changeDay"></label>
                 <label title="Shift the adjusted month by this many months">Month offset<input type="text" inputmode="numeric" data-bind="espp.monthOffset"></label>
               </div>
               <div class="hint">Price: free Alpha Vantage demo (works for IBM). Rate: free currency API. Green = fetched, red = unavailable, so type it.</div>
+            </div>
+          </details>
+
+          <details class="more" data-open="esppGains">
+            <summary>ESPP Gains <span class="count" data-gains-count></span></summary>
+            <div class="inner">
+              <div data-espp-gains></div>
+              <div class="row" style="margin-top:8px"><button type="button" class="btn" data-gain-add>+ Add entry</button></div>
             </div>
           </details>
 

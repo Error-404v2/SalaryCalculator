@@ -44,5 +44,10 @@ export function renderResults(result, state, money, pay) {
   $$('[data-view]').forEach((host) => {
     if (host.dataset.view !== active || !VIEWS[active]) return;
     host.innerHTML = result ? VIEWS[active](result, state, money, pay) : EMPTY;
+    // A sliding toggle is drawn on its old side first, then moved, so the highlight glides across.
+    $$('.seg.slide[data-to]', host).forEach((seg) => {
+      void seg.offsetWidth;
+      seg.style.setProperty('--i', seg.dataset.to);
+    });
   });
 }

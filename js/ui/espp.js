@@ -109,28 +109,6 @@ function cell(row, col) {
       title="${escapeHtml(title)}"></td>`;
 }
 
-/**
- * Payslip ESPP gain (key 'gain') and the tax it caused (key 'gainTax') for a month: both come from that
- * month's History entry (grey, green dot) and can be typed here to override it, or to track a payslip on its own.
- */
-function payslipCell(row, key) {
-  const p = row.payslip;
-  const typed = key === 'gain' ? p.source === 'typed' : p.taxTyped;
-  const calculated = key === 'gain' ? p.gain : p.tax;
-  const fromHistory = !typed && p.source === 'history';
-  const shown = calculated ? fixed(calculated) : '';
-  const what = key === 'gain' ? 'ESPP gain' : 'Tax on the gain';
-  const title = typed
-    ? 'Your value — clear it to use the History month again'
-    : fromHistory
-      ? `${what} from History (${monthLabel(row.month)}) — type a value to override it`
-      : `No ESPP gain on this payslip — add it on the Pay/History tab, or type the payslip's ${what.toLowerCase()} here`;
-  return `<td class="lock${typed ? ' on' : ''}${fromHistory ? ' hist' : ''}${key === 'gainTax' ? ' neg-cell' : ''}">
-    <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${key}"
-      value="${typed ? escapeHtml(fixed(calculated)) : ''}" placeholder="${shown || '0.00'}" aria-label="${what} ${row.month}"
-      title="${escapeHtml(title)}"></td>`;
-}
-
 function ledgerTable(rep) {
   const rows = rep.ledger.rows.map((r) => {
     const cls = [r.month > rep.cutoff ? 'future' : '', r.month === rep.cutoff ? 'active' : ''].join(' ');
@@ -138,27 +116,24 @@ function ledgerTable(rep) {
       ${cell(r, LOCKABLE[0])}${cell(r, LOCKABLE[1])}${cell(r, LOCKABLE[2])}
       <td class="r calc">${fixed(r.reinvestFee, 3)}</td><td class="r calc">${fixed(r.feesIn)}</td>
       <td class="r calc">${fixed(r.accredited)}</td>${cell(r, LOCKABLE[3])}
-      <td class="r calc">${fixed(r.untaxed)}</td><td class="r calc">${fixed(r.actualShare)}</td>
-      ${payslipCell(r, 'gain')}${payslipCell(r, 'gainTax')}</tr>`;
+      <td class="r calc">${fixed(r.actualShare)}</td></tr>`;
   }).join('');
   const t = rep.forecast;
   return `<div class="table-wrap espp-table"><table class="edit-table">
     <thead><tr><th>Month</th><th class="y" title="Taken from your pay, EGP">Deducted EGP</th><th class="y" title="US dollars">Deducted USD</th><th class="y" title="US dollars">Dividend $</th>
       <th class="r" title="US dollars">Reinvest fee $</th><th class="r" title="US dollars">Fees in $</th><th class="r" title="US dollars">Accredited $</th><th class="y">ACC. Shares</th>
-      <th class="r" title="US dollars: what the shares bought this month are worth minus what went in">Discount gain $</th><th class="r" title="US dollars">Actual share $</th>
-      <th class="y" title="ESPP gain on this month's payslip, in EGP">Payslip gain EGP</th><th class="y" title="Extra income tax the payslip gain caused, in EGP">Gain tax EGP</th></tr></thead>
+      <th class="r" title="US dollars">Actual share $</th></tr></thead>
     <tbody>${rows}
       <tr class="total"><td>Total</td><td class="r">${fixed(t.deducted)}</td><td class="r">${fixed(t.deductedUsd)}</td>
         <td class="r">${fixed(t.dividends)}</td><td class="r" colspan="2">${fixed(t.fees)}</td><td></td>
-        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.untaxed)}</td><td class="r">${fixed(t.marketValueUsd)}</td>
-        <td class="r">${fixed(t.payslipGain)}</td><td class="r">${fixed(t.payslipTax)}</td></tr>
+        <td class="r">${fixed(t.shares, 5)}</td><td class="r">${fixed(t.marketValueUsd)}</td></tr>
     </tbody></table></div>
-    <p class="hint">Yellow columns show the calculated value in grey; type a value to override it, clear it to go back.
-      <span class="hist-dot"></span> Deducted, Payslip gain and its tax come from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
+    <p class="hint">Grey = calculated. Type a value to override it; clear it to go back.<br>
+      <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
 }
 
-/** Money that never comes back is red only when there is some; value and profit are green above 0 and red below it. */
-const colourOf = (kind, n) => (kind === 'cost' ? (n > 0.005 ? 'neg' : '') : n > 0.005 ? 'pos' : n < -0.005 ? 'neg' : '');
+/** Money that never comes back is always red; value, dividends and profit are green above 0 and red below it. */
+const colourOf = (kind, n) => (kind === 'cost' ? 'neg' : n > 0.005 ? 'pos' : n < -0.005 ? 'neg' : '');
 
 function breakdown(rep, money) {
   /** `a` and `b` are [text, number] so the colour follows the value. `kind`: 'cost' (red when > 0) or 'gain' (green / red). */
@@ -174,16 +149,15 @@ function breakdown(rep, money) {
       ${r('Deducted from pay', plain(money(d.deducted)), plain(money(f.deducted)))}
       ${r('Shares held', plain(fixed(d.shares, 5)), plain(fixed(f.shares, 5)))}
       ${r('Market value', [usd(d.marketValueUsd), d.marketValueUsd], [usd(f.marketValueUsd), f.marketValueUsd], 'gain')}
-      ${r('Discount gain <span class="hint">shares worth − what went in</span>', plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
-      ${r('Dividends <span class="hint">after US tax and fee</span>', plain(usd(d.dividends)), plain(usd(f.dividends)))}
+      ${r('Total shares discount worth <span class="hint">shares worth − what went in</span>', plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
+      ${r('Dividends <span class="hint">after US tax and fee</span>', [usd(d.dividends), d.dividends], [usd(f.dividends), f.dividends], 'gain')}
       ${r('Dividend US tax', cost(d.dividendTax, usd), cost(f.dividendTax, usd), 'cost')}
       ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), 'cost')}
       ${r('Withdrawal fee', cost(d.withdrawalFee, usd), cost(f.withdrawalFee, usd), 'cost')}
       ${r('Tax on payslip gains', cost(d.payslipTax, money), cost(f.payslipTax, money), 'cost')}
       <tr class="total"><td>Withdrawal</td><td class="r">${money(d.withdrawal)}</td><td class="r">${money(f.withdrawal)}</td></tr>
       ${r('Profit <span class="hint">after all costs</span>', [money(net(d)), net(d)], [money(net(f)), net(f)], 'gain')}
-    </tbody></table></div>
-    <p class="hint">Red = money that never comes back. Fees and dividend tax are already inside <b>Shares held</b>, so they are not taken off again; the withdrawal fee is taken off the withdrawal, and the tax on payslip gains is taken off the profit.</p>`;
+    </tbody></table></div>`;
 }
 
 export function renderEsppTab(rep, money) {
@@ -202,9 +176,11 @@ export function renderEsppTab(rep, money) {
       <span class="hint live-line">Price ${a.price ? usd(a.price) : '—'} · 1 USD = ${a.fx || '—'}
         <button type="button" class="btn sm ghost live" data-espp-live="both" aria-label="Refresh the share price and USD rate" title="Refresh the share price and USD rate online">${REFRESH_ICON}</button></span>
     </div>
-    ${breakdown(rep, money)}
-    <div class="spacer"></div>
-    ${ledgerTable(rep)}`;
+    <details class="more" data-open="esppTable"${store.getState().ui.open.esppTable ? ' open' : ''}>
+      <summary>Monthly ledger</summary>
+      <div class="inner">${ledgerTable(rep)}</div>
+    </details>
+    ${breakdown(rep, money)}`;
   reapplySpin();
 }
 

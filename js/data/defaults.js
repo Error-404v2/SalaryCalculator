@@ -11,8 +11,8 @@ const EGYPT_BRACKETS_2026 = [
   rate: String(rate), min: String(min), max: String(max), exclusion: String(exclusion),
 }));
 
-/** Selling the shares: $35 broker fee + $19.95 market-sale order fee (prospectus). */
-export const DEFAULT_WITHDRAWAL_FEE = '54.95';
+/** Fee taken off a withdrawal (USD). */
+export const DEFAULT_WITHDRAWAL_FEE = '35';
 
 export const CURRENCIES =['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR'];
 
@@ -71,6 +71,8 @@ export const DEFAULT_STATE = Object.freeze({
     changeDay: '30',
     monthOffset: '0',
     entries: {},
+    /** Months with an entry in the ESPP tab's "ESPP Gains" list ("YYYY-MM"); History months with a gain are listed on their own. */
+    gainMonths: [],
     /** USD rate per month ("YYYY-MM" → rate): the average of the 19th–21st, fetched for past months. */
     rates: {},
   },
@@ -84,8 +86,10 @@ export const DEFAULT_STATE = Object.freeze({
     esppYear: '',
     histMonth: '',
     period: 'month',
+    /** Tax tab → Brackets: show the ranges and amounts per year or per month. */
+    bracketPeriod: 'month',
     theme: '',
     taxEdit: false,
-    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppVariable: false, histSaved: true, histSummary: true },
+    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, histSaved: true, histSummary: true },
   },
 });

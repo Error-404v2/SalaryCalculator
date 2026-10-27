@@ -12,6 +12,7 @@ import { initSettings, syncSettings } from './ui/settings.js';
 import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
 import { initEspp, renderEsppInputs, renderEsppTab, resetEsppAdded } from './ui/espp.js';
+import { initGainEntries, renderGainEntries } from './ui/esppGains.js';
 import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab } from './ui/history.js';
 import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
@@ -69,8 +70,11 @@ function render(state) {
     // The History month being edited counts as soon as it changes, saved or not.
     const draft = store.scopePay();
     const months = monthsWithDraft(state.months, store.scopeMonth(), draft && grossPay(draft, input), store.scopeDirty());
-    const report = esppReport({ ...input, months, esppRates: monthRates(state) });
+    // A gain month with no History entry is taxed on the real Pay tab, even while a History month is open.
+    const payTab = { ...store.getState(), profile: input.profile };
+    const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state) });
     renderEsppTab(report, money);
+    renderGainEntries(report, money);
     ensureMonthRates(report.year, rebuild);
   }
 }
@@ -94,6 +98,7 @@ initSettings(rebuild);
 initSteppers();
 initRateFetcher();
 initEspp(rebuild);
+initGainEntries(rebuild);
 initHistory(rebuild);
 initSaveMonth(rebuild, (month) => { showTab('history', month); rebuild(); });
 store.subscribe(render);

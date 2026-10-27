@@ -124,8 +124,21 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-table td.lock.hist::after { content: ""; position: absolute; top: 9px; left: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--pos); }
 .hist-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pos); margin: 0 2px 1px 4px; vertical-align: middle; }
 
+/* ESPP Gains list: one compact line per payslip month — month, tax, gain, remove */
+.gain-list { display: flex; flex-direction: column; }
+.gain-head, .gain-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .9fr) minmax(0, 1fr) 28px; gap: 6px; align-items: center; }
+.gain-head { padding: 0 0 4px; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.gain-head .r { text-align: right; }
+.gain-row { padding: 3px 0; border-top: 1px solid var(--border); }
+.gain-row select, .gain-row input, .gain-row .mpick-btn { height: 30px; font-size: .85rem; }
+.gain-row select { padding-left: 8px; }
+.gain-row input { padding: 0 8px; text-align: right; }
+.gain-row input.typed { background: color-mix(in srgb, #f5c400 18%, var(--surface)); border-color: color-mix(in srgb, #f5c400 55%, var(--border)); font-weight: 600; }
+.gain-row .btn.icon { width: 28px; height: 28px; }
+.gain-row .btn.icon svg { width: 13px; height: 13px; }
+.gain-row .mpick-pop { left: 0; }
+.gain-tax { text-align: right; font-size: .85rem; color: var(--danger); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
 /* ESPP breakdown: costs that don't come back in red, value and profit in green */
 .espp-sum td.r.neg { color: var(--danger); }
 .espp-sum td.r.pos { color: var(--pos); font-weight: 600; }
-.espp-table td.neg-cell input, .espp-table td.neg-cell input::placeholder { color: var(--danger); }
-.espp-table td.neg-cell input::placeholder { opacity: .8; }

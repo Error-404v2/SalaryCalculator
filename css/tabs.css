@@ -12,3 +12,14 @@
 .seg::-webkit-scrollbar { display: none; }
 .seg button { flex: 0 0 auto; border: 0; background: none; border-radius: 999px; padding: 6px 12px; cursor: pointer; color: var(--muted); font-size: .88rem; font-weight: 500; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+
+/* Two-way toggle whose highlight slides from one side to the other (Tax tab → Brackets) */
+.seg.slide { position: relative; overflow: hidden; }
+.seg.slide::before {
+  content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 8px) / 2);
+  background: var(--surface); border-radius: 999px; box-shadow: 0 1px 3px rgba(0,0,0,.12);
+  transform: translateX(calc(var(--i, 0) * (100% + 2px))); transition: transform .22s ease;
+}
+.seg.slide button { position: relative; z-index: 1; flex: 1 1 0; min-width: 76px; }
+.seg.slide button[aria-pressed="true"] { background: none; box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .seg.slide::before { transition: none; } }

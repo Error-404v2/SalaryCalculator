@@ -42,8 +42,10 @@ function sanitize(state) {
     if (!isItemPeriod(item.per)) item.per = 'month';
   });
   sortOvertime(state.overtime);
-  // The withdrawal fee used to default to blank; a blank one now means "use the default" (type 0 for no fee).
-  if (!String(state.espp.assumptions.withdrawalFee ?? '').trim()) state.espp.assumptions.withdrawalFee = DEFAULT_WITHDRAWAL_FEE;
+  // A blank withdrawal fee means "use the default" (type 0 for no fee). 54.95 was the previous default, so it moves too.
+  const fee = String(state.espp.assumptions.withdrawalFee ?? '').trim();
+  if (!fee || fee === '54.95') state.espp.assumptions.withdrawalFee = DEFAULT_WITHDRAWAL_FEE;
+  if (!['year', 'month'].includes(state.ui.bracketPeriod)) state.ui.bracketPeriod = 'month';
   return state;
 }
 
@@ -55,10 +57,14 @@ function restoreEntries(state, saved) {
   const entries = {};
   if (raw && typeof raw === 'object') {
     for (const [month, row] of Object.entries(raw)) {
-      if (MONTH.test(month) && row && typeof row === 'object') entries[month] = { ...row };
+      if (!MONTH.test(month) || !row || typeof row !== 'object') continue;
+      const { gainTax, ...rest } = row; // the tax is calculated now, never typed
+      if (Object.keys(rest).length) entries[month] = rest;
     }
   }
   state.espp.entries = entries;
+  const listed = Array.isArray(saved?.espp?.gainMonths) ? saved.espp.gainMonths : [];
+  state.espp.gainMonths = [...new Set(listed.filter((m) => typeof m === 'string' && MONTH.test(m)))];
   // Fetched per-month USD rates, also keyed by month.
   const rates = {};
   for (const [month, rate] of Object.entries(saved?.espp?.rates ?? {})) {
