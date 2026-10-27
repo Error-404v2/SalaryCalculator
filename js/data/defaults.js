@@ -11,7 +11,10 @@ const EGYPT_BRACKETS_2026 = [
   rate: String(rate), min: String(min), max: String(max), exclusion: String(exclusion),
 }));
 
-export const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR'];
+/** Selling the shares: $35 broker fee + $19.95 market-sale order fee (prospectus). */
+export const DEFAULT_WITHDRAWAL_FEE = '54.95';
+
+export const CURRENCIES =['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR'];
 
 /** A tax profile holds every country-specific rule, so other tax systems are just another profile. */
 export const DEFAULT_PROFILE = Object.freeze({
@@ -63,7 +66,7 @@ export const DEFAULT_STATE = Object.freeze({
     symbol: 'IBM',
     assumptions: {
       price: '', fx: '', discount: '15', dividend: '', dividendTax: '15', reinvestRate: '2', reinvestCap: '3',
-      feeIn: '6', withdrawalFee: '',
+      feeIn: '6', withdrawalFee: DEFAULT_WITHDRAWAL_FEE,
     },
     changeDay: '30',
     monthOffset: '0',

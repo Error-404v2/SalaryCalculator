@@ -1,4 +1,4 @@
-import { DEFAULT_PROFILE, DEFAULT_STATE } from '../data/defaults.js';
+import { DEFAULT_PROFILE, DEFAULT_STATE, DEFAULT_WITHDRAWAL_FEE } from '../data/defaults.js';
 import { OT_TYPES } from '../data/presets.js';
 import { isPeriod, isItemPeriod } from '../core/periods.js';
 import { sortOvertime } from '../core/overtime.js';
@@ -42,6 +42,8 @@ function sanitize(state) {
     if (!isItemPeriod(item.per)) item.per = 'month';
   });
   sortOvertime(state.overtime);
+  // The withdrawal fee used to default to blank; a blank one now means "use the default" (type 0 for no fee).
+  if (!String(state.espp.assumptions.withdrawalFee ?? '').trim()) state.espp.assumptions.withdrawalFee = DEFAULT_WITHDRAWAL_FEE;
   return state;
 }
 

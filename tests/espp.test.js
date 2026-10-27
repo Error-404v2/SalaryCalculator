@@ -195,7 +195,7 @@ test('ESPP is on only while a percentage is above 0', () => {
   assert.ok(at('0', '5') >= 0 && at('0', '0') === 0);
 });
 
-test('ESPP months use saved months: a July raise changes July onwards', () => {
+test('ESPP months use their own saved month: a saved July changes July only', () => {
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
     espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '10', assumptions: A },
@@ -207,7 +207,28 @@ test('ESPP months use saved months: a July raise changes July onwards', () => {
   near(rep.ledger.rows[6].deducted.value, 2000);
 });
 
-test('each ledger month says where its deduction comes from: its own History month, an earlier one, or the Pay tab', () => {
+test('a History month changes only itself: later months fall back to the Pay tab, not to that month', () => {
+  const s = {
+    ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
+    espp: { ...structuredClone(DEFAULT_STATE.espp), assumptions: A },
+    months: { '2030-08': { amount: '12500', per: 'month', espp: { constPct: '1', varPct: '', variable: {} } } },
+    ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
+  };
+  const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
+  near(rows[7].deducted.value, 125);
+  [8, 9, 10, 11].forEach((i) => assert.equal(rows[i].deducted.value, 0, `month ${i + 1} is not August`));
+  assert.deepEqual(rows[8].source, { kind: 'pay', month: '' });
+});
+
+test('the withdrawal fee defaults to $54.95, and a blank saved one is filled on load; 0 means no fee', () => {
+  assert.equal(DEFAULT_STATE.espp.assumptions.withdrawalFee, '54.95');
+  assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '' } } }).espp.assumptions.withdrawalFee, '54.95');
+  assert.equal(hydrate({}).espp.assumptions.withdrawalFee, '54.95');
+  assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '0' } } }).espp.assumptions.withdrawalFee, '0');
+  assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '20' } } }).espp.assumptions.withdrawalFee, '20');
+});
+
+test('each ledger month says where its deduction comes from: its own History month or the Pay tab', () => {
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
     espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '5', assumptions: A },
@@ -217,7 +238,8 @@ test('each ledger month says where its deduction comes from: its own History mon
   const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
   assert.deepEqual(rows[1].source, { kind: 'pay', month: '' });
   assert.deepEqual(rows[2].source, { kind: 'month', month: '2030-03' });
-  assert.deepEqual(rows[5].source, { kind: 'carried', month: '2030-03' });
+  assert.deepEqual(rows[5].source, { kind: 'pay', month: '' });
+  near(rows[5].deducted.value, 500);
   near(rows[1].deducted.value, 500);
   near(rows[2].deducted.value, 2000);
 });

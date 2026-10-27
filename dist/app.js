@@ -607,14 +607,12 @@
 
   // js/core/esppForecast.js
   function inputForMonth(input, month) {
-    const saved = monthInForce(input.months, month);
-    return saved ? withPay(input, input.months[saved]) : input;
+    const saved = input.months?.[month];
+    return saved ? withPay(input, saved) : input;
   }
   var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
   function deductionSource(input, month) {
-    if (input.months?.[month]) return { kind: "month", month };
-    const inForce = monthInForce(input.months, month);
-    return inForce ? { kind: "carried", month: inForce } : { kind: "pay", month: "" };
+    return input.months?.[month] ? { kind: "month", month } : { kind: "pay", month: "" };
   }
   function payslipGainFor(input, month) {
     const entry = input.espp?.entries?.[month] ?? {};
@@ -698,6 +696,7 @@
     max: String(max),
     exclusion: String(exclusion)
   }));
+  var DEFAULT_WITHDRAWAL_FEE = "54.95";
   var CURRENCIES = ["EGP", "USD", "EUR", "GBP", "SAR", "AED", "KWD", "QAR"];
   var DEFAULT_PROFILE = Object.freeze({
     id: "eg-2026",
@@ -754,7 +753,7 @@
         reinvestRate: "2",
         reinvestCap: "3",
         feeIn: "6",
-        withdrawalFee: ""
+        withdrawalFee: DEFAULT_WITHDRAWAL_FEE
       },
       changeDay: "30",
       monthOffset: "0",
@@ -834,6 +833,7 @@
       if (!isItemPeriod(item.per)) item.per = "month";
     });
     sortOvertime(state2.overtime);
+    if (!String(state2.espp.assumptions.withdrawalFee ?? "").trim()) state2.espp.assumptions.withdrawalFee = DEFAULT_WITHDRAWAL_FEE;
     return state2;
   }
   var MONTH = /^\d{4}-\d{2}$/;
@@ -1888,8 +1888,7 @@
     const src = row.source;
     if (!src) return "";
     if (src.kind === "month") return `From History (${monthLabel(src.month)})`;
-    if (src.kind === "carried") return `From History (${monthLabel(src.month)}, still in force)`;
-    return "From the Pay tab (no History month yet)";
+    return "From the Pay tab (this month has no History entry)";
   }
   function dividendNote(row) {
     if (!row.dividend.value) return "No dividend this month";

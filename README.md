@@ -66,13 +66,13 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
   Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket, and ends with the **By period** table (annual, monthly, daily, hourly).
 - **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
   - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares) show the calculated value in grey; type the actual value to override it, clear it to go back.
-  - **Deducted** comes from that month's History entry (the *Stocks* %).
+  - **Deducted** comes from that month's own History entry (the *Stocks* %). A History month changes only itself: saving August does not touch September to December, which use the Pay tab until you save them.
   - **Payslip gain** and **Gain tax** come from that month's History entry too (the *ESPP gains* you saved, and the extra tax they caused). Type a value in the ESPP tab to override it, or to track a payslip without a History month; clear it to go back. The Pay/History tabs never read anything from the ESPP tab.
   - **Deducted USD** = Deducted ÷ the USD rate IBM used. IBM converts around the 19th–21st, so a past month uses the average of those days (fetched once and saved); a month not yet converted uses today's rate. Once you type Equate's USD, the tooltip shows the exact rate IBM used.
   - **Dividend** (Mar/Jun/Sep/Dec) = shares held two months earlier × IBM's $/share, less 15% US tax, less the 2% reinvestment fee (max $3), per the prospectus. A typed dividend changes the shares from that month on.
   - **Fees in:** the $6 admin fee in Jan and Jul, only in a month that has a Deducted.
   - Shares are bought at price × (1 − 15% discount). The discount is the gain taxed through payroll.
-  - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
+  - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. The withdrawal fee defaults to **$54.95** ($35 + the $19.95 market-sale order fee); type 0 for none. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
   - **Colours in the breakdown:** money that never comes back (dividend US tax, fees, withdrawal fee, tax on payslip gains) is red; market value and profit are green. **Profit** is after all of them.
   - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
   - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it.

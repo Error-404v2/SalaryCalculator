@@ -79,8 +79,7 @@ function sourceNote(row) {
   const src = row.source;
   if (!src) return '';
   if (src.kind === 'month') return `From History (${monthLabel(src.month)})`;
-  if (src.kind === 'carried') return `From History (${monthLabel(src.month)}, still in force)`;
-  return 'From the Pay tab (no History month yet)';
+  return 'From the Pay tab (this month has no History entry)';
 }
 
 /** How the grey dividend was worked out: shares held at the record date, less US tax and the reinvest fee. */
