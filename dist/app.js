@@ -606,13 +606,12 @@
   }
 
   // js/core/esppForecast.js
-  function inputForMonth(input, month) {
+  var esppDeductionFor = (input) => (month) => {
     const saved = input.months?.[month];
-    return saved ? withPay(input, saved) : input;
-  }
-  var esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
+    return saved ? calculate(withPay(input, saved)).espp.total / 12 : 0;
+  };
   function deductionSource(input, month) {
-    return input.months?.[month] ? { kind: "month", month } : { kind: "pay", month: "" };
+    return input.months?.[month] ? { kind: "month", month } : { kind: "none", month: "" };
   }
   function payslipGainFor(input, month) {
     const entry = input.espp?.entries?.[month] ?? {};
@@ -1888,7 +1887,7 @@
     const src = row.source;
     if (!src) return "";
     if (src.kind === "month") return `From History (${monthLabel(src.month)})`;
-    return "From the Pay tab (this month has no History entry)";
+    return "Nothing saved in History for this month";
   }
   function dividendNote(row) {
     if (!row.dividend.value) return "No dividend this month";
@@ -1897,7 +1896,7 @@
   function cell(row, col) {
     const field = row[col.key];
     const shown = fixed(field.value, col.decimals);
-    const fromHistory = col.key === "deducted" && !field.locked && row.source?.kind !== "pay" && field.value > 0;
+    const fromHistory = col.key === "deducted" && !field.locked && row.source?.kind === "month" && field.value > 0;
     const title = col.key === "deductedUsd" && row.usedRate ? field.locked ? `Your value \u2014 IBM used 1 USD = ${row.usedRate.toFixed(4)} that month. Clear it to go back to the calculated one` : `Calculated at 1 USD = ${row.rate.toFixed(4)} (${row.rate === row.fxToday ? "today's rate" : "avg of the 19th\u201321st"}) \u2014 type Equate's USD to override it` : field.locked ? "Your value \u2014 clear it to go back to the calculated one" : `${col.key === "deducted" ? sourceNote(row) : col.key === "dividend" ? dividendNote(row) : "Calculated"} \u2014 type a value to override it`;
     return `<td class="lock${field.locked ? " on" : ""}${fromHistory ? " hist" : ""}">
     <input type="text" inputmode="decimal" data-espp-entry="${row.month}" data-key="${col.key}"

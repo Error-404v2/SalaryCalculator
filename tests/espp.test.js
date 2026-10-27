@@ -203,21 +203,23 @@ test('ESPP months use their own saved month: a saved July changes July only', ()
     ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
   };
   const rep = esppReport(s, new Date(2030, 11, 31));
-  near(rep.ledger.rows[5].deducted.value, 1000);
+  assert.equal(rep.ledger.rows[5].deducted.value, 0);
   near(rep.ledger.rows[6].deducted.value, 2000);
+  assert.equal(rep.ledger.rows[7].deducted.value, 0);
 });
 
-test('a History month changes only itself: later months fall back to the Pay tab, not to that month', () => {
+test('a History month changes only itself: every other month is 0, whatever the Pay tab says', () => {
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
-    espp: { ...structuredClone(DEFAULT_STATE.espp), assumptions: A },
+    espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '7', assumptions: A },
     months: { '2030-08': { amount: '12500', per: 'month', espp: { constPct: '1', varPct: '', variable: {} } } },
     ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
   };
   const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
   near(rows[7].deducted.value, 125);
-  [8, 9, 10, 11].forEach((i) => assert.equal(rows[i].deducted.value, 0, `month ${i + 1} is not August`));
-  assert.deepEqual(rows[8].source, { kind: 'pay', month: '' });
+  [0, 1, 2, 3, 4, 5, 6, 8, 9, 10, 11].forEach((i) => assert.equal(rows[i].deducted.value, 0, `month ${i + 1} is not August`));
+  assert.deepEqual(rows[8].source, { kind: 'none', month: '' });
+  assert.deepEqual(rows[7].source, { kind: 'month', month: '2030-08' });
 });
 
 test('the withdrawal fee defaults to $54.95, and a blank saved one is filled on load; 0 means no fee', () => {
@@ -228,7 +230,7 @@ test('the withdrawal fee defaults to $54.95, and a blank saved one is filled on 
   assert.equal(hydrate({ espp: { assumptions: { withdrawalFee: '20' } } }).espp.assumptions.withdrawalFee, '20');
 });
 
-test('each ledger month says where its deduction comes from: its own History month or the Pay tab', () => {
+test('each ledger month says where its deduction comes from: its own History month or nothing', () => {
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
     espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '5', assumptions: A },
@@ -236,24 +238,29 @@ test('each ledger month says where its deduction comes from: its own History mon
     ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
   };
   const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
-  assert.deepEqual(rows[1].source, { kind: 'pay', month: '' });
+  assert.deepEqual(rows[1].source, { kind: 'none', month: '' });
   assert.deepEqual(rows[2].source, { kind: 'month', month: '2030-03' });
-  assert.deepEqual(rows[5].source, { kind: 'pay', month: '' });
-  near(rows[5].deducted.value, 500);
-  near(rows[1].deducted.value, 500);
+  assert.deepEqual(rows[5].source, { kind: 'none', month: '' });
+  assert.equal(rows[5].deducted.value, 0);
+  assert.equal(rows[1].deducted.value, 0);
   near(rows[2].deducted.value, 2000);
 });
 
-test('a typed Deducted value overrides the History one; clearing it brings the History value back', () => {
+test('a typed Deducted value overrides History, or fills a month that has none; clearing it goes back', () => {
+  const month = { amount: '10000', per: 'month', espp: { constPct: '10', varPct: '', variable: {} } };
   const s = {
     ...structuredClone(DEFAULT_STATE), profile: structuredClone(DEFAULT_PROFILE), amount: '10000', incomes: [],
-    espp: { ...structuredClone(DEFAULT_STATE.espp), constPct: '10', assumptions: A, entries: { '2030-02': { deducted: '777' } } },
+    espp: { ...structuredClone(DEFAULT_STATE.espp), assumptions: A, entries: { '2030-02': { deducted: '777' }, '2030-04': { deducted: '55' } } },
+    months: { '2030-02': month, '2030-03': month },
     ui: { ...DEFAULT_STATE.ui, esppYear: '2030' },
   };
   const rows = esppReport(s, new Date(2030, 11, 31)).ledger.rows;
-  assert.equal(rows[1].deducted.value, 777);
+  assert.equal(rows[1].deducted.value, 777, 'typed beats History');
   assert.equal(rows[1].deducted.locked, true);
   near(rows[2].deducted.value, 1000);
+  assert.equal(rows[2].deducted.locked, false);
+  assert.equal(rows[3].deducted.value, 55, 'typed fills a month with no History entry');
+  assert.equal(rows[0].deducted.value, 0);
 });
 
 test('the ESPP year shown follows ui.esppYear, defaulting to this year', () => {

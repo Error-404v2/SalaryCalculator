@@ -5,20 +5,18 @@ import { withPay } from './months.js';
 import { buildLedger, summarize, adjustedMonth } from './espp.js';
 
 /**
- * The calculator input for one month: that month's own History entry, or the Pay tab when it has none.
- * A History month changes only itself, so saving August does not rewrite September to December.
+ * Monthly ESPP deduction for `month`, in the profile currency: only what that month's own History entry says.
+ * A month with no History entry is 0 (the Pay tab and other months never feed it), and a value typed in the
+ * ledger overrides it. So saving August changes August only.
  */
-export function inputForMonth(input, month) {
+export const esppDeductionFor = (input) => (month) => {
   const saved = input.months?.[month];
-  return saved ? withPay(input, saved) : input;
-}
+  return saved ? calculate(withPay(input, saved)).espp.total / 12 : 0;
+};
 
-/** Monthly ESPP deduction for `month`, in the profile currency. */
-export const esppDeductionFor = (input) => (month) => calculate(inputForMonth(input, month)).espp.total / 12;
-
-/** Where each month's forecast deduction comes from, for the ledger's hint: its own History entry or the Pay tab. */
+/** Where each month's calculated deduction comes from, for the ledger's hint: its History entry, or nothing. */
 export function deductionSource(input, month) {
-  return input.months?.[month] ? { kind: 'month', month } : { kind: 'pay', month: '' };
+  return input.months?.[month] ? { kind: 'month', month } : { kind: 'none', month: '' };
 }
 
 /**

@@ -79,7 +79,7 @@ function sourceNote(row) {
   const src = row.source;
   if (!src) return '';
   if (src.kind === 'month') return `From History (${monthLabel(src.month)})`;
-  return 'From the Pay tab (this month has no History entry)';
+  return 'Nothing saved in History for this month';
 }
 
 /** How the grey dividend was worked out: shares held at the record date, less US tax and the reinvest fee. */
@@ -91,7 +91,7 @@ function dividendNote(row) {
 function cell(row, col) {
   const field = row[col.key];
   const shown = fixed(field.value, col.decimals);
-  const fromHistory = col.key === 'deducted' && !field.locked && row.source?.kind !== 'pay' && field.value > 0;
+  const fromHistory = col.key === 'deducted' && !field.locked && row.source?.kind === 'month' && field.value > 0;
   const title = col.key === 'deductedUsd' && row.usedRate
     ? (field.locked
       ? `Your value — IBM used 1 USD = ${row.usedRate.toFixed(4)} that month. Clear it to go back to the calculated one`
