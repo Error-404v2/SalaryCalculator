@@ -135,7 +135,7 @@ function ledgerTable(rep) {
 /** Money that never comes back is always red; value, dividends and profit are green above 0 and red below it. */
 const colourOf = (kind, n) => (kind === 'cost' ? 'neg' : n > 0.005 ? 'pos' : n < -0.005 ? 'neg' : '');
 
-function breakdown(rep, money) {
+function breakdown(rep, money, discount) {
   /** `a` and `b` are [text, number] so the colour follows the value. `kind`: 'cost' (red when > 0) or 'gain' (green / red). */
   const r = (label, a, b, kind = '') => `<tr><td>${label}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
   const plain = (text) => [text, 0];
@@ -149,7 +149,7 @@ function breakdown(rep, money) {
       ${r('Deducted from pay', plain(money(d.deducted)), plain(money(f.deducted)))}
       ${r('Shares held', plain(fixed(d.shares, 5)), plain(fixed(f.shares, 5)))}
       ${r('Market value', [usd(d.marketValueUsd), d.marketValueUsd], [usd(f.marketValueUsd), f.marketValueUsd], 'gain')}
-      ${r('Total shares discount worth <span class="hint">shares worth − what went in</span>', plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
+      ${r(`Discount ${Number(toNumber(discount).toFixed(2))}% total`, plain(usd(d.untaxed)), plain(usd(f.untaxed)))}
       ${r('Dividends <span class="hint">after US tax and fee</span>', [usd(d.dividends), d.dividends], [usd(f.dividends), f.dividends], 'gain')}
       ${r('Dividend US tax', cost(d.dividendTax, usd), cost(f.dividendTax, usd), 'cost')}
       ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), 'cost')}
@@ -180,7 +180,7 @@ export function renderEsppTab(rep, money) {
       <summary>Monthly ledger</summary>
       <div class="inner">${ledgerTable(rep)}</div>
     </details>
-    ${breakdown(rep, money)}`;
+    ${breakdown(rep, money, a.discount)}`;
   reapplySpin();
 }
 

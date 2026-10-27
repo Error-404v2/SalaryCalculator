@@ -2037,7 +2037,7 @@
       <span class="hist-dot"></span> Deducted comes from that month's History entry. Months after ${monthLabel(rep.cutoff)} are faded.</p>`;
   }
   var colourOf = (kind, n) => kind === "cost" ? "neg" : n > 5e-3 ? "pos" : n < -5e-3 ? "neg" : "";
-  function breakdown(rep, money) {
+  function breakdown(rep, money, discount) {
     const r = (label, a, b, kind = "") => `<tr><td>${label}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
     const plain2 = (text2) => [text2, 0];
     const cost = (v, fmt) => [v ? `\u2212 ${fmt(v)}` : fmt(0), v];
@@ -2049,7 +2049,7 @@
       ${r("Deducted from pay", plain2(money(d.deducted)), plain2(money(f.deducted)))}
       ${r("Shares held", plain2(fixed(d.shares, 5)), plain2(fixed(f.shares, 5)))}
       ${r("Market value", [usd(d.marketValueUsd), d.marketValueUsd], [usd(f.marketValueUsd), f.marketValueUsd], "gain")}
-      ${r('Total shares discount worth <span class="hint">shares worth \u2212 what went in</span>', plain2(usd(d.untaxed)), plain2(usd(f.untaxed)))}
+      ${r(`Discount ${Number(toNumber(discount).toFixed(2))}% total`, plain2(usd(d.untaxed)), plain2(usd(f.untaxed)))}
       ${r('Dividends <span class="hint">after US tax and fee</span>', [usd(d.dividends), d.dividends], [usd(f.dividends), f.dividends], "gain")}
       ${r("Dividend US tax", cost(d.dividendTax, usd), cost(f.dividendTax, usd), "cost")}
       ${r('Fees <span class="hint">admin + reinvest</span>', cost(d.fees, usd), cost(f.fees, usd), "cost")}
@@ -2076,7 +2076,7 @@
       <summary>Monthly ledger</summary>
       <div class="inner">${ledgerTable(rep)}</div>
     </details>
-    ${breakdown(rep, money)}`;
+    ${breakdown(rep, money, a.discount)}`;
     reapplySpin();
   }
   async function fetchOne(kind) {
@@ -2336,6 +2336,8 @@
   var drafts = /* @__PURE__ */ new Map();
   var askDelete = "";
   var movingFrom = "";
+  var overriding = false;
+  var askOverride = false;
   var CHEVRON3 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
   var isSaved = (state2, month) => !!state2.months[month];
@@ -2358,6 +2360,8 @@
   function open2(month) {
     if (month === scopeMonth()) return;
     movingFrom = "";
+    overriding = false;
+    askOverride = false;
     const current = scopeMonth();
     const state2 = getState();
     if (current && !isSaved(state2, current) && !isSaved(state2, month)) {
@@ -2381,7 +2385,6 @@
     const state2 = getState();
     const current = scopeMonth();
     if (!current || month === current) return open2(month);
-    if (isSaved(state2, month)) return open2(month);
     const pay = scopePay();
     const origin = movingFrom || (isSaved(state2, current) ? current : "");
     drafts.delete(current);
@@ -2389,7 +2392,9 @@
       s.ui.histMonth = month;
     });
     setScope(month, pay, contentFor(state2, month).base);
-    movingFrom = origin;
+    movingFrom = origin === month ? "" : origin;
+    overriding = isSaved(state2, month) && month !== origin;
+    askOverride = false;
   }
   function nextFreeMonth(state2) {
     const now = monthKey(/* @__PURE__ */ new Date());
@@ -2401,6 +2406,8 @@
     const s = getState();
     if (s.ui.inTab !== "history") {
       stash();
+      overriding = false;
+      askOverride = false;
       if (scopeMonth()) setScope("");
       return;
     }
@@ -2457,21 +2464,33 @@
     if (host.contains(focused) && focused.tagName === "INPUT") return;
     const month = scopeMonth();
     const saved = isSaved(state2, month);
-    const dirty = !saved || scopeDirty();
+    const dirty = !saved || scopeDirty() || !!movingFrom || overriding;
+    const ask = askOverride ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, "long"))} is already saved. Override it?</span>
+        <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
+        <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>` : "";
     host.innerHTML = `${savedList(state2, month, money)}
     <div class="row hist-bar">
       ${monthPickerHtml("hist", month, monthList(state2.months))}
       <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
-    </div>
+    </div>${ask}
     <details class="hist-summary" data-open="histSummary">
       <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON3}</summary>
       ${monthSummary(state2, money, pay)}
     </details>`;
   }
   function save() {
+    if (!toNumber(scopePay()?.amount)) return toast("Enter a gross salary to save this month");
+    if (overriding) {
+      askOverride = true;
+      return;
+    }
+    commitSave();
+  }
+  function commitSave() {
     const month = scopeMonth();
     const pay = scopePay();
-    if (!toNumber(pay?.amount)) return toast("Enter a gross salary to save this month");
+    overriding = false;
+    askOverride = false;
     const replaced = isSaved(getState(), month);
     const gross = grossPay(pay, withProfile(getState()));
     const from = movingFrom;
@@ -2545,6 +2564,8 @@
       const act = e.target.closest("[data-hist-act]")?.dataset.histAct;
       if (!act) return;
       if (act === "save") save();
+      else if (act === "override-yes") commitSave();
+      else if (act === "override-no") askOverride = false;
       else if (act === "new") open2(nextFreeMonth(getState()));
       else if (act === "delete-yes") remove(askDelete);
       else if (act === "delete-no") askDelete = "";

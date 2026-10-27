@@ -48,7 +48,7 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 
 **History tab** (input card), with *Fill Pay* in the tab bar to copy the open month into the Pay tab:
 - **Saved months:** collapsible, *+ New month* first, then one line per month with its final (net) pay in grey and a red − to delete it (asks inline).
-- **Month and Save:** a calendar on the left and *Save* on the right (greyed out as *Saved* when nothing changed). Picking another month moves the open entry there; Save stores it under the picked month.
+- **Month and Save:** a calendar on the left and *Save* on the right (greyed out as *Saved* when nothing changed). Picking another month only renames the open entry: its values carry over untouched, even when the picked month is already saved (that month's own entry is never opened or merged). Save stores it under the picked month, and asks "Override it?" first if that month already exists. To open a saved month, use the *Saved months* list.
 - **Summary of (month):** collapsible; net pay, then the pay items and deductions as compact lines, with the values you entered softly highlighted.
 - **The Pay form:** the same collapsibles and items as the Pay tab, editing that month. Gross → Net, tax year and Pro-rata stay on the Pay tab.
 

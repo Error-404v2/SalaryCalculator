@@ -17,6 +17,10 @@ const drafts = new Map();
 let askDelete = '';
 /** The saved month the open entry was re-dated from with the calendar; Save moves it from there. */
 let movingFrom = '';
+/** True when the open entry was re-dated onto a month that is already saved: Save then asks before it overrides that month. */
+let overriding = false;
+/** Showing the "Override it?" question under the month bar. */
+let askOverride = false;
 
 const CHEVRON = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
 const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
@@ -47,6 +51,8 @@ function contentFor(state, month) {
 function open(month) {
   if (month === store.scopeMonth()) return;
   movingFrom = '';
+  overriding = false;
+  askOverride = false;
   const current = store.scopeMonth();
   const state = store.getState();
   if (current && !isSaved(state, current) && !isSaved(state, month)) {
@@ -64,21 +70,24 @@ function open(month) {
 }
 
 /**
- * The month picker re-dates the open entry: its values carry over to the picked month and Save becomes active.
- * Saving moves it there (the original month is replaced, not duplicated). Picking a month that is already
- * saved simply opens that month.
+ * The month picker only renames the open entry: its values carry over untouched to the picked month and Save
+ * becomes active. Saving moves it there (the original month is replaced, not duplicated). This holds even when
+ * the picked month is already saved: that month's entry is never opened or merged, and Save asks before it
+ * overrides it. To open an existing month, use the Saved months list.
  */
 function pickMonth(month) {
   const state = store.getState();
   const current = store.scopeMonth();
   if (!current || month === current) return open(month);
-  if (isSaved(state, month)) return open(month);
   const pay = store.scopePay();
   const origin = movingFrom || (isSaved(state, current) ? current : '');
   drafts.delete(current);
   store.update((s) => { s.ui.histMonth = month; });
   store.setScope(month, pay, contentFor(state, month).base);
-  movingFrom = origin;
+  // Moving back onto the month it started from is not a move at all.
+  movingFrom = origin === month ? '' : origin;
+  overriding = isSaved(state, month) && month !== origin;
+  askOverride = false;
 }
 
 /** The month "+ New" opens: this month if it isn't saved, else the month after the newest saved one. */
@@ -94,6 +103,8 @@ export function syncHistoryScope() {
   const s = store.getState();
   if (s.ui.inTab !== 'history') {
     stash();
+    overriding = false;
+    askOverride = false;
     if (store.scopeMonth()) store.setScope('');
     return;
   }
@@ -160,12 +171,17 @@ export function renderHistory(state, money, pay) {
 
   const month = store.scopeMonth();
   const saved = isSaved(state, month);
-  const dirty = !saved || store.scopeDirty();
+  const dirty = !saved || store.scopeDirty() || !!movingFrom || overriding;
+  const ask = askOverride
+    ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, 'long'))} is already saved. Override it?</span>
+        <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
+        <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>`
+    : '';
   host.innerHTML = `${savedList(state, month, money)}
     <div class="row hist-bar">
       ${monthPickerHtml('hist', month, monthList(state.months))}
       <button type="button" class="btn sm ${dirty ? 'primary' : 'ghost done'}" data-hist-act="save"${dirty ? '' : ' disabled aria-disabled="true"'}>${dirty ? 'Save' : 'Saved'}</button>
-    </div>
+    </div>${ask}
     <details class="hist-summary" data-open="histSummary">
       <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</span>${CHEVRON}</summary>
       ${monthSummary(state, money, pay)}
@@ -173,9 +189,16 @@ export function renderHistory(state, money, pay) {
 }
 
 function save() {
+  if (!toNumber(store.scopePay()?.amount)) return toast('Enter a gross salary to save this month');
+  if (overriding) { askOverride = true; return; }
+  commitSave();
+}
+
+function commitSave() {
   const month = store.scopeMonth();
   const pay = store.scopePay();
-  if (!toNumber(pay?.amount)) return toast('Enter a gross salary to save this month');
+  overriding = false;
+  askOverride = false;
   const replaced = isSaved(store.getState(), month);
   const gross = grossPay(pay, withProfile(store.getState()));
   const from = movingFrom;
@@ -244,6 +267,8 @@ export function initHistory(onChanged) {
     const act = e.target.closest('[data-hist-act]')?.dataset.histAct;
     if (!act) return;
     if (act === 'save') save();
+    else if (act === 'override-yes') commitSave();
+    else if (act === 'override-no') askOverride = false;
     else if (act === 'new') open(nextFreeMonth(store.getState()));
     else if (act === 'delete-yes') remove(askDelete);
     else if (act === 'delete-no') askDelete = '';
