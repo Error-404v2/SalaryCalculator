@@ -12,13 +12,13 @@ const sources = (symbol) => [{
   url: `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${encodeURIComponent(symbol)}&apikey=demo`,
 }];
 
-export async function getStockPrice(symbol) {
+export async function getStockPrice(symbol, fresh = false) {
   const clean = String(symbol || '').trim().toUpperCase();
   if (!clean) throw new Error('No symbol set');
   const { value, source } = await cached(clean, () =>
     firstValid(sources(clean), (_, data) => {
       if (data.Information || data.Note) throw new Error('demo key only covers a few symbols, such as IBM');
       return data['Global Quote']?.['05. price'];
-    }));
+    }), fresh);
   return { price: value, source };
 }

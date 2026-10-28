@@ -1,6 +1,7 @@
 import { $, downloadJson, toast } from '../utils/dom.js';
 import { DEFAULT_STATE } from '../data/defaults.js';
 import * as store from '../state/store.js';
+import { exportData, importData } from '../state/backup.js';
 
 function applyTheme(theme) {
   if (theme) document.documentElement.dataset.theme = theme;
@@ -14,16 +15,20 @@ export function initSettings(onReplaced) {
     store.set('ui.theme', isDark ? 'light' : 'dark');
   });
 
-  $('#exportBtn').addEventListener('click', () => downloadJson('salary-settings.json', store.getState()));
+  $('#exportBtn').addEventListener('click', () => {
+    const data = exportData(store.getState());
+    downloadJson(`salary-calculator-${data.exportedAt.slice(0, 10)}.json`, data);
+  });
 
   $('#importFile').addEventListener('change', async (e) => {
     const [file] = e.target.files;
     e.target.value = '';
     if (!file) return;
     try {
-      store.replace(JSON.parse(await file.text()));
+      store.replace(importData(await file.text()));
       onReplaced();
-      toast('Settings imported');
+      const months = Object.keys(store.getState().months).length;
+      toast(`Imported${months ? ` · ${months} month${months === 1 ? '' : 's'}` : ''}`);
     } catch {
       toast('Invalid settings file');
     }

@@ -39,15 +39,17 @@ Collapsible sections, in this order:
    - **Live rate ⟳** fetches today's rate with no setup or API key. It tries open.er-api.com first, then the currency-api on jsDelivr, and caches the result for an hour. The rate box turns **green** on success, or **red** if no source could be reached (enter the rate manually then; typing a rate clears the colour).
 3. **Other deductions:** taken before tax or after tax. Medical insurance (default 230.8) is *Monthly* or *Annual*; other deductions can't be daily or hourly.
    - **Stocks:** add it with *+ Stocks* (before Loan) or *+ Add Stocks*. It becomes the first deduction: *Constant %* (of basic) and *Variable %* (of whatever is ticked under More options → Settings → *Stocks: what counts as variable*), side by side, then a banner with the monthly amounts. It comes out of net pay after tax and is on whenever a % is above 0.
+     - **ESPP gains:** the one number to enter, straight from the payslip. Payroll adds it to taxable pay ("ESPP gain") and takes it straight back out ("ESPP gain offset"), so net pay only drops by the extra tax, which is worked out for you (no tax or rate to type). A banner shows the gain, the extra tax and the net cost, and it disappears when the gain is 0. Save it in a month and the ESPP tab picks it up.
 4. **More options:** **job type** first, then social insurance base override, manual taxable amount, and compact **Settings** (weeks/year, days/week, hours/day, OT base hours/month, export/import/reset).
+   - **Export** saves everything in one file (`salary-calculator-YYYY-MM-DD.json`): the Pay tab, tax profiles, every saved History month with all its entries (overtime, allowances, cash awards, deductions, Stocks % and ESPP gain), the ESPP ledger values, ESPP Gains entries, fetched USD rates, assumptions and your view choices. **Import** restores exactly that (older exports still load). The file holds your pay figures, so keep it private.
 
 Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the right of a single line, with a faded preview of the first options on its left. Clicking it expands the options: the *taxable* / *counts toward SI base* flags, a cash award's period and taxable flag, and a deduction's before-tax flag.
 
 **Save Month** (Pay tab bar, right): stores a full copy of the Pay tab under a month, always as a **gross** salary (a Net → Gross Pay tab is solved first). One line: *Done*, *Cancel*, then a dropdown of saved months (nearest first) and *Custom…*, which turns into a calendar. The last calendar pick stays in the dropdown as "(not saved)". Saving over an existing month asks first, inline; after saving, the History tab opens on that month.
 
 **History tab** (input card), with *Fill Pay* in the tab bar to copy the open month into the Pay tab:
-- **Saved months:** collapsible, *+ New month* first, then one line per month with its final (net) pay in grey and a red − to delete it (asks inline).
-- **Month and Save:** a calendar on the left and *Save* on the right (greyed out as *Saved* when nothing changed). Picking another month moves the open entry there; Save stores it under the picked month.
+- **Saved months:** collapsible, *+ New month* first, then one line per month with its final (net) pay in grey and a red − to delete it (asks inline). While a saved month has changes waiting to be saved (edits, or a rename), a **reset** arrow appears before the − and puts it back to its saved state.
+- **Month and Save:** a calendar on the left and *Save* on the right (greyed out as *Saved* when nothing changed). Picking another month only renames the open entry: its values carry over untouched, even when the picked month is already saved (that month's own entry is never opened or merged). Save stores it under the picked month, and asks "Override it?" first if that month already exists. Renaming through a saved month and on (e.g. new October → May → October) never touches May: both stay listed and May keeps its saved values. To open a saved month, use the *Saved months* list.
 - **Summary of (month):** collapsible; net pay, then the pay items and deductions as compact lines, with the values you entered softly highlighted.
 - **The Pay form:** the same collapsibles and items as the Pay tab, editing that month. Gross → Net, tax year and Pro-rata stay on the Pay tab.
 
@@ -64,11 +66,21 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 
   Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket, and ends with the **By period** table (annual, monthly, daily, hourly).
 - **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
-  - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares): blank means forecast; type the actual value to lock it.
-  - Forecast rules: each month's deduction comes from the saved month in force (the *Stocks* %), USD at the set rate, shares bought at price × (1 − discount), quarterly dividends (Mar/Jun/Sep/Dec) on shares held two months earlier, reinvest fee capped, an entry fee each Jan and Jul.
-  - **Withdrawal** = (shares × price − withdrawal fee − tax still due) × USD rate, where tax still due = tax % × un-taxed gains − tax already paid through payroll (*Payroll tax events*).
+  - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares) show the calculated value in grey; type the actual value to override it, clear it to go back.
+  - **Deducted** comes only from that month's own History entry (its *Stocks* %). A month with no History entry is **0**: the Pay tab and other months never feed it, so saving August changes August only. Type a value to override a History month or to fill a month that has none; clear it to go back.
+  - **ESPP Gains** (collapsible, under *Assumptions & live data*): one compact line per payslip month, newest first: *Month* (a dropdown of your saved History months nearest first, ending in *Custom…* which opens the month picker, like Save Month), the *Gain tax* in the middle, and the *Payslip gain* on the right. The gain is what you typed, else that month's History *ESPP gain*, else 0. The tax is always calculated from that month's History entry, or from the Pay tab when the month has none. History months with a gain are listed by themselves; *+ Add entry* adds a month (this month, or the nearest earlier free one), and the red cross removes it. The Pay/History tabs never read anything from the ESPP tab.
+  - The **Monthly ledger** is collapsible and sits under the year selector, above the breakdown. The *Month* column stays fixed while the ledger scrolls sideways, and typing in a cell keeps the scroll position.
+  - **Deducted USD** = Deducted ÷ the USD rate IBM used. IBM converts around the 19th–21st, so a past month uses the average of those days (fetched once and saved); a month not yet converted uses today's rate. Once you type Equate's USD, the tooltip shows the exact rate IBM used.
+  - **Dividend** (Mar/Jun/Sep/Dec) = shares held two months earlier × IBM's $/share, less 15% US tax, less the 2% reinvestment fee (max $3), per the prospectus. A typed dividend changes the shares from that month on.
+  - **Fees in:** the $6 admin fee in Jan and Jul, only in a month that has a Deducted.
+  - Shares are bought at price × (1 − 15% discount). The discount is the gain taxed through payroll.
+  - **Withdrawal** = (shares × price − withdrawal fee) × USD rate. The withdrawal fee defaults to **$35**; type 0 for none. Nothing is taxed at withdrawal: the gain is taxed once, through payroll.
+  - **Colours in the breakdown:** money that never comes back (dividend US tax, fees, withdrawal fee, tax on payslip gains) is always red; market value, dividends and profit are green (red if negative). **Profit** is after all of them.
   - **Adjusted month:** before the *change day*, the current month isn't settled yet, so totals run to the previous month (plus an optional offset).
-  - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it.
+  - **Live data, no setup:** share price from Alpha Vantage's public demo key (covers IBM), USD rate from the free currency API. Green when fetched, red when unavailable, in which case type it. The arrow beside *Price … · 1 USD = …* refreshes both at once.
+  - **Every refresh arrow spins while it looks the data up** (at least one full turn), and spins again each time it is pressed; a pressed arrow always asks the source again instead of reusing a saved answer.
+  - **Live from History:** while a History month is open, the ESPP tab follows every change (the Stocks %, the ESPP gain) straight away, before you press Save.
+  - **Tax tab → Brackets:** an *Annual | Monthly* toggle on the right of the title (the highlight slides) switches the ranges, taxed amounts and tax between per year and per month.
 - **Employer cost:** the real tax rate, including employer social insurance.
 
 ### How the net effect of overtime and cash awards is calculated
@@ -95,7 +107,7 @@ js/
     proRata.js       month/day pro-rata input adjustment
     history.js       month keys and labels, old per-field history
     months.js        saved months (full Pay copies), gross conversion, moves
-    espp.js          ESPP ledger, summary, payroll tax, adjusted month
+    espp.js          ESPP ledger, summary, adjusted month
     esppForecast.js  ESPP report from saved months
   data/              Egypt 2026 profile, presets, currencies
   state/             store ("@." paths = active profile), migration, localStorage

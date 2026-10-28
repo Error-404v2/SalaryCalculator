@@ -11,7 +11,10 @@ const EGYPT_BRACKETS_2026 = [
   rate: String(rate), min: String(min), max: String(max), exclusion: String(exclusion),
 }));
 
-export const CURRENCIES = ['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR'];
+/** Fee taken off a withdrawal (USD). */
+export const DEFAULT_WITHDRAWAL_FEE = '35';
+
+export const CURRENCIES =['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR'];
 
 /** A tax profile holds every country-specific rule, so other tax systems are just another profile. */
 export const DEFAULT_PROFILE = Object.freeze({
@@ -57,16 +60,21 @@ export const DEFAULT_STATE = Object.freeze({
   espp: {
     constPct: '',
     varPct: '',
+    /** ESPP gain on this month's payslip (EGP): taxed as pay, then taken back out ("ESPP gain offset"). */
+    gain: '',
     variable: { allowances: true, overtime: true, cashAwards: true, exempt: true },
     symbol: 'IBM',
     assumptions: {
-      price: '', fx: '', discount: '15', dividend: '', reinvestRate: '2', reinvestCap: '3',
-      feeIn: '6', taxRate: '25', withdrawalFee: '',
+      price: '', fx: '', discount: '15', dividend: '', dividendTax: '15', reinvestRate: '2', reinvestCap: '3',
+      feeIn: '6', withdrawalFee: DEFAULT_WITHDRAWAL_FEE,
     },
     changeDay: '30',
     monthOffset: '0',
     entries: {},
-    payrollTax: [],
+    /** Months with an entry in the ESPP tab's "ESPP Gains" list ("YYYY-MM"); History months with a gain are listed on their own. */
+    gainMonths: [],
+    /** USD rate per month ("YYYY-MM" → rate): the average of the 19th–21st, fetched for past months. */
+    rates: {},
   },
   /** Dated values: { field, from: 'YYYY-MM', value }. The latest `from` on or before a month applies. */
   history: [],
@@ -78,8 +86,10 @@ export const DEFAULT_STATE = Object.freeze({
     esppYear: '',
     histMonth: '',
     period: 'month',
+    /** Tax tab → Brackets: show the ranges and amounts per year or per month. */
+    bracketPeriod: 'month',
     theme: '',
     taxEdit: false,
-    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppPayroll: false, esppVariable: false, histSaved: true, histSummary: true },
+    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, histSaved: true, histSummary: true },
   },
 });

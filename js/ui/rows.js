@@ -51,7 +51,7 @@ export const ROW_TEMPLATES = {
     const currencies = [...new Set([...CURRENCIES, ctx.currency, it.currency])].map((c) => ({ value: c, label: c }));
     const tone = { ok: ' rate-ok', error: ' rate-error' }[rateStatus(i)] ?? '';
     const rateRow = `<div class="flags"><label class="inline">1 ${escapeHtml(it.currency)} = ${num('cashAwards', i, 'rate', it.rate, 'rate', { cls: `xs${tone}` })} ${escapeHtml(ctx.currency)}</label>
-      <button type="button" class="btn sm ghost live" data-fetch-rate="${i}" title="Get the current rate online">
+      <button type="button" class="btn sm ghost live${rateStatus(i) === 'loading' ? ' loading' : ''}" data-fetch-rate="${i}" title="Get the current rate online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Live rate</button></div>`;
     const impact = ctx.impacts.cashAwards[i];
     const net = impact && impact.annual > 0
@@ -69,13 +69,6 @@ export const ROW_TEMPLATES = {
     ${text('deductions', i, 'name', it.name, 'Name')}${num('deductions', i, 'amount', it.amount, 'Amount', { money: true })}
     ${select('deductions', i, 'per', periodOptions(it.per, itemPeriods('deductions', it)))}${removeBtn('deductions', i)}
     ${advanced('deductions', i, check('deductions', i, 'pretax', it.pretax, 'Before tax (reduces taxable income)'))}</div>`,
-
-  'espp.payrollTax': (e, i) => {
-    const p = 'espp.payrollTax';
-    return `<tr><td><input type="date" data-path="${p}.${i}.date" value="${escapeHtml(e.date)}" aria-label="Payroll date"></td>
-      <td>${num(p, i, 'gains', e.gains, 'gains')}</td><td>${num(p, i, 'tax', e.tax, 'tax')}</td>
-      <td>${num(p, i, 'rate', e.rate, 'rate')}</td><td>${removeBtn(p, i)}</td></tr>`;
-  },
 
   '@.tax.brackets': (b, i) => {
     const p = '@.tax.brackets';

@@ -12,3 +12,8 @@ files/
 _*.html
 _*.js
 HANDOFF.md
+
+# Exports from the app (salary-calculator-DATE.json) hold personal pay data
+salary-calculator-*.json
+salary-settings*.json
+debug/

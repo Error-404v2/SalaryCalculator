@@ -9,4 +9,5 @@ export * from './proRata.js';
 export * from './history.js';
 export * from './months.js';
 export * from './espp.js';
+export * from './esppGains.js';
 export * from './esppForecast.js';

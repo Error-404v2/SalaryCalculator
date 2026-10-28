@@ -10,8 +10,8 @@ import { toAnnual, fromAnnual } from './periods.js';
  */
 export const PAY_KEYS = ['amount', 'per', 'mode', 'payPeriod', 'jobType', 'overrides', 'incomes', 'overtime', 'cashAwards', 'deductions', 'espp'];
 
-/** Only the per-month ESPP inputs are copied; the ledger, assumptions and payroll tax belong to the ESPP tab. */
-const ESPP_KEYS = ['constPct', 'varPct', 'variable'];
+/** Only the per-month ESPP inputs are copied (the two % and the payslip gain); the ledger and assumptions belong to the ESPP tab. */
+const ESPP_KEYS = ['constPct', 'varPct', 'variable', 'gain'];
 
 const PAY_PATHS = [...PAY_KEYS.filter((k) => k !== 'espp'), ...ESPP_KEYS.map((k) => `espp.${k}`)];
 
@@ -59,6 +59,15 @@ export function applyPay(state, pay) {
     else state[key] = clone(pay[key]);
   }
   return state;
+}
+
+/**
+ * The saved months with the History entry being edited laid over them, so the ESPP tab follows every keystroke
+ * instead of waiting for Save. An open month that is neither saved nor edited yet stays out (it is only a copy).
+ */
+export function monthsWithDraft(months, month, pay, dirty) {
+  if (!month || !pay || !(months?.[month] || dirty)) return months ?? {};
+  return { ...months, [month]: pay };
 }
 
 /** Saved months, newest first. */

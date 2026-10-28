@@ -36,6 +36,7 @@ export function breakdownLines(r, state, at, { net = true, entered = false } = {
     ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? '' : ' <span class="hint">(exempt)</span>'), it.annual)),
     ...r.overtime.filter((o) => o.annual).map((o) => sub(escapeHtml(o.label), o.annual, o.netAnnual)),
     ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.netAnnual)),
+    r.esppGain ? line(`ESPP gain <span class="hint">taxed, then offset</span>`, positive(at(r.esppGain)), `sub${mine}`) : '',
     line('Gross pay', positive(at(r.grossAnnual)), 'strong'),
   ];
   const siNote = r.si.enabled ? `${escapeHtml(state.profile.si.employeeRate)}%` : 'n/a';
@@ -46,6 +47,7 @@ export function breakdownLines(r, state, at, { net = true, entered = false } = {
     ...r.levies.filter((l) => l.annual).map((l) => line(escapeHtml(l.name), negative(at(l.annual)), '', COLORS.tax)),
     ...r.deductions.map((d) => line(escapeHtml(d.name), negative(at(d.annual)), mine.trim(), COLORS.other)),
     r.espp.total ? line('Stocks', negative(at(r.espp.total)), mine.trim(), COLORS.other) : '',
+    r.esppGain ? line(`ESPP gain offset <span class="hint">extra tax ${at(r.esppGainTax)}</span>`, negative(at(r.esppGain)), mine.trim(), COLORS.other) : '',
     line('Total deductions', negative(at(r.totalDeductions)), 'strong sep'),
     net ? line('Net pay', at(r.net), 'strong net-line') : '',
   ];

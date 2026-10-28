@@ -67,10 +67,16 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .quick-tile b { font-size: .92rem; color: var(--danger); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .quick-tile .tot b { color: var(--text); }
 .quick-tile .hint { grid-column: 1 / -1; margin: 0; }
+/* display:grid above would otherwise beat the hidden attribute and leave a stale banner on screen */
+.quick-tile[hidden] { display: none; }
 .compact-grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .compact-grid label .hint { font-size: .68rem; margin: 0; display: inline; }
 .compact-grid .row { gap: 4px; }
 .compact-grid .row .btn.live { height: 32px; width: 32px; padding: 0; flex: 0 0 auto; }
+/* the arrow beside "Price … · 1 USD = …" on the ESPP tab */
+.live-line { display: inline-flex; align-items: center; gap: 4px; }
+.live-line .btn.live { height: 24px; width: 24px; min-height: 0; padding: 0; justify-content: center; }
+.live-line .btn.live svg { width: 14px; height: 14px; }
 .check-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
 @media (max-width: 420px) { .check-grid { grid-template-columns: 1fr; } }
 
@@ -86,13 +92,21 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .etile small { font-size: .68rem; color: var(--muted); }
 .etile.w { border-left: 3px solid var(--c-tax); }
 .etile.p { border-left: 3px solid var(--pos); }
-.etile.p b { color: var(--pos); }
+.etile b.pos { color: var(--pos); }
+.etile b.neg { color: var(--danger); }
 .etile.s { border-left: 3px solid var(--c-net); }
 .espp-table th.y { background: color-mix(in srgb, #f5c400 22%, var(--surface-2)); color: var(--text); }
 .espp-table td.lock input { min-width: 74px; text-align: right; }
 .espp-table td.lock input::placeholder { color: var(--muted); opacity: .9; }
 .espp-table td.lock.on input { background: color-mix(in srgb, #f5c400 18%, var(--surface)); border-color: color-mix(in srgb, #f5c400 55%, var(--border)); font-weight: 600; }
 .espp-table tr.future td { opacity: .55; }
+/* The month column stays put while the ledger scrolls sideways; focus never scrolls a cell under it */
+.espp-table { scroll-padding-left: 76px; }
+.espp-table th:first-child, .espp-table td:first-child { position: sticky; left: 0; z-index: 2; background: var(--surface-2); box-shadow: 1px 0 0 var(--border); }
+.espp-table th:first-child { z-index: 3; }
+.espp-table tr.total td:first-child { background: color-mix(in srgb, var(--accent-soft) 100%, var(--surface-2)); }
+.espp-table tr.future td:first-child { opacity: 1; color: color-mix(in srgb, var(--text) 55%, var(--surface)); }
+.espp-table tr.active td:first-child { box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--border); }
 /* Every calculated (non-editable) column uses the same muted style, so they read as one group. */
 .espp-table td.calc { color: var(--muted); font-variant-numeric: tabular-nums; }
 
@@ -102,10 +116,11 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .section-title { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-weight: 600; }
 
 /* ESPP: first entry of Other deductions, each % on its own line, banner below */
-.item.espp-item { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 8px; grid-template-columns: none; text-align: left; }
+.item.espp-item { display: flex; flex-direction: column; align-items: stretch; gap: 6px; margin-bottom: 8px; padding-top: 4px; grid-template-columns: none; text-align: left; }
 .espp-item[hidden] { display: none; }
-.espp-head { display: flex; justify-content: space-between; align-items: center; width: 100%; }
-.espp-head b { font-size: .9rem; }
+.espp-head { display: flex; justify-content: space-between; align-items: center; width: 100%; min-height: 0; }
+.espp-head b { font-size: .9rem; padding-left: 2px; }
+.espp-head .btn.icon { width: 26px; height: 26px; min-height: 0; padding: 0; }
 .espp-pcts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; width: 100%; }
 .espp-field { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 500; min-width: 0; }
 .espp-field .hint { margin: 0; display: inline; font-weight: 400; }
@@ -115,3 +130,22 @@ input.rate-error { border-color: var(--danger) !important; box-shadow: 0 0 0 2px
 .espp-table td.lock.hist { position: relative; }
 .espp-table td.lock.hist::after { content: ""; position: absolute; top: 9px; left: 9px; width: 5px; height: 5px; border-radius: 50%; background: var(--pos); }
 .hist-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--pos); margin: 0 2px 1px 4px; vertical-align: middle; }
+
+/* ESPP Gains list: one compact line per payslip month — month, tax, gain, remove */
+.gain-list { display: flex; flex-direction: column; }
+.gain-head, .gain-row { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, .9fr) minmax(0, 1fr) 28px; gap: 6px; align-items: center; }
+.gain-head { padding: 0 0 4px; font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.gain-head .r { text-align: right; }
+.gain-row { padding: 3px 0; border-top: 1px solid var(--border); }
+.gain-row select, .gain-row input, .gain-row .mpick-btn { height: 30px; font-size: .85rem; }
+.gain-row select { padding-left: 8px; }
+.gain-row input { padding: 0 8px; text-align: right; }
+.gain-row input.typed { background: color-mix(in srgb, #f5c400 18%, var(--surface)); border-color: color-mix(in srgb, #f5c400 55%, var(--border)); font-weight: 600; }
+.gain-row .btn.icon { width: 28px; height: 28px; }
+.gain-row .btn.icon svg { width: 13px; height: 13px; }
+.gain-row .mpick-pop { left: 0; }
+.gain-tax { text-align: right; font-size: .85rem; color: var(--danger); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ESPP breakdown: costs that don't come back in red, value and profit in green */
+.espp-sum td.r.neg { color: var(--danger); }
+.espp-sum td.r.pos { color: var(--pos); font-weight: 600; }

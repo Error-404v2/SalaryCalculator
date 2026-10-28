@@ -96,7 +96,10 @@ export function calculate(input, baseAnnualOverride) {
   const preTax = sum(deductions.filter((d) => d.pretax), (d) => d.annual);
   const postTax = sum(deductions.filter((d) => !d.pretax), (d) => d.annual);
 
-  const grossTaxable = baseAnnual + taxableExtras + overtimeAnnual;
+  // ESPP gain (the 15% discount on shares bought): payroll adds it to taxable pay ("ESPP gain") and takes it
+  // straight back out ("ESPP gain offset"), so the only cost to net pay is the extra income tax.
+  const esppGain = toAnnual(input.espp?.gain, 'once', schedule);
+  const grossTaxable = baseAnnual + taxableExtras + overtimeAnnual + esppGain;
   const grossAnnual = grossTaxable + exemptAllowances;
 
   const si = computeSocialInsurance({
@@ -128,11 +131,15 @@ export function calculate(input, baseAnnualOverride) {
     overtimeAnnual,
     cashAwardsAnnual: sum(cashAwards, (a) => a.annual),
   });
-  const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total;
+  const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total + esppGain;
   const net = grossAnnual - totalDeductions;
   const employeeGovTake = si.employee + incomeTax + leviesTotal;
   const employerCost = grossAnnual + si.employer;
   const ratio = (a, b) => (b > 0 ? a / b : 0);
+  // The tax the ESPP gain causes: this month's income tax and levies with the gain, minus without it.
+  const esppGainTax = esppGain > 0
+    ? (incomeTax + leviesTotal) - (({ incomeTax: t, leviesTotal: l }) => t + l)(calculate({ ...input, espp: { ...input.espp, gain: '' } }, baseAnnualOverride))
+    : 0;
 
   return {
     job, baseAnnual, hourlyRate, incomes, overtime, cashAwards, deductions,
@@ -140,7 +147,7 @@ export function calculate(input, baseAnnualOverride) {
     si, exemption, preTax, postTax,
     autoTaxable, taxableAnnual, overridden,
     flat, incomeTax, marginalRate, bracketRows: progressive?.rows ?? [],
-    levies, leviesTotal, espp, totalDeductions, net, employeeGovTake, employerCost,
+    levies, leviesTotal, espp, esppGain, esppGainTax, totalDeductions, net, employeeGovTake, employerCost,
     avgTaxRate: ratio(incomeTax, grossAnnual),
     realTaxRate: ratio(employeeGovTake + si.employer, employerCost),
   };

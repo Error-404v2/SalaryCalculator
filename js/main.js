@@ -1,4 +1,4 @@
-import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport } from './core/index.js';
+import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport, monthsWithDraft, grossPay } from './core/index.js';
 import { toNumber } from './utils/number.js';
 import { createMoneyFormatter } from './utils/format.js';
 import * as store from './state/store.js';
@@ -12,9 +12,11 @@ import { initSettings, syncSettings } from './ui/settings.js';
 import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
 import { initEspp, renderEsppInputs, renderEsppTab, resetEsppAdded } from './ui/espp.js';
-import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab } from './ui/history.js';
+import { initGainEntries, renderGainEntries } from './ui/esppGains.js';
+import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab, resetHistory } from './ui/history.js';
 import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
+import { ensureMonthRates, monthRates } from './ui/esppRates.js';
 import { initMoneyInputs } from './ui/numberInputs.js';
 
 function compute(input) {
@@ -64,7 +66,17 @@ function render(state) {
     renderHistory(input, money, pay);
     syncCollapsibles(state);
   }
-  if (state.ui.resTab === 'espp') renderEsppTab(esppReport(input), money);
+  if (state.ui.resTab === 'espp') {
+    // The History month being edited counts as soon as it changes, saved or not.
+    const draft = store.scopePay();
+    const months = monthsWithDraft(state.months, store.scopeMonth(), draft && grossPay(draft, input), store.scopeDirty());
+    // A gain month with no History entry is taxed on the real Pay tab, even while a History month is open.
+    const payTab = { ...store.getState(), profile: input.profile };
+    const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state) });
+    renderEsppTab(report, money);
+    renderGainEntries(report, money);
+    ensureMonthRates(report.year, rebuild);
+  }
 }
 
 function rebuild() {
@@ -82,10 +94,11 @@ initLists();
 initCollapsibles();
 initProfiles(rebuild);
 initResults();
-initSettings(rebuild);
+initSettings(() => { resetHistory(); rebuild(); });
 initSteppers();
 initRateFetcher();
 initEspp(rebuild);
+initGainEntries(rebuild);
 initHistory(rebuild);
 initSaveMonth(rebuild, (month) => { showTab('history', month); rebuild(); });
 store.subscribe(render);

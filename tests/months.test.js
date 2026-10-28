@@ -19,7 +19,7 @@ test('a snapshot copies the whole Pay tab and nothing else', () => {
   const pay = snapshotPay(s);
   assert.equal(pay.amount, '10000');
   assert.deepEqual(pay.overtime, s.overtime);
-  assert.deepEqual(new Set(Object.keys(pay.espp)), new Set(['constPct', 'varPct', 'variable']));
+  assert.deepEqual(new Set(Object.keys(pay.espp)), new Set(['constPct', 'varPct', 'variable', 'gain']));
   assert.equal('profiles' in pay, false);
   pay.overtime[0].hours = '1';
   assert.equal(s.overtime[0].hours, '50', 'snapshot is a copy, not a reference');
@@ -64,6 +64,15 @@ test('moving a saved entry re-dates it instead of adding another month', () => {
   assert.deepEqual(monthList(m), ['2027-02', '2026-10']);
   assert.equal(m['2027-02'].amount, '3');
   assert.equal(m['2026-10'].amount, '2', 'other months are untouched');
+});
+
+test('renaming an entry onto a month that is already saved replaces only that month and keeps the moved values', () => {
+  const m = putMonth(putMonth(putMonth({}, '2026-09', { amount: '1', note: 'old september' }), '2026-10', { amount: '2' }), '2026-12', { amount: '4' });
+  const moved = moveMonth(m, '2026-09', '2026-10', { amount: '1', note: 'old september' });
+  assert.deepEqual(monthList(moved), ['2026-12', '2026-10'], 'September is gone, October stays one entry');
+  assert.deepEqual(moved['2026-10'], { amount: '1', note: 'old september' }, 'October now holds the moved values, not a merge');
+  assert.equal(moved['2026-12'].amount, '4', 'other months are untouched');
+  assert.equal(m['2026-10'].amount, '2', 'the input is not mutated');
 });
 
 test('moving with no origin just saves; moving onto the same month keeps it', () => {
