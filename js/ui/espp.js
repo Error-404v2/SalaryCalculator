@@ -166,6 +166,8 @@ export function renderEsppTab(rep, money) {
   // Only wait while a field is being typed in; a pressed button (e.g. a year) must redraw straight away.
   const focused = document.activeElement;
   if (host.contains(focused) && focused.tagName === 'INPUT') return;
+  // Redrawing must not jump the ledger back to its first column.
+  const scrollX = host.querySelector('.espp-table')?.scrollLeft ?? 0;
   const a = store.getState().espp.assumptions;
   const warn = rep.ready ? ''
     : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
@@ -181,6 +183,8 @@ export function renderEsppTab(rep, money) {
       <div class="inner">${ledgerTable(rep)}</div>
     </details>
     ${breakdown(rep, money, a.discount)}`;
+  const table = host.querySelector('.espp-table');
+  if (table && scrollX) table.scrollLeft = scrollX;
   reapplySpin();
 }
 

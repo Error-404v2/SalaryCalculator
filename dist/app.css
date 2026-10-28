@@ -968,6 +968,30 @@ input.rate-error {
 .espp-table tr.future td {
   opacity: .55;
 }
+.espp-table {
+  scroll-padding-left: 76px;
+}
+.espp-table th:first-child,
+.espp-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  box-shadow: 1px 0 0 var(--border);
+}
+.espp-table th:first-child {
+  z-index: 3;
+}
+.espp-table tr.total td:first-child {
+  background: color-mix(in srgb, var(--accent-soft) 100%, var(--surface-2));
+}
+.espp-table tr.future td:first-child {
+  opacity: 1;
+  color: color-mix(in srgb, var(--text) 55%, var(--surface));
+}
+.espp-table tr.active td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--border);
+}
 .espp-table td.calc {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
@@ -1564,6 +1588,13 @@ tr.active td:first-child {
 .month-row .btn.icon svg {
   width: 14px;
   height: 14px;
+}
+.month-row .btn.icon.reset {
+  color: var(--muted);
+}
+.month-row .btn.icon.reset:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .month-row.ask {
   justify-content: space-between;

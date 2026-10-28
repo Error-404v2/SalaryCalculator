@@ -23,6 +23,9 @@
 .month-row.on .month-item { color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); padding-left: 10px; }
 .month-row .btn.icon { width: 28px; height: 28px; color: var(--danger); flex: 0 0 auto; }
 .month-row .btn.icon svg { width: 14px; height: 14px; }
+/* Reset to saved: neutral, only shown while the month has unsaved changes */
+.month-row .btn.icon.reset { color: var(--muted); }
+.month-row .btn.icon.reset:hover { color: var(--accent); border-color: var(--accent); }
 .month-row.ask { justify-content: space-between; padding: 4px; font-size: .86rem; color: var(--danger); }
 .month-row.ask .row { gap: 6px; }
 .month-item {

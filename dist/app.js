@@ -494,11 +494,11 @@
         pay.mode = "gross";
       }
       for (const [field, [list, prefix, name]] of Object.entries(FIELD_TO_ITEM)) {
-        const entry = latest3(field);
-        if (!entry) continue;
+        const entry2 = latest3(field);
+        if (!entry2) continue;
         const i = pay[list].findIndex((it) => it.name?.toLowerCase().startsWith(prefix));
-        if (i >= 0) pay[list][i] = { ...pay[list][i], amount: entry.value };
-        else pay[list].push(list === "incomes" ? { name, amount: entry.value, per: "month", taxable: true, insurable: false } : { name, amount: entry.value, per: "month", pretax: false });
+        if (i >= 0) pay[list][i] = { ...pay[list][i], amount: entry2.value };
+        else pay[list].push(list === "incomes" ? { name, amount: entry2.value, per: "month", taxable: true, insurable: false } : { name, amount: entry2.value, per: "month", pretax: false });
       }
       const c = latest3("esppConst");
       const v = latest3("esppVar");
@@ -529,21 +529,21 @@
     let shares = 0;
     const sharesHistory = [];
     const rows = monthsOfYear(year).map((month, i) => {
-      const entry = entries[month] ?? {};
+      const entry2 = entries[month] ?? {};
       const m = monthNumber(month);
-      const deducted = pick(entry.deducted, deductionFor(month));
+      const deducted = pick(entry2.deducted, deductionFor(month));
       const rate = toNumber(monthRates2[month]) || fx;
-      const deductedUsd = pick(entry.deductedUsd, rate > 0 ? deducted.value / rate : 0);
+      const deductedUsd = pick(entry2.deductedUsd, rate > 0 ? deducted.value / rate : 0);
       const usedRate = deductedUsd.value > 0 ? deducted.value / deductedUsd.value : 0;
       const eligibleShares = sharesHistory[i - 2] ?? 0;
       const div = DIVIDEND_MONTHS.has(m) ? dividendCash(eligibleShares, assumptions) : { gross: 0, afterTax: 0, fee: 0, net: 0 };
-      const dividend = pick(entry.dividend, div.net);
+      const dividend = pick(entry2.dividend, div.net);
       const reinvestFee = dividend.locked ? 0 : div.fee;
       const dividendTax = dividend.locked ? 0 : div.gross - div.afterTax;
       const feesIn = FEE_MONTHS.has(m) && deducted.value > 0 ? feeIn : 0;
       const accredited = deductedUsd.value + dividend.value - feesIn;
       const previous = shares;
-      const accShares = pick(entry.shares, purchasePrice > 0 ? previous + accredited / purchasePrice : previous);
+      const accShares = pick(entry2.shares, purchasePrice > 0 ? previous + accredited / purchasePrice : previous);
       shares = accShares.value;
       sharesHistory.push(shares);
       const added = shares - previous;
@@ -952,6 +952,7 @@
   var view = () => scope ? withPay(state, scope.pay) : state;
   var scopeMonth = () => scope?.month ?? "";
   var scopePay = () => scope?.pay ?? null;
+  var scopeBase = () => scope?.base ?? null;
   var scopeDirty = () => !!scope && JSON.stringify(scope.pay) !== JSON.stringify(scope.base);
   function setScope(month, pay, base = pay) {
     scope = month ? { month, pay: clone(pay), base: clone(base) } : null;
@@ -1822,6 +1823,20 @@
     });
   }
 
+  // js/state/backup.js
+  var BACKUP_KIND = "salary-calculator";
+  var BACKUP_VERSION = 2;
+  function exportData(state2, now = /* @__PURE__ */ new Date()) {
+    return { kind: BACKUP_KIND, version: BACKUP_VERSION, exportedAt: now.toISOString(), state: clone(state2) };
+  }
+  function importData(json) {
+    const data = typeof json === "string" ? JSON.parse(json) : json;
+    if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("not a settings file");
+    const state2 = data.kind === BACKUP_KIND ? data.state : data;
+    if (!state2 || typeof state2 !== "object" || Array.isArray(state2)) throw new Error("not a settings file");
+    return hydrate(state2);
+  }
+
   // js/ui/settings.js
   function applyTheme(theme) {
     if (theme) document.documentElement.dataset.theme = theme;
@@ -1833,15 +1848,19 @@
       const isDark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
       set("ui.theme", isDark ? "light" : "dark");
     });
-    $("#exportBtn").addEventListener("click", () => downloadJson("salary-settings.json", getState()));
+    $("#exportBtn").addEventListener("click", () => {
+      const data = exportData(getState());
+      downloadJson(`salary-calculator-${data.exportedAt.slice(0, 10)}.json`, data);
+    });
     $("#importFile").addEventListener("change", async (e) => {
       const [file] = e.target.files;
       e.target.value = "";
       if (!file) return;
       try {
-        replace(JSON.parse(await file.text()));
+        replace(importData(await file.text()));
         onReplaced();
-        toast("Settings imported");
+        const months = Object.keys(getState().months).length;
+        toast(`Imported${months ? ` \xB7 ${months} month${months === 1 ? "" : "s"}` : ""}`);
       } catch {
         toast("Invalid settings file");
       }
@@ -2064,6 +2083,7 @@
     if (!host) return;
     const focused = document.activeElement;
     if (host.contains(focused) && focused.tagName === "INPUT") return;
+    const scrollX = host.querySelector(".espp-table")?.scrollLeft ?? 0;
     const a = getState().espp.assumptions;
     const warn = rep.ready ? "" : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
     host.innerHTML = `${warn}${topTiles(rep, money)}
@@ -2077,6 +2097,8 @@
       <div class="inner">${ledgerTable(rep)}</div>
     </details>
     ${breakdown(rep, money, a.discount)}`;
+    const table = host.querySelector(".espp-table");
+    if (table && scrollX) table.scrollLeft = scrollX;
     reapplySpin();
   }
   async function fetchOne(kind) {
@@ -2335,11 +2357,21 @@
   // js/ui/history.js
   var drafts = /* @__PURE__ */ new Map();
   var askDelete = "";
+  var entry = { home: "", saved: false, base: null };
   var movingFrom = "";
   var overriding = false;
   var askOverride = false;
   var CHEVRON3 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
+  var RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+  var setEntry = (home, saved, base) => {
+    entry = { home, saved, base };
+  };
+  function clearRename() {
+    movingFrom = "";
+    overriding = false;
+    askOverride = false;
+  }
   var isSaved = (state2, month) => !!state2.months[month];
   var withProfile = (state2) => ({ ...state2, profile: activeProfile() });
   var finalPay = (state2, pay) => toNumber(pay?.amount) > 0 ? calculate({ ...withPay(withProfile(state2), pay), profile: activeProfile() }).net / 12 : 0;
@@ -2347,8 +2379,12 @@
   function stash() {
     const month = scopeMonth();
     if (!month) return;
-    if (scopeDirty()) drafts.set(month, scopePay());
-    else drafts.delete(month);
+    const renamed = !!entry.home && month !== entry.home;
+    const key2 = renamed ? entry.home : month;
+    const base = renamed ? entry.base : scopeBase();
+    const pay = scopePay();
+    if (JSON.stringify(pay) !== JSON.stringify(base)) drafts.set(key2, pay);
+    else drafts.delete(key2);
   }
   function contentFor(state2, month) {
     const saved = state2.months[month];
@@ -2359,42 +2395,67 @@
   }
   function open2(month) {
     if (month === scopeMonth()) return;
-    movingFrom = "";
-    overriding = false;
-    askOverride = false;
     const current = scopeMonth();
     const state2 = getState();
-    if (current && !isSaved(state2, current) && !isSaved(state2, month)) {
+    if (current && !overriding && !isSaved(state2, current) && !isSaved(state2, month)) {
       const pay2 = scopePay();
       drafts.delete(current);
+      clearRename();
+      const { base: base2 } = contentFor(state2, month);
       update((s) => {
         s.ui.histMonth = month;
       });
-      setScope(month, pay2, contentFor(state2, month).base);
+      setScope(month, pay2, base2);
+      setEntry(month, false, base2);
       return;
     }
     stash();
+    clearRename();
     askDelete = "";
     const { pay, base } = contentFor(getState(), month);
     update((s) => {
       s.ui.histMonth = month;
     });
     setScope(month, pay, base);
+    setEntry(month, isSaved(getState(), month), base);
   }
   function pickMonth(month) {
     const state2 = getState();
     const current = scopeMonth();
     if (!current || month === current) return open2(month);
     const pay = scopePay();
-    const origin = movingFrom || (isSaved(state2, current) ? current : "");
-    drafts.delete(current);
+    if (current === entry.home) drafts.delete(current);
     update((s) => {
       s.ui.histMonth = month;
     });
-    setScope(month, pay, contentFor(state2, month).base);
-    movingFrom = origin === month ? "" : origin;
-    overriding = isSaved(state2, month) && month !== origin;
+    setScope(month, pay, month === entry.home ? entry.base : contentFor(state2, month).base);
+    movingFrom = entry.saved && month !== entry.home ? entry.home : "";
+    overriding = isSaved(state2, month) && !(entry.saved && month === entry.home);
     askOverride = false;
+  }
+  function resetMonth(month) {
+    const state2 = getState();
+    if (month !== scopeMonth()) {
+      drafts.delete(month);
+      return;
+    }
+    const target = movingFrom || month;
+    const saved = state2.months[target];
+    if (!saved) return;
+    drafts.delete(target);
+    drafts.delete(month);
+    clearRename();
+    update((s) => {
+      s.ui.histMonth = target;
+    });
+    setScope(target, saved, saved);
+    setEntry(target, true, saved);
+    toast(`${monthLabel(target, "long")} reset to its saved values`);
+  }
+  function canReset(state2, month, active) {
+    if (month !== active) return isSaved(state2, month) && drafts.has(month);
+    if (movingFrom) return isSaved(state2, movingFrom);
+    return isSaved(state2, month) && (overriding || scopeDirty());
   }
   function nextFreeMonth(state2) {
     const now = monthKey(/* @__PURE__ */ new Date());
@@ -2406,8 +2467,8 @@
     const s = getState();
     if (s.ui.inTab !== "history") {
       stash();
-      overriding = false;
-      askOverride = false;
+      clearRename();
+      setEntry("", false, null);
       if (scopeMonth()) setScope("");
       return;
     }
@@ -2428,12 +2489,14 @@
     }
     const pay = month === active ? scopePay() : drafts.get(month) ?? state2.months[month];
     const moved = month === active && movingFrom ? `<span class="tag">from ${escapeHtml(monthLabel(movingFrom))}</span>` : "";
-    const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : isDirty(month) ? '<span class="tag">unsaved</span>' : "");
+    const pending2 = isDirty(month) || month === active && overriding;
+    const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : pending2 ? '<span class="tag">unsaved</span>' : "");
     const now = month === monthKey(/* @__PURE__ */ new Date()) ? '<span class="hint">now</span>' : "";
+    const reset = canReset(state2, month, active) ? `<button type="button" class="btn icon ghost reset" data-hist-reset="${month}" aria-label="Reset ${name} to saved" title="Reset to saved">${RESET_ICON}</button>` : "";
     return `<div class="month-row${month === active ? " on" : ""}">
     <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
       <span class="hint" title="Net pay">${finalPay(state2, pay) ? money(finalPay(state2, pay)) : "\u2014"}</span></button>
-    <button type="button" class="btn icon ghost danger" data-hist-del="${month}" aria-label="${isSaved(state2, month) ? "Delete" : "Discard"} ${name}"
+    ${reset}<button type="button" class="btn icon ghost danger" data-hist-del="${month}" aria-label="${isSaved(state2, month) ? "Delete" : "Discard"} ${name}"
       title="${isSaved(state2, month) ? "Delete month" : "Discard"}">${RED_MINUS}</button>
   </div>`;
   }
@@ -2489,17 +2552,17 @@
   function commitSave() {
     const month = scopeMonth();
     const pay = scopePay();
-    overriding = false;
-    askOverride = false;
     const replaced = isSaved(getState(), month);
     const gross = grossPay(pay, withProfile(getState()));
     const from = movingFrom;
-    movingFrom = "";
+    clearRename();
     markScopeSaved();
     drafts.delete(month);
+    if (from) drafts.delete(from);
     update((s) => {
       s.months = moveMonth(s.months, from, month, gross);
     });
+    setEntry(month, true, scopeBase());
     toast(from ? `Moved ${monthLabel(from, "long")} to ${monthLabel(month, "long")}` : `${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
   }
   function showTab(tab, month = "") {
@@ -2531,6 +2594,13 @@
     setScope("");
     open2(monthList(getState().months)[0] ?? monthKey(/* @__PURE__ */ new Date()));
   }
+  function resetHistory() {
+    drafts.clear();
+    clearRename();
+    askDelete = "";
+    setEntry("", false, null);
+    syncHistoryScope();
+  }
   function syncHistoryBar(state2) {
     $("#fillPayBtn").hidden = state2.ui.inTab !== "history" || !scopeMonth();
   }
@@ -2552,6 +2622,11 @@
       const pick2 = e.target.closest("[data-hist-pick]");
       if (pick2) {
         open2(pick2.dataset.histPick);
+        return onChanged();
+      }
+      const reset = e.target.closest("[data-hist-reset]");
+      if (reset) {
+        resetMonth(reset.dataset.histReset);
         return onChanged();
       }
       const del = e.target.closest("[data-hist-del]");
@@ -2777,7 +2852,10 @@
   initCollapsibles();
   initProfiles(rebuild);
   initResults();
-  initSettings(rebuild);
+  initSettings(() => {
+    resetHistory();
+    rebuild();
+  });
   initSteppers();
   initRateFetcher();
   initEspp(rebuild);
