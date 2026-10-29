@@ -41,6 +41,9 @@ function sanitize(state) {
   [...state.incomes, ...state.deductions, ...state.cashAwards].forEach((item) => {
     if (!isItemPeriod(item.per)) item.per = 'month';
   });
+  [...state.incomes, ...state.cashAwards].forEach((item) => {
+    if (typeof item.inEspp !== 'boolean') item.inEspp = true;
+  });
   sortOvertime(state.overtime);
   // A blank withdrawal fee means "use the default" (type 0 for no fee). 54.95 was the previous default, so it moves too.
   const fee = String(state.espp.assumptions.withdrawalFee ?? '').trim();
@@ -100,7 +103,24 @@ function grossMonths(state) {
   return state;
 }
 
+/** Savings entries are rebuilt one by one so a bad import can't break the tab. */
+function cleanSavings(state) {
+  const seen = new Set();
+  state.savings = (Array.isArray(state.savings) ? state.savings : []).filter((s) => s && typeof s === 'object').map((s, i) => {
+    let id = typeof s.id === 'string' && s.id ? s.id : `sv${i + 1}`;
+    while (seen.has(id)) id += 'x';
+    seen.add(id);
+    return {
+      id,
+      name: String(s.name ?? '').slice(0, 40),
+      pct: String(s.pct ?? '').slice(0, 6),
+      color: /^#[0-9a-f]{6}$/i.test(s.color) ? s.color : '#2f9e8f',
+    };
+  });
+  return state;
+}
+
 export function hydrate(saved) {
   const upgraded = upgradeV1(saved);
-  return grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded)));
+  return cleanSavings(grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded))));
 }

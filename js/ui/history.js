@@ -31,6 +31,9 @@ const CHEVRON = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d
 const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
 const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
+/** Years the user opened or closed in the Saved months list; others are open only for the newest year and the open month's year. */
+const yearToggled = new Map();
+
 const setEntry = (home, saved, base) => { entry = { home, saved, base }; };
 function clearRename() {
   movingFrom = '';
@@ -142,12 +145,32 @@ function canReset(state, month, active) {
   return isSaved(state, month) && (overriding || store.scopeDirty());
 }
 
-/** The month "+ New" opens: this month if it isn't saved, else the month after the newest saved one. */
+/** The month "+ New" opens: this month if it is free, else the month after the latest one in use (saved, drafted or open). */
 function nextFreeMonth(state) {
+  const taken = new Set([...monthList(state.months), ...drafts.keys(), store.scopeMonth()].filter(Boolean));
   const now = monthKey(new Date());
-  if (!state.months[now]) return now;
-  const [y, m] = monthList(state.months)[0].split('-').map(Number);
+  if (!taken.has(now)) return now;
+  const [y, m] = [...taken].sort().at(-1).split('-').map(Number);
   return monthKey(new Date(y, m, 1));
+}
+
+/**
+ * "+ New month": the new entry starts from the values currently entered (unsaved edits included) and the month
+ * it was opened from goes back to its saved values (or is dropped when it was itself new and unsaved).
+ */
+function newMonth() {
+  const state = store.getState();
+  const month = nextFreeMonth(state);
+  const current = store.scopeMonth();
+  if (!current) return open(month);
+  const pay = store.scopePay();
+  [current, entry.home].forEach((m) => m && drafts.delete(m));
+  clearRename();
+  askDelete = '';
+  const { base } = contentFor(state, month);
+  store.update((s) => { s.ui.histMonth = month; });
+  store.setScope(month, pay, base);
+  setEntry(month, false, base);
 }
 
 /** Enter or leave month editing to match the active input tab. Called on load and on every tab switch. */
@@ -200,7 +223,19 @@ function savedList(state, active, money) {
   const months = new Set([...monthList(state.months), ...drafts.keys()]);
   if (movingFrom) months.delete(movingFrom);
   if (active) months.add(active);
-  const rows = [...months].sort((a, b) => b.localeCompare(a)).map((m) => monthRow(state, m, active, money)).join('');
+  const sorted = [...months].sort((a, b) => b.localeCompare(a));
+  const years = [...new Set(sorted.map((m) => m.slice(0, 4)))];
+  // One year stays a plain list; several years get a compact header each, only the newest (and the open month's) expanded.
+  const rows = years.length < 2
+    ? sorted.map((m) => monthRow(state, m, active, money)).join('')
+    : years.map((year) => {
+      const inYear = sorted.filter((m) => m.startsWith(year));
+      const total = inYear.reduce((n, m) => n + finalPay(state, m === active ? store.scopePay() : drafts.get(m) ?? state.months[m]), 0);
+      const open = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
+      return `<div class="month-year${open ? ' open' : ''}">
+        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? ' on' : ''}" data-hist-year="${year}" aria-expanded="${open}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Net pay of the year's months">${total ? money(total) : '—'}</span><span class="yr-chev">${CHEVRON}</span></button>
+        ${open ? inYear.map((m) => monthRow(state, m, active, money)).join('') : ''}</div>`;
+    }).join('');
   return `<details class="more" data-open="histSaved">
     <summary>Saved months <span class="count">${monthList(state.months).length || ''}</span></summary>
     <div class="inner month-list">
@@ -300,6 +335,7 @@ function remove(month) {
 /** After an import or a reset the saved months are new: forget drafts and the open entry, then open a month again. */
 export function resetHistory() {
   drafts.clear();
+  yearToggled.clear();
   clearRename();
   askDelete = '';
   setEntry('', false, null);
@@ -320,6 +356,12 @@ export function initHistory(onChanged) {
       syncHistoryScope();
       return onChanged();
     }
+    const yearHead = e.target.closest('[data-hist-year]');
+    if (yearHead) {
+      const year = yearHead.dataset.histYear;
+      yearToggled.set(year, yearHead.getAttribute('aria-expanded') !== 'true');
+      return onChanged();
+    }
     const pick = e.target.closest('[data-hist-pick]');
     if (pick) { open(pick.dataset.histPick); return onChanged(); }
     const reset = e.target.closest('[data-hist-reset]');
@@ -336,7 +378,7 @@ export function initHistory(onChanged) {
     if (act === 'save') save();
     else if (act === 'override-yes') commitSave();
     else if (act === 'override-no') askOverride = false;
-    else if (act === 'new') open(nextFreeMonth(store.getState()));
+    else if (act === 'new') newMonth();
     else if (act === 'delete-yes') remove(askDelete);
     else if (act === 'delete-no') askDelete = '';
     onChanged();

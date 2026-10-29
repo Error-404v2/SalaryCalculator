@@ -8,17 +8,20 @@ import { sortOvertime, nextOvertimeType } from '../core/overtime.js';
 import * as store from '../state/store.js';
 import { fillSelects } from './form.js';
 import { ROW_TEMPLATES } from './rows.js';
+import { syncDropdowns } from './dropdown.js';
 import { handleAdvancedToggle, shiftAdvancedAfterRemove } from './advanced.js';
 
 const RESET_PATHS = { brackets: ['@.tax.brackets', 'tax.brackets'], caps: ['@.si.caps', 'si.caps'], jobTypes: ['@.jobTypes', 'jobTypes'] };
 const AFFECTS_SELECTS = ['@.jobTypes', '@.si.caps'];
 const IMPACT_LISTS = ['overtime', 'cashAwards'];
 
-let ctx = { currency: '', money: String, factor: 1, impacts: { overtime: [], cashAwards: [] } };
+let ctx = { currency: '', money: String, factor: 1, esppVar: false, impacts: { overtime: [], cashAwards: [] } };
 
 export function setListContext(next) {
+  const esppChanged = next.esppVar !== ctx.esppVar;
   ctx = next;
   IMPACT_LISTS.forEach(renderList);
+  if (esppChanged) renderList('incomes');
 }
 
 export function renderList(path) {
@@ -29,6 +32,7 @@ export function renderList(path) {
   else if (host.tagName === 'TBODY') host.innerHTML = '<tr><td colspan="6" class="hint">No rows</td></tr>';
   else host.innerHTML = host.hasAttribute('data-quiet') ? '' : '<div class="empty">Nothing added yet</div>';
   host.hidden = !items.length && host.hasAttribute('data-quiet');
+  syncDropdowns(host);
   updateCounts();
 }
 

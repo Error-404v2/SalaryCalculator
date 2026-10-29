@@ -17,6 +17,7 @@ function annualizeIncomes(incomes, schedule) {
     annual: toAnnual(it.amount, it.per || 'month', schedule),
     taxable: it.taxable !== false,
     insurable: !!it.insurable,
+    inEspp: it.inEspp !== false,
   }));
 }
 
@@ -36,6 +37,7 @@ function annualizeCashAwards(awards, currency, schedule) {
       per,
       annual: toAnnual(toNumber(a.amount) * rate, per, schedule),
       taxable: a.taxable !== false,
+      inEspp: a.inEspp !== false,
       missingRate: toNumber(a.amount) > 0 && !(rate > 0),
     };
   });
@@ -126,10 +128,11 @@ export function calculate(input, baseAnnualOverride) {
   const leviesTotal = sum(levies, (l) => l.annual);
   const espp = computeEspp(input.espp, {
     baseAnnual,
-    taxableAllowances: sum(incomes.filter((i) => i.taxable), (i) => i.annual),
-    exemptAllowances: sum(incomes.filter((i) => !i.taxable), (i) => i.annual),
+    // Allowances and awards unticked under "Included in ESPP" stay out of the variable base.
+    taxableAllowances: sum(incomes.filter((i) => i.taxable && i.inEspp), (i) => i.annual),
+    exemptAllowances: sum(incomes.filter((i) => !i.taxable && i.inEspp), (i) => i.annual),
     overtimeAnnual,
-    cashAwardsAnnual: sum(cashAwards, (a) => a.annual),
+    cashAwardsAnnual: sum(cashAwards.filter((a) => a.inEspp), (a) => a.annual),
   });
   const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total + esppGain;
   const net = grossAnnual - totalDeductions;

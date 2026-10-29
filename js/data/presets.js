@@ -8,9 +8,9 @@ export const OT_TYPES = [
 
 export const PRESETS = {
   incomes: [
-    { name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false },
-    { name: 'Profit share (GDP)', amount: '', per: 'once', taxable: false, insurable: false },
-    { name: 'Bonus', amount: '', per: 'once', taxable: true, insurable: false },
+    { name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false, inEspp: true },
+    { name: 'Profit share (GDP)', amount: '', per: 'once', taxable: false, insurable: false, inEspp: true },
+    { name: 'Bonus', amount: '', per: 'once', taxable: true, insurable: false, inEspp: true },
   ],
   deductions: [
     { name: 'Medical insurance', amount: '230.8', per: 'month', pretax: false },
@@ -19,8 +19,8 @@ export const PRESETS = {
 };
 
 export const BLANK_ROWS = {
-  incomes: { name: '', amount: '', per: 'once', taxable: true, insurable: false },
-  cashAwards: { name: 'Cash Award', amount: '', currency: 'USD', rate: '', per: 'once', taxable: true },
+  incomes: { name: '', amount: '', per: 'once', taxable: true, insurable: false, inEspp: true },
+  cashAwards: { name: 'Cash Award', amount: '', currency: 'USD', rate: '', per: 'once', taxable: true, inEspp: true },
   deductions: { name: '', amount: '', per: 'month', pretax: false },
   '@.tax.brackets': { rate: '', min: '', max: '', exclusion: '' },
   '@.levies': { name: '', rate: '', base: 'gross' },

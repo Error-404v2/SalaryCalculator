@@ -131,3 +131,33 @@ test('new state starts with Transportation 1,000 / month', () => {
   const r = calculate({ ...structuredClone(DEFAULT_STATE), amount: '30000', profile: structuredClone(DEFAULT_PROFILE) });
   assert.equal(r.grossAnnual, 31000 * 12);
 });
+
+test('taxed allowances carry a net effect that adds up; exempt ones keep their gross', () => {
+  const inp = input({
+    amount: '30000',
+    incomes: [
+      { name: 'Bonus', amount: '5000', per: 'month', taxable: true },
+      { name: 'Profit share', amount: '2000', per: 'month', taxable: false },
+    ],
+  });
+  const r = withImpacts(inp, calculate(inp));
+  const [bonus, profit] = r.incomes;
+  assert.ok(bonus.netAnnual > 0 && bonus.netAnnual < bonus.annual);
+  assert.equal(profit.netAnnual, undefined);
+  assert.ok(Math.abs(bonus.netAnnual - r.incomesNet) < 1e-6);
+});
+
+test('cash awards: exempt entries net their full amount, and Monthly equals One-time in the month', () => {
+  const award = (per) => input({ amount: '30000', cashAwards: [{ name: 'A', amount: '1000', currency: 'EGP', per, taxable: true }] });
+  const once = withImpacts(award('once'), calculate(award('once')));
+  const monthly = withImpacts(award('month'), calculate(award('month')));
+  assert.equal(once.cashAwards[0].netAnnual / 12, monthly.cashAwards[0].netAnnual / 12);
+});
+
+test('"Included in ESPP" takes an allowance out of the ESPP variable base', () => {
+  const base = { amount: '30000', espp: { ...DEFAULT_STATE.espp, varPct: '10' } };
+  const both = calculate(input({ ...base, incomes: [{ name: 'Bonus', amount: '1000', per: 'month', taxable: true, inEspp: true }] }));
+  const off = calculate(input({ ...base, incomes: [{ name: 'Bonus', amount: '1000', per: 'month', taxable: true, inEspp: false }] }));
+  assert.equal(both.espp.variable, 1200);
+  assert.equal(off.espp.variable, 0);
+});

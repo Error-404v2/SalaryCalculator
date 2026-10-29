@@ -18,6 +18,8 @@ import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
 import { ensureMonthRates, monthRates } from './ui/esppRates.js';
 import { initMoneyInputs } from './ui/numberInputs.js';
+import { initDropdowns, syncDropdowns } from './ui/dropdown.js';
+import { initSavingsEditor, renderSavingsEditor } from './ui/savingsEditor.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -57,6 +59,7 @@ function render(state) {
     currency: input.profile.currency,
     money,
     factor: pay.factor,
+    esppVar: toNumber(state.espp?.varPct) > 0,
     impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] },
   });
   renderResults(result, input, money, pay);
@@ -77,17 +80,20 @@ function render(state) {
     renderGainEntries(report, money);
     ensureMonthRates(report.year, rebuild);
   }
+  syncDropdowns();
 }
 
 function rebuild() {
   const state = store.view();
   fillSelects(state);
   renderAllLists();
+  renderSavingsEditor(state);
   render(state);
 }
 
 initTabs();
 initMonthPickers();
+initDropdowns();
 initMoneyInputs();
 initBindings();
 initLists();
@@ -99,6 +105,7 @@ initSteppers();
 initRateFetcher();
 initEspp(rebuild);
 initGainEntries(rebuild);
+initSavingsEditor(rebuild);
 initHistory(rebuild);
 initSaveMonth(rebuild, (month) => { showTab('history', month); rebuild(); });
 store.subscribe(render);

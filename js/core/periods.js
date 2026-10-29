@@ -24,6 +24,7 @@ export const isItemPeriod = (id) => ITEM_PERIODS.some((p) => p.id === id);
 const PERIOD_SETS = {
   occasional: ['once', 'half', 'quarter'],
   recurring: ['month', 'year'],
+  award: ['once', 'month'],
   deduction: ['month', 'quarter', 'half', 'year'],
 };
 
@@ -35,7 +36,8 @@ const PERIOD_SETS = {
 export function itemPeriods(list, item = {}) {
   const name = String(item.name ?? '').toLowerCase();
   const recurring = name.startsWith('transport') || name.startsWith('medical');
-  const set = recurring ? PERIOD_SETS.recurring : list === 'deductions' ? PERIOD_SETS.deduction : PERIOD_SETS.occasional;
+  const set = list === 'cashAwards' ? PERIOD_SETS.award
+    : recurring ? PERIOD_SETS.recurring : list === 'deductions' ? PERIOD_SETS.deduction : PERIOD_SETS.occasional;
   const ids = item.per && !set.includes(item.per) && isItemPeriod(item.per) ? [...set, item.per] : set;
   return ids.map((id) => ITEM_PERIODS.find((p) => p.id === id));
 }

@@ -1,4 +1,9 @@
 /* tables */
+/* Rate / Period: the first column stays visible while the table scrolls sideways */
+.sticky-first th:first-child, .sticky-first td:first-child { position: sticky; left: 0; z-index: 2; background: var(--surface); box-shadow: 1px 0 0 var(--border); }
+.sticky-first th:first-child { background: var(--surface-2); z-index: 3; }
+.sticky-first tr.total td:first-child { background: color-mix(in srgb, var(--accent-soft) 100%, var(--surface)); }
+.sticky-first tr.active td:first-child { box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--border); }
 .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); }
 table { width: 100%; border-collapse: collapse; font-size: .88rem; }
 th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }

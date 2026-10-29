@@ -35,36 +35,14 @@ const ACTIONS = {
   },
 };
 
-const CUSTOM = '__custom';
-const normalizeCode = (value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-
-function renderCurrency(profile, forceCustom = false) {
-  const select = $('#currencySel');
-  const input = $('#currencyCustom');
-  const custom = forceCustom || !CURRENCIES.includes(profile.currency);
-  select.innerHTML = optionList([...CURRENCIES.map((c) => ({ value: c, label: c })), { value: CUSTOM, label: 'Custom…' }],
-    custom ? CUSTOM : profile.currency);
-  input.hidden = !custom;
-  if (custom && document.activeElement !== input) input.value = CURRENCIES.includes(profile.currency) ? '' : profile.currency;
+/** The list holds the standard codes; a code typed under "Custom" is added so it shows as the current value. */
+function renderCurrency(profile) {
+  $('#currencySel').innerHTML = optionList([...new Set([...CURRENCIES, profile.currency])].map((c) => ({ value: c, label: c })), profile.currency);
 }
 
 function initCurrency(onProfileChanged) {
   $('#currencySel').addEventListener('change', (e) => {
-    if (e.target.value === CUSTOM) {
-      $('#currencyCustom').hidden = false;
-      $('#currencyCustom').value = '';
-      $('#currencyCustom').focus();
-      return;
-    }
     store.set('@.currency', e.target.value);
-    onProfileChanged();
-  });
-  $('#currencyCustom').addEventListener('input', (e) => {
-    const code = normalizeCode(e.target.value);
-    if (code) store.set('@.currency', code);
-  });
-  $('#currencyCustom').addEventListener('change', (e) => {
-    e.target.value = normalizeCode(e.target.value);
     onProfileChanged();
   });
 }
@@ -103,6 +81,5 @@ export function syncProfiles(state) {
     ? `<div class="callout warn" style="margin-top:8px">${issues.map(escapeHtml).join('<br>')}</div>`
     : '';
   $$('[data-profile-select]').forEach((el) => { if (el.value !== state.profileId) el.value = state.profileId; });
-  const editingCode = document.activeElement?.id === 'currencyCustom';
-  if (document.activeElement?.id !== 'currencySel') renderCurrency(store.activeProfile(), editingCode);
+  renderCurrency(store.activeProfile());
 }

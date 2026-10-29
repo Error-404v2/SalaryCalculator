@@ -3,6 +3,7 @@ import { toNumber } from '../utils/number.js';
 import { monthKey, monthLabel, monthList, monthChoices, putMonth, snapshotPay, grossPay } from '../core/index.js';
 import { monthPickerHtml, onMonthPick, onMonthBack, onMonthClose, openMonthPicker } from './monthPicker.js';
 import * as store from '../state/store.js';
+import { syncDropdowns } from './dropdown.js';
 
 const CUSTOM = 'custom';
 
@@ -33,6 +34,7 @@ export function initSaveMonth(onChanged, onSaved) {
     pickHost.innerHTML = monthPickerHtml('save', custom, monthList(store.getState().months));
     pickHost.hidden = false;
     select.hidden = true;
+    syncDropdowns();
   }
 
   /** Fills the dropdown and selects `value`: saved months nearest first, the last calendar pick, then Custom…. */
@@ -44,6 +46,7 @@ export function initSaveMonth(onChanged, onSaved) {
       `<option value="${CUSTOM}">Custom…</option>`,
     ].join('');
     select.value = choices.some((c) => c.month === value) ? value : '';
+    syncDropdowns();
   }
 
   /** Back to the dropdown, showing the month just picked from the calendar (if any). */

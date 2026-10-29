@@ -29,7 +29,7 @@ function monthControl(row, taken, historyMonths) {
     .map((c) => `<option value="${c.month}"${c.month === row.month ? ' selected' : ''}>${monthLabel(c.month, 'long')}${c.saved ? '' : ' (not saved)'}</option>`)
     .join('');
   const locked = row.derived ? ' disabled title="This month comes from History"' : '';
-  return `<select class="sm" data-gain-month="${row.month}" aria-label="Month"${locked}>${options}<option value="${CUSTOM}">Custom…</option></select>`;
+  return `<select class="sm" data-dd data-gain-month="${row.month}" aria-label="Month"${locked}>${options}<option value="${CUSTOM}">Custom…</option></select>`;
 }
 
 function rowHtml(row, taken, historyMonths, money) {

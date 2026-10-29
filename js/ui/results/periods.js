@@ -22,7 +22,7 @@ export function renderPeriods(full, state, money, pay) {
   }).join('');
 
   const s = state.schedule;
-  return `<div class="table-wrap"><table>
+  return `<div class="table-wrap"><table class="sticky-first">
       <thead><tr><th>Period</th>${columnsOf(full).map(([n]) => `<th class="r">${n}</th>`).join('')}</tr></thead>
       <tbody>${rows}</tbody></table></div>
     <p class="hint">Based on ${escapeHtml(s.weeksPerYear)} weeks/year, ${escapeHtml(s.daysPerWeek)} days/week,

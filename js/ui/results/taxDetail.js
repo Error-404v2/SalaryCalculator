@@ -47,9 +47,9 @@ function bracketTable(r, money, period) {
     : '';
 
   return `<div class="section-title"><span>Brackets</span>${periodToggle(period)}</div>
-    <div class="table-wrap"><table>
+    <div class="table-wrap"><table class="sticky-first">
       <thead><tr><th>Rate</th><th>Range</th><th>Status</th><th class="r">Taxed amount</th><th class="r">Tax</th></tr></thead>
-      <tbody>${rows}<tr class="total"><td colspan="4">Income tax</td><td class="r">${money(r.incomeTax / k)}</td></tr></tbody>
+      <tbody>${rows}<tr class="total"><td>Income tax</td><td colspan="3"></td><td class="r">${money(r.incomeTax / k)}</td></tr></tbody>
     </table></div>${note}`;
 }
 

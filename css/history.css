@@ -33,6 +33,21 @@
   padding: 6px 4px; border: 0; background: none; cursor: pointer; font-size: .88rem; text-align: left; color: var(--text);
 }
 .month-item:hover { color: var(--accent); }
+.month-year-head {
+  display: flex; align-items: center; gap: 6px; width: 100%; padding: 4px 4px; margin-top: 2px; border: 0; background: none; cursor: pointer;
+  color: var(--muted); font-size: .74rem; font-weight: 700; letter-spacing: .04em; text-align: left;
+}
+.month-year-head .yr { font-size: .8rem; }
+.month-year-head .hint { margin: 0; font-weight: 500; font-size: .72rem; letter-spacing: 0; }
+/* The total ends where the months' net figures end; the arrow sits in the same slot as the row buttons */
+.month-year-head .yr-total { margin-left: auto; font-size: .78rem; font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.month-year-head .yr-chev { flex: 0 0 28px; margin-left: 4px; display: flex; justify-content: center; }
+.month-year-head.on { color: var(--accent); }
+.month-year-head:hover { color: var(--accent); }
+.month-year-head svg { width: 9px; height: 6px; fill: none; stroke: currentColor; stroke-width: 1.6; transition: transform .15s; }
+.month-year:not(.open) .month-year-head svg { transform: rotate(-90deg); }
+.month-year + .month-year { border-top: 1px solid var(--border); }
+.month-year .month-row:first-of-type { border-top: 0; }
 .month-item.add { color: var(--accent); font-weight: 600; border-bottom: 1px solid var(--border); }
 .month-item .hint { margin: 0 0 0 6px; white-space: nowrap; }
 .month-item .tag { margin-left: 6px; font-size: .68rem; padding: 0 6px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }

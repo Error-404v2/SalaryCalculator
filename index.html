@@ -34,7 +34,7 @@
         <div class="save-row">
           <button class="btn sm primary" id="saveMonthGo">Done</button>
           <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
-          <span class="save-slot"><select id="saveMonthSel" aria-label="Month to save to"></select><span id="saveMonthPickHost" hidden></span></span>
+          <span class="save-slot"><select id="saveMonthSel" data-dd aria-label="Month to save to"></select><span id="saveMonthPickHost" hidden></span></span>
         </div>
         <span class="confirm" id="saveMonthAsk" hidden>
           <span id="saveMonthAskText"></span>
@@ -48,14 +48,14 @@
             <button data-v="gross">Gross &rarr; Net</button>
             <button data-v="net">Net &rarr; Gross</button>
           </div>
-          <select id="yearSel" class="sm year-select" data-bind="year" aria-label="Tax year"></select>
+          <select id="yearSel" class="sm year-select" data-dd data-bind="year" aria-label="Tax year"></select>
         </div>
         <div class="row between field pay-period" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
           <span class="label">Pro-rata</span>
           <div class="spins">
             <div class="spin">
               <span class="spin-label">Month</span>
-              <input type="text" inputmode="numeric" data-bind="payPeriod.months" data-step="1" data-min="0" data-max="24" aria-label="Months">
+              <input type="text" inputmode="numeric" data-bind="payPeriod.months" data-step="1" data-swipe data-px-per-step="64" data-min="0" data-max="24" aria-label="Months">
               <span class="spin-btns">
                 <button type="button" data-step-btn="1" data-target="payPeriod.months" aria-label="Increase months"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
                 <button type="button" data-step-btn="-1" data-target="payPeriod.months" aria-label="Decrease months"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
@@ -63,7 +63,7 @@
             </div>
             <div class="spin">
               <span class="spin-label">Day</span>
-              <input type="text" inputmode="numeric" data-bind="payPeriod.days" data-step="1" data-min="-30" data-max="30" aria-label="Days">
+              <input type="text" inputmode="numeric" data-bind="payPeriod.days" data-step="1" data-swipe data-px-per-step="64" data-min="-30" data-max="30" aria-label="Days">
               <span class="spin-btns">
                 <button type="button" data-step-btn="1" data-target="payPeriod.days" aria-label="Increase days"><svg viewBox="0 0 10 6"><path d="M1 5l4-4 4 4"/></svg></button>
                 <button type="button" data-step-btn="-1" data-target="payPeriod.days" aria-label="Decrease days"><svg viewBox="0 0 10 6"><path d="M1 1l4 4 4-4"/></svg></button>
@@ -192,6 +192,7 @@
         <button class="tab" role="tab" data-tab="tax">Tax</button>
         <button class="tab" role="tab" data-tab="espp">ESPP</button>
         <button class="tab" role="tab" data-tab="employer">Employer cost</button>
+        <button class="tab" role="tab" data-tab="savings">Savings</button>
       </nav>
 
       <div class="card-body">
@@ -212,8 +213,7 @@
               <div class="field"><label>Profile name</label><input type="text" data-bind="@.name"></div>
               <div class="field"><label for="currencySel">Currency</label>
                 <div class="row">
-                  <select id="currencySel" class="grow" aria-label="Currency"></select>
-                  <input id="currencyCustom" type="text" class="cur-code" maxlength="6" placeholder="Code" aria-label="Custom currency code" hidden>
+                  <select id="currencySel" class="grow" data-dd="currency" aria-label="Currency"></select>
                 </div>
               </div>
             </div>
@@ -323,6 +323,18 @@
         </div>
 
         <div class="panel" data-panel="employer" hidden><div data-view="employer"></div></div>
+
+        <div class="panel" data-panel="savings" hidden>
+          <div data-view="savings"></div>
+
+          <details class="more" data-open="savings" style="margin-top:14px">
+            <summary>Edit savings <span class="count" data-savings-count></span></summary>
+            <div class="inner">
+              <div class="sv-list" data-savings-list></div>
+              <div class="row" style="margin-top:8px"><button type="button" class="btn" data-sv-add>+ Add saving</button></div>
+            </div>
+          </details>
+        </div>
       </div>
     </section>
   </main>
