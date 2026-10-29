@@ -4,6 +4,7 @@ import { renderSummary } from './summary.js';
 import { renderPeriods } from './periods.js';
 import { renderTaxDetail } from './taxDetail.js';
 import { renderEmployer } from './employer.js';
+import { renderSavings } from './savings.js';
 
 /** The Tax tab ends with the By period table. */
 const renderTax = (...args) =>
@@ -13,6 +14,7 @@ const VIEWS = {
   summary: renderSummary,
   tax: renderTax,
   employer: renderEmployer,
+  savings: renderSavings,
 };
 
 const EMPTY = '<div class="empty" style="padding:40px 16px">Enter a salary to see the breakdown.</div>';

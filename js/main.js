@@ -19,6 +19,7 @@ import { initMonthPickers } from './ui/monthPicker.js';
 import { ensureMonthRates, monthRates } from './ui/esppRates.js';
 import { initMoneyInputs } from './ui/numberInputs.js';
 import { initDropdowns, syncDropdowns } from './ui/dropdown.js';
+import { initSavingsEditor, renderSavingsEditor } from './ui/savingsEditor.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -86,6 +87,7 @@ function rebuild() {
   const state = store.view();
   fillSelects(state);
   renderAllLists();
+  renderSavingsEditor(state);
   render(state);
 }
 
@@ -103,6 +105,7 @@ initSteppers();
 initRateFetcher();
 initEspp(rebuild);
 initGainEntries(rebuild);
+initSavingsEditor(rebuild);
 initHistory(rebuild);
 initSaveMonth(rebuild, (month) => { showTab('history', month); rebuild(); });
 store.subscribe(render);

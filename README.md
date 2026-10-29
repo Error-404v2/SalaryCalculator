@@ -84,17 +84,11 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
   - **Live from History:** while a History month is open, the ESPP tab follows every change (the Stocks %, the ESPP gain) straight away, before you press Save.
   - **Tax tab → Brackets:** an *Annual | Monthly* toggle on the right of the title (the highlight slides) switches the ranges, taxed amounts and tax between per year and per month.
 - **Employer cost:** the real tax rate, including employer social insurance.
+- **Savings:** plan the monthly net pay as percentages (stacked bar, per-saving amounts per month and year, what is left to spend). A collapsible editor below edits each saving's name, percentage and colour, with drag-and-drop (or arrow keys on the handle) ordering.
 
 ### How the net effect of overtime and cash awards is calculated
 
 `net(with all overtime) − net(without overtime)`, keeping the basic salary the same. This captures the extra income tax from moving into higher brackets, the levies, and any change in social insurance. Because tax is progressive, the group total is split across the entries in proportion to their gross amount, so the entries always add up to the total.
-
-## To do
-
-Work on these in the `beta` branch, after publishing the current version with the fixes.
-
-- **Savings planning tab:** a new tab based on the monthly net pay, drawn like the employer-cost view but for planning savings.
-  - Below the chart, a collapsible editor for each saving's name and percentage, with drag-and-drop ordering (like the ESPP Gains list) and a colour choice for each.
 
 ## Structure
 

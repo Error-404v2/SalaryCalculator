@@ -192,6 +192,7 @@
         <button class="tab" role="tab" data-tab="tax">Tax</button>
         <button class="tab" role="tab" data-tab="espp">ESPP</button>
         <button class="tab" role="tab" data-tab="employer">Employer cost</button>
+        <button class="tab" role="tab" data-tab="savings">Savings</button>
       </nav>
 
       <div class="card-body">
@@ -322,6 +323,18 @@
         </div>
 
         <div class="panel" data-panel="employer" hidden><div data-view="employer"></div></div>
+
+        <div class="panel" data-panel="savings" hidden>
+          <div data-view="savings"></div>
+
+          <details class="more" data-open="savings" style="margin-top:14px">
+            <summary>Edit savings <span class="count" data-savings-count></span></summary>
+            <div class="inner">
+              <div class="sv-list" data-savings-list></div>
+              <div class="row" style="margin-top:8px"><button type="button" class="btn" data-sv-add>+ Add saving</button></div>
+            </div>
+          </details>
+        </div>
       </div>
     </section>
   </main>

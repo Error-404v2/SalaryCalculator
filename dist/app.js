@@ -1,4 +1,17 @@
 (() => {
+  // js/core/savings.js
+  function planSavings(net, items) {
+    const base = Math.max(Number(net) || 0, 0);
+    const rows = (items ?? []).map((item) => {
+      const pct = Math.max(Number(item.pct) || 0, 0);
+      return { ...item, pct, amount: base * pct / 100 };
+    });
+    const totalPct = rows.reduce((sum2, r) => sum2 + r.pct, 0);
+    const saved = rows.reduce((sum2, r) => sum2 + r.amount, 0);
+    return { net: base, rows, totalPct, saved, left: base - saved, over: totalPct > 100 };
+  }
+  var SAVINGS_COLORS = ["#2f9e8f", "#e0a526", "#5b7fe0", "#c75d9b", "#8a63d2", "#e4703b", "#4aa3d6", "#7aa642"];
+
   // js/utils/number.js
   function toNumber(value) {
     if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -794,6 +807,11 @@
   });
   var DEFAULT_STATE = Object.freeze({
     amount: "",
+    savings: [
+      { id: "sv1", name: "Emergency fund", pct: 10, color: "#2f9e8f" },
+      { id: "sv2", name: "Investments", pct: 10, color: "#5b7fe0" },
+      { id: "sv3", name: "Gold & certificates", pct: 5, color: "#e0a526" }
+    ],
     per: "month",
     mode: "gross",
     year: "2026",
@@ -848,7 +866,7 @@
       bracketPeriod: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, histSaved: true, histSummary: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, savings: false, histSaved: true, histSummary: true }
     }
   });
 
@@ -956,9 +974,24 @@
     }
     return state2;
   }
+  function cleanSavings(state2) {
+    const seen = /* @__PURE__ */ new Set();
+    state2.savings = (Array.isArray(state2.savings) ? state2.savings : []).filter((s) => s && typeof s === "object").map((s, i) => {
+      let id = typeof s.id === "string" && s.id ? s.id : `sv${i + 1}`;
+      while (seen.has(id)) id += "x";
+      seen.add(id);
+      return {
+        id,
+        name: String(s.name ?? "").slice(0, 40),
+        pct: String(s.pct ?? "").slice(0, 6),
+        color: /^#[0-9a-f]{6}$/i.test(s.color) ? s.color : "#2f9e8f"
+      };
+    });
+    return state2;
+  }
   function hydrate(saved) {
     const upgraded = upgradeV1(saved);
-    return grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded)));
+    return cleanSavings(grossMonths(sanitize(restoreMonths(restoreEntries(mergeShape(DEFAULT_STATE, upgraded), upgraded), upgraded))));
   }
 
   // js/state/store.js
@@ -1507,14 +1540,14 @@
     if (esppChanged) renderList("incomes");
   }
   function renderList(path) {
-    const host = $(`[data-list="${path}"]`);
-    if (!host || host.contains(document.activeElement)) return;
+    const host2 = $(`[data-list="${path}"]`);
+    if (!host2 || host2.contains(document.activeElement)) return;
     const items = get(path);
-    if (items.length) host.innerHTML = items.map((item, i) => ROW_TEMPLATES[path](item, i, ctx)).join("");
-    else if (host.tagName === "TBODY") host.innerHTML = '<tr><td colspan="6" class="hint">No rows</td></tr>';
-    else host.innerHTML = host.hasAttribute("data-quiet") ? "" : '<div class="empty">Nothing added yet</div>';
-    host.hidden = !items.length && host.hasAttribute("data-quiet");
-    syncDropdowns(host);
+    if (items.length) host2.innerHTML = items.map((item, i) => ROW_TEMPLATES[path](item, i, ctx)).join("");
+    else if (host2.tagName === "TBODY") host2.innerHTML = '<tr><td colspan="6" class="hint">No rows</td></tr>';
+    else host2.innerHTML = host2.hasAttribute("data-quiet") ? "" : '<div class="empty">Nothing added yet</div>';
+    host2.hidden = !items.length && host2.hasAttribute("data-quiet");
+    syncDropdowns(host2);
     updateCounts();
   }
   function updateCounts() {
@@ -1526,9 +1559,9 @@
   var renderAllLists = () => Object.keys(ROW_TEMPLATES).forEach(renderList);
   var ESPP_CHIP = '<button type="button" class="chip" data-espp-show id="esppChip">+ Stocks</button>';
   function renderPresets() {
-    $$("[data-presets]").forEach((host) => {
-      const kind = host.dataset.presets;
-      host.innerHTML = PRESETS[kind].map((p, i) => `${kind === "deductions" && p.name === "Loan" ? ESPP_CHIP : ""}<button class="chip" data-preset="${kind}" data-i="${i}">+ ${escapeHtml(p.name)}</button>`).join("");
+    $$("[data-presets]").forEach((host2) => {
+      const kind = host2.dataset.presets;
+      host2.innerHTML = PRESETS[kind].map((p, i) => `${kind === "deductions" && p.name === "Loan" ? ESPP_CHIP : ""}<button class="chip" data-preset="${kind}" data-i="${i}">+ ${escapeHtml(p.name)}</button>`).join("");
     });
   }
   function focusFirstEmpty(path) {
@@ -1536,8 +1569,8 @@
     (inputs.reverse().find((el) => !el.value) ?? inputs[0])?.focus();
   }
   function refresh(path) {
-    const host = $(`[data-list="${path}"]`);
-    if (host?.contains(document.activeElement)) document.activeElement.blur();
+    const host2 = $(`[data-list="${path}"]`);
+    if (host2?.contains(document.activeElement)) document.activeElement.blur();
     renderList(path);
     if (AFFECTS_SELECTS.includes(path)) fillSelects(view());
   }
@@ -1615,8 +1648,8 @@
       if (AFFECTS_SELECTS.some((src) => path.startsWith(`${src}.`))) fillSelects(view());
     });
     document.addEventListener("focusout", (e) => {
-      const host = e.target.closest?.("[data-list]");
-      if (host && IMPACT_LISTS.includes(host.dataset.list)) setTimeout(() => renderList(host.dataset.list));
+      const host2 = e.target.closest?.("[data-list]");
+      if (host2 && IMPACT_LISTS.includes(host2.dataset.list)) setTimeout(() => renderList(host2.dataset.list));
     });
     document.addEventListener("click", (e) => {
       const btn = e.target.closest("button");
@@ -1940,12 +1973,38 @@
       <b>${netShare.toFixed(1)}</b> reaches you as net pay and <b>${(r.realTaxRate * 100).toFixed(1)}</b> goes to the government.</div>`;
   }
 
+  // js/ui/results/savings.js
+  function renderSavings(r, state2, money) {
+    if (!r) return "";
+    const plan = planSavings(r.net / 12, state2.savings);
+    const named = plan.rows.map((row) => ({ ...row, label: escapeHtml(row.name.trim() || "Unnamed") }));
+    const segments = named.map((row) => ({ color: row.color, value: row.amount, label: row.label }));
+    if (plan.left > 0) segments.push({ color: COLORS.net, value: plan.left, label: "Left to spend" });
+    const share = plan.net ? plan.saved / plan.net : 0;
+    return `<div class="stats">
+      ${stat("Monthly net", money(plan.net))}
+      ${stat("Saved / month", money(plan.saved), "pos")}
+      ${stat("Saved / year", money(plan.saved * 12))}
+      ${stat(plan.left < 0 ? "Over budget" : "Left to spend", money(Math.abs(plan.left)), plan.left < 0 ? "neg" : "")}
+    </div>
+    <div class="section-title">Where your net pay goes</div>
+    ${plan.rows.length ? stackedBar(segments) : '<div class="hint">No savings yet \u2014 add one below.</div>'}
+    <div class="spacer"></div>
+    <div class="lines">
+      ${named.map((row) => line(`${row.label} <span class="hint">${row.pct}%</span>`, `${money(row.amount)} <span class="hint">\xB7 ${money(row.amount * 12)} / yr</span>`, "", row.color)).join("")}
+      ${line("Total saved", money(plan.saved), "strong sep")}
+      ${line("Left to spend", money(plan.left), plan.left < 0 ? "neg" : "")}
+    </div>
+    ${plan.over ? `<div class="callout" style="margin-top:14px">Your plan adds up to <b>${plan.totalPct.toFixed(1)}%</b> \u2014 more than your net pay. Lower a percentage below.</div>` : `<div class="callout" style="margin-top:14px">You are saving <b>${formatPercent(share)}</b> of your net pay, which is <b>${money(plan.saved * 12)}</b> a year.</div>`}`;
+  }
+
   // js/ui/results/index.js
   var renderTax = (...args) => `${renderTaxDetail(...args)}<div class="section-title" style="margin-top:18px">By period</div>${renderPeriods(...args)}`;
   var VIEWS = {
     summary: renderSummary,
     tax: renderTax,
-    employer: renderEmployer
+    employer: renderEmployer,
+    savings: renderSavings
   };
   var EMPTY = '<div class="empty" style="padding:40px 16px">Enter a salary to see the breakdown.</div>';
   function initResults() {
@@ -1962,10 +2021,10 @@
   function renderResults(result, state2, money, pay) {
     $("#otRate").innerHTML = otRateLine(pay.result, money);
     const active = state2.ui.resTab;
-    $$("[data-view]").forEach((host) => {
-      if (host.dataset.view !== active || !VIEWS[active]) return;
-      host.innerHTML = result ? VIEWS[active](result, state2, money, pay) : EMPTY;
-      $$(".seg.slide[data-to]", host).forEach((seg) => {
+    $$("[data-view]").forEach((host2) => {
+      if (host2.dataset.view !== active || !VIEWS[active]) return;
+      host2.innerHTML = result ? VIEWS[active](result, state2, money, pay) : EMPTY;
+      $$(".seg.slide[data-to]", host2).forEach((seg) => {
         void seg.offsetWidth;
         seg.style.setProperty("--i", seg.dataset.to);
       });
@@ -2229,14 +2288,14 @@
     </tbody></table></div>`;
   }
   function renderEsppTab(rep, money) {
-    const host = $('[data-view="espp"]');
-    if (!host) return;
+    const host2 = $('[data-view="espp"]');
+    if (!host2) return;
     const focused = document.activeElement;
-    if (host.contains(focused) && focused.tagName === "INPUT") return;
-    const scrollX = host.querySelector(".espp-table")?.scrollLeft ?? 0;
+    if (host2.contains(focused) && focused.tagName === "INPUT") return;
+    const scrollX = host2.querySelector(".espp-table")?.scrollLeft ?? 0;
     const a = getState().espp.assumptions;
     const warn = rep.ready ? "" : `<div class="callout warn">Set the <b>share price</b> and <b>USD rate</b> under Assumptions (or press the live buttons) to value the shares.</div>`;
-    host.innerHTML = `${warn}${topTiles(rep, money)}
+    host2.innerHTML = `${warn}${topTiles(rep, money)}
     <div class="row between" style="margin:4px 0 10px">
       <div class="seg" data-espp-year>${[rep.year - 1, rep.year, rep.year + 1].map((y) => `<button type="button" data-v="${y}" aria-pressed="${y === rep.year}" aria-label="${y === rep.year ? `${y} (shown)` : `Show ${y}`}">${y}</button>`).join("")}</div>
       <span class="hint live-line">Price ${a.price ? usd(a.price) : "\u2014"} \xB7 1 USD = ${a.fx || "\u2014"}
@@ -2247,7 +2306,7 @@
       <div class="inner">${ledgerTable(rep)}</div>
     </details>
     ${breakdown(rep, money, a.discount)}`;
-    const table = host.querySelector(".espp-table");
+    const table = host2.querySelector(".espp-table");
     if (table && scrollX) table.scrollLeft = scrollX;
     reapplySpin();
   }
@@ -2432,20 +2491,20 @@
   </div>`;
   }
   function renderGainEntries(rep, money) {
-    const host = $("[data-espp-gains]");
-    if (!host) return;
+    const host2 = $("[data-espp-gains]");
+    if (!host2) return;
     $("[data-gains-count]").textContent = rep.gains.length ? String(rep.gains.length) : "";
     const focused = document.activeElement;
-    if (host.contains(focused) && focused.tagName === "INPUT") {
+    if (host2.contains(focused) && focused.tagName === "INPUT") {
       rep.gains.forEach((g) => {
-        const el = host.querySelector(`[data-gain-tax="${g.month}"]`);
+        const el = host2.querySelector(`[data-gain-tax="${g.month}"]`);
         if (el) el.textContent = taxText(g, money);
       });
       return;
     }
     const taken = new Set(rep.gains.map((g) => g.month));
     const currency = escapeHtml(activeProfile().currency);
-    host.innerHTML = rep.gains.length ? `<div class="gain-list">
+    host2.innerHTML = rep.gains.length ? `<div class="gain-list">
         <div class="gain-head"><span>Month</span><span class="r">Gain tax ${currency}</span><span class="r">Payslip gain ${currency}</span><span></span></div>
         ${rep.gains.map((g) => rowHtml(g, taken, rep.historyMonths, money)).join("")}</div>` : '<div class="hint">No ESPP gains yet. A History month with an ESPP gain shows up here by itself.</div>';
   }
@@ -2698,17 +2757,17 @@
     <div class="lines compact">${breakdownLines(r, state2, at, { net: false, entered: true })}</div>`;
   }
   function renderHistory(state2, money, pay) {
-    const host = $("#historyList");
-    if (!host) return;
+    const host2 = $("#historyList");
+    if (!host2) return;
     const focused = document.activeElement;
-    if (host.contains(focused) && focused.tagName === "INPUT") return;
+    if (host2.contains(focused) && focused.tagName === "INPUT") return;
     const month = scopeMonth();
     const saved = isSaved(state2, month);
     const dirty = !saved || scopeDirty() || !!movingFrom || overriding;
     const ask = askOverride ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, "long"))} is already saved. Override it?</span>
         <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
         <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>` : "";
-    host.innerHTML = `${savedList(state2, month, money)}
+    host2.innerHTML = `${savedList(state2, month, money)}
     <div class="row hist-bar">
       ${monthPickerHtml("hist", month, monthList(state2.months))}
       <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
@@ -2971,6 +3030,136 @@
     });
   }
 
+  // js/ui/savingsEditor.js
+  var CROSS2 = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+  var GRIP = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.8"/><circle cx="15" cy="6" r="1.8"/><circle cx="9" cy="12" r="1.8"/><circle cx="15" cy="12" r="1.8"/><circle cx="9" cy="18" r="1.8"/><circle cx="15" cy="18" r="1.8"/></svg>';
+  var host = () => $("[data-savings-list]");
+  var idOf = (el) => el.closest("[data-sv]")?.dataset.sv;
+  function rowHtml2(s) {
+    const name = escapeHtml(s.name || "saving");
+    return `<div class="sv-row" data-sv="${escapeHtml(s.id)}">
+    <button type="button" class="sv-grip" data-sv-grip aria-label="Drag to reorder ${name}" title="Drag to reorder">${GRIP}</button>
+    <input type="text" data-sv-name value="${escapeHtml(s.name)}" placeholder="Name" maxlength="40" aria-label="Saving name">
+    <input type="text" inputmode="decimal" data-sv-pct value="${escapeHtml(s.pct)}" placeholder="0" aria-label="Percentage of net pay">
+    <input type="color" data-sv-color value="${escapeHtml(s.color)}" aria-label="Colour for ${name}">
+    <button type="button" class="btn icon ghost danger" data-sv-del aria-label="Remove ${name}" title="Remove">${CROSS2}</button>
+  </div>`;
+  }
+  function renderSavingsEditor(state2 = getState()) {
+    const el = host();
+    if (!el) return;
+    if (el.contains(document.activeElement) && document.activeElement.tagName === "INPUT") return;
+    const list = state2.savings;
+    $("[data-savings-count]").textContent = list.length ? String(list.length) : "";
+    el.innerHTML = list.length ? `<div class="sv-head"><span></span><span>Name</span><span class="r">%</span><span>Colour</span><span></span></div>${list.map(rowHtml2).join("")}` : '<div class="hint">No savings yet.</div>';
+  }
+  function initSavingsEditor(onChanged) {
+    const edit = (id, fn) => update((s) => {
+      const item = s.savings.find((x) => x.id === id);
+      if (item) fn(item);
+    });
+    document.addEventListener("input", (e) => {
+      const id = e.target.closest?.("[data-sv]") && idOf(e.target);
+      if (!id) return;
+      if (e.target.matches("[data-sv-name]")) edit(id, (i) => {
+        i.name = e.target.value;
+      });
+      else if (e.target.matches("[data-sv-pct]")) {
+        e.target.value = e.target.value.replace(/[^\d.]/g, "").replace(/(\..*)\./g, "$1");
+        edit(id, (i) => {
+          i.pct = e.target.value;
+        });
+      } else if (e.target.matches("[data-sv-color]")) edit(id, (i) => {
+        i.color = e.target.value;
+      });
+    });
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-sv-add]")) {
+        update((s) => {
+          const color = SAVINGS_COLORS[s.savings.length % SAVINGS_COLORS.length];
+          s.savings.push({ id: newId("sv"), name: "", pct: "", color });
+        });
+        onChanged();
+        host().querySelector(".sv-row:last-child [data-sv-name]")?.focus();
+        return;
+      }
+      const del = e.target.closest("[data-sv-del]");
+      if (del) {
+        const id = idOf(del);
+        update((s) => {
+          s.savings = s.savings.filter((x) => x.id !== id);
+        });
+        onChanged();
+      }
+    });
+    document.addEventListener("pointerdown", (e) => {
+      const grip = e.target.closest("[data-sv-grip]");
+      if (!grip || e.pointerType === "mouse" && e.button !== 0) return;
+      const row = grip.closest(".sv-row");
+      const rows = $$(".sv-row", host());
+      const from = rows.indexOf(row);
+      const tops = rows.map((r) => r.offsetTop);
+      const startY = e.clientY;
+      const min = tops[0] - tops[from];
+      const max = tops[rows.length - 1] - tops[from];
+      let target = from;
+      let dy = 0;
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+      host().classList.add("sorting");
+      row.classList.add("dragging");
+      const place = () => {
+        row.style.transform = `translateY(${dy}px) scale(1.015)`;
+        const mid = tops[from] + dy + row.offsetHeight / 2;
+        target = tops.reduce((best, top, i) => mid >= top ? i : best, 0);
+        rows.forEach((r, i) => {
+          if (r === row) return;
+          const shift = from < target && i > from && i <= target ? tops[i - 1] - tops[i] : from > target && i < from && i >= target ? tops[i + 1] - tops[i] : 0;
+          r.style.transform = shift ? `translateY(${shift}px)` : "";
+        });
+      };
+      const move = (ev) => {
+        dy = Math.min(Math.max(ev.clientY - startY, min), max);
+        place();
+      };
+      const end = () => {
+        grip.removeEventListener("pointermove", move);
+        grip.removeEventListener("pointerup", end);
+        grip.removeEventListener("pointercancel", end);
+        row.classList.remove("dragging");
+        row.classList.add("settling");
+        row.style.transform = `translateY(${tops[target] - tops[from]}px)`;
+        const done = () => {
+          const id = row.dataset.sv;
+          update((s) => {
+            const [item] = s.savings.splice(from, 1);
+            s.savings.splice(target, 0, item);
+          });
+          onChanged();
+          host().querySelector(`[data-sv="${id}"] [data-sv-grip]`)?.focus({ preventScroll: true });
+        };
+        setTimeout(done, 170);
+      };
+      grip.addEventListener("pointermove", move);
+      grip.addEventListener("pointerup", end);
+      grip.addEventListener("pointercancel", end);
+    });
+    document.addEventListener("keydown", (e) => {
+      const grip = e.target.closest?.("[data-sv-grip]");
+      if (!grip || e.key !== "ArrowUp" && e.key !== "ArrowDown") return;
+      e.preventDefault();
+      const id = idOf(grip);
+      update((s) => {
+        const i = s.savings.findIndex((x) => x.id === id);
+        const j = i + (e.key === "ArrowUp" ? -1 : 1);
+        if (i < 0 || j < 0 || j >= s.savings.length) return;
+        [s.savings[i], s.savings[j]] = [s.savings[j], s.savings[i]];
+      });
+      onChanged();
+      host().querySelector(`[data-sv="${id}"] [data-sv-grip]`)?.focus();
+    });
+  }
+
   // js/main.js
   function compute(input) {
     const amount = toNumber(input.amount);
@@ -3030,6 +3219,7 @@
     const state2 = view();
     fillSelects(state2);
     renderAllLists();
+    renderSavingsEditor(state2);
     render(state2);
   }
   initTabs();
@@ -3049,6 +3239,7 @@
   initRateFetcher();
   initEspp(rebuild);
   initGainEntries(rebuild);
+  initSavingsEditor(rebuild);
   initHistory(rebuild);
   initSaveMonth(rebuild, (month) => {
     showTab("history", month);

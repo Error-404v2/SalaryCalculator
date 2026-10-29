@@ -44,6 +44,11 @@ export const DEFAULT_PROFILE = Object.freeze({
 
 export const DEFAULT_STATE = Object.freeze({
   amount: '',
+  savings: [
+    { id: 'sv1', name: 'Emergency fund', pct: 10, color: '#2f9e8f' },
+    { id: 'sv2', name: 'Investments', pct: 10, color: '#5b7fe0' },
+    { id: 'sv3', name: 'Gold & certificates', pct: 5, color: '#e0a526' },
+  ],
   per: 'month',
   mode: 'gross',
   year: '2026',
@@ -91,6 +96,6 @@ export const DEFAULT_STATE = Object.freeze({
     bracketPeriod: 'month',
     theme: '',
     taxEdit: false,
-    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, histSaved: true, histSummary: true },
+    open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, savings: false, histSaved: true, histSummary: true },
   },
 });

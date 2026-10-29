@@ -1154,6 +1154,100 @@ input.rate-error {
   color: var(--pos);
   font-weight: 600;
 }
+.sv-head,
+.sv-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) 64px 38px 28px;
+  gap: 6px;
+  align-items: center;
+}
+.sv-head {
+  padding: 0 0 4px;
+  font-size: .68rem;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  font-weight: 600;
+}
+.sv-head .r {
+  text-align: right;
+}
+.sv-row {
+  padding: 3px 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+.sv-row input[type=text] {
+  height: 30px;
+  font-size: .85rem;
+  padding: 0 8px;
+}
+.sv-row [data-sv-pct] {
+  text-align: right;
+}
+.sv-row input[type=color] {
+  width: 38px;
+  height: 30px;
+  padding: 2px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  cursor: pointer;
+}
+.sv-row .btn.icon {
+  width: 28px;
+  height: 28px;
+}
+.sv-row .btn.icon svg,
+.sv-grip svg {
+  width: 13px;
+  height: 13px;
+}
+.sv-grip {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  cursor: grab;
+  touch-action: none;
+  border-radius: var(--radius-sm);
+}
+.sv-grip:hover,
+.sv-grip:focus-visible {
+  color: var(--text);
+  background: var(--surface-2);
+}
+.sv-list {
+  position: relative;
+}
+.sv-row {
+  position: relative;
+  transition:
+    transform .18s cubic-bezier(.2, .8, .2, 1),
+    box-shadow .18s,
+    background-color .18s;
+  border-radius: var(--radius-sm);
+}
+.sorting .sv-row {
+  user-select: none;
+}
+.sv-row.dragging {
+  z-index: 3;
+  transition: box-shadow .18s, background-color .18s;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .28), 0 0 0 1px var(--accent);
+}
+.sv-row.dragging .sv-grip {
+  cursor: grabbing;
+  color: var(--accent);
+}
+.sv-row.settling {
+  z-index: 3;
+  background: color-mix(in srgb, var(--accent) 6%, var(--surface));
+}
 
 /* css/tables.css */
 .sticky-first th:first-child,
