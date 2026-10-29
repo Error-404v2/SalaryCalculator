@@ -34,8 +34,8 @@ The salary amount is the only required field.
 Collapsible sections, in this order:
 
 1. **Overtime:** shows the base (×1) hourly rate, gross and net. Choose a type (Holiday ×2, Rest day ×1.7, Weekday ×1.35, Regular ×1, Night ×0.09) or *Custom…*, which unlocks the multiplier. Entries are always sorted. Each one shows its gross and its **real net effect**.
-2. **Allowances & bonuses:** starts with *Transportation 1,000 / month*. Quick-add: Transportation, Profit share (GDP), Bonus. Holds regular allowances (each with its own period and *taxable* / *counts toward SI base* flags) and **cash awards** (amount, currency, exchange rate, period, and net effect).
-   - Period choices depend on the item: Transportation is *Monthly* or *Annual*; Profit share, Bonus, added allowances and cash awards are *One-Time*, *Bi-annual* or *Quarterly*. **One-Time** counts in full in the month it's paid instead of being spread over the year.
+2. **Allowances & bonuses:** starts with *Transportation 1,000 / month*. Quick-add: Transportation, Profit share (GDP), Bonus. Holds regular allowances (each with its own period and *taxable* / *counts toward SI base* flags, plus *Included in ESPP* — on by default, shown only while the ESPP variable % is above 0) and **cash awards** (amount, currency, exchange rate, period, and net effect).
+   - Period choices depend on the item: Transportation is *Monthly* or *Annual*; Profit share, Bonus and added allowances are *One-Time*, *Bi-annual* or *Quarterly*; cash awards are *One-Time* or *Monthly* (the month is calculated the same; the yearly line is one payment or twelve). Cash awards show their gross and net per month and per year, and every taxed allowance shows its `net` beside it in the summary. **One-Time** counts in full in the month it's paid instead of being spread over the year.
    - **Live rate ⟳** fetches today's rate with no setup or API key. It tries open.er-api.com first, then the currency-api on jsDelivr, and caches the result for an hour. The rate box turns **green** on success, or **red** if no source could be reached (enter the rate manually then; typing a rate clears the colour).
 3. **Other deductions:** taken before tax or after tax. Medical insurance (default 230.8) is *Monthly* or *Annual*; other deductions can't be daily or hourly.
    - **Stocks:** add it with *+ Stocks* (before Loan) or *+ Add Stocks*. It becomes the first deduction: *Constant %* (of basic) and *Variable %* (of whatever is ticked under More options → Settings → *Stocks: what counts as variable*), side by side, then a banner with the monthly amounts. It comes out of net pay after tax and is on whenever a % is above 0.
@@ -48,7 +48,9 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 **Save Month** (Pay tab bar, right): stores a full copy of the Pay tab under a month, always as a **gross** salary (a Net → Gross Pay tab is solved first). One line: *Done*, *Cancel*, then a dropdown of saved months (nearest first) and *Custom…*, which turns into a calendar. The last calendar pick stays in the dropdown as "(not saved)". Saving over an existing month asks first, inline; after saving, the History tab opens on that month.
 
 **History tab** (input card), with *Fill Pay* in the tab bar to copy the open month into the Pay tab:
-- **Saved months:** collapsible, *+ New month* first, then one line per month with its final (net) pay in grey and a red − to delete it (asks inline). While a saved month has changes waiting to be saved (edits, or a rename), a **reset** arrow appears before the − and puts it back to its saved state.
+- **Saved months:** collapsible; with several years, grouped under compact year headers (newest, and the open month's year, expanded). *+ New month* copies the values currently entered (unsaved ones included) into the new month and puts the month it came from back to its saved state.
+- **Dropdowns:** the month, year and currency lists show 5½ rows and scroll; month lists spanning several years group them under expandable years, with only the latest expanded.
+- **Saved months (old note):** *+ New month* first, then one line per month with its final (net) pay in grey and a red − to delete it (asks inline). While a saved month has changes waiting to be saved (edits, or a rename), a **reset** arrow appears before the − and puts it back to its saved state.
 - **Month and Save:** a calendar on the left and *Save* on the right (greyed out as *Saved* when nothing changed). Picking another month only renames the open entry: its values carry over untouched, even when the picked month is already saved (that month's own entry is never opened or merged). Save stores it under the picked month, and asks "Override it?" first if that month already exists. Renaming through a saved month and on (e.g. new October → May → October) never touches May: both stay listed and May keeps its saved values. To open a saved month, use the *Saved months* list.
 - **Summary of (month):** collapsible; net pay, then the pay items and deductions as compact lines, with the values you entered softly highlighted.
 - **The Pay form:** the same collapsibles and items as the Pay tab, editing that month. Gross → Net, tax year and Pro-rata stay on the Pay tab.
@@ -57,7 +59,7 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 
 - **Summary:** annual / monthly / daily / hourly view. Earnings are shown in green and deductions in red. One tile shows the average income tax with the max bracket under it.
 - **Tax:** pick a **tax profile**, then *Edit*, *+ New* (copies the current one) or *Delete* (shown only when there's more than one profile). A profile holds:
-  - currency (from the list, or *Custom…* for any code)
+  - currency (EGP, USD, SAR, AED, EUR, or *Custom* to type any code; the arrow on the right returns to the list)
   - brackets (rate / from / to / excluded above)
   - exemption
   - levies (% of gross or of taxable income)
@@ -86,6 +88,13 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
 ### How the net effect of overtime and cash awards is calculated
 
 `net(with all overtime) − net(without overtime)`, keeping the basic salary the same. This captures the extra income tax from moving into higher brackets, the levies, and any change in social insurance. Because tax is progressive, the group total is split across the entries in proportion to their gross amount, so the entries always add up to the total.
+
+## To do
+
+Work on these in the `beta` branch, after publishing the current version with the fixes.
+
+- **Savings planning tab:** a new tab based on the monthly net pay, drawn like the employer-cost view but for planning savings.
+  - Below the chart, a collapsible editor for each saving's name and percentage, with drag-and-drop ordering (like the ESPP Gains list) and a colour choice for each.
 
 ## Structure
 

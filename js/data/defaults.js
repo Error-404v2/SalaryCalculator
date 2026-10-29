@@ -14,7 +14,8 @@ const EGYPT_BRACKETS_2026 = [
 /** Fee taken off a withdrawal (USD). */
 export const DEFAULT_WITHDRAWAL_FEE = '35';
 
-export const CURRENCIES =['EGP', 'USD', 'EUR', 'GBP', 'SAR', 'AED', 'KWD', 'QAR'];
+/** The currencies offered everywhere, in this order; "Custom" lets the user type any other code. */
+export const CURRENCIES = ['EGP', 'USD', 'SAR', 'AED', 'EUR'];
 
 /** A tax profile holds every country-specific rule, so other tax systems are just another profile. */
 export const DEFAULT_PROFILE = Object.freeze({
@@ -52,7 +53,7 @@ export const DEFAULT_STATE = Object.freeze({
   overrides: { siBase: '', taxable: '', taxablePer: 'month' },
   payPeriod: { months: '1', days: '0' },
   schedule: { weeksPerYear: '52', daysPerWeek: '5', hoursPerDay: '8', otHoursBase: '170' },
-  incomes: [{ name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false }],
+  incomes: [{ name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false, inEspp: true }],
   overtime: [],
   cashAwards: [],
   deductions: [],

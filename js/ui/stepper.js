@@ -5,6 +5,7 @@ import * as store from '../state/store.js';
 
 const DRAG_THRESHOLD_PX = 6;
 const PX_PER_STEP = 24;
+/** An input can ask for a slower swipe with `data-px-per-step` (pixels dragged per step). */
 
 const limitOf = (input, key, fallback) => (input.dataset[key] === undefined ? fallback : Number(input.dataset[key]));
 
@@ -20,6 +21,7 @@ function enableDrag(input) {
   let startY = 0;
   let stepsApplied = 0;
   let dragging = false;
+  const pxPerStep = Number(input.dataset.pxPerStep) || PX_PER_STEP;
 
   input.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse') return;
@@ -37,7 +39,7 @@ function enableDrag(input) {
       input.setPointerCapture(e.pointerId);
       input.blur();
     }
-    const target = Math.trunc(delta / PX_PER_STEP);
+    const target = Math.trunc(delta / pxPerStep);
     if (target !== stepsApplied) {
       applyStep(input, target - stepsApplied);
       stepsApplied = target;

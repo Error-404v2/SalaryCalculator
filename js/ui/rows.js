@@ -20,8 +20,11 @@ const num = (path, i, key, value, placeholder, extra = {}) => text(path, i, key,
 const check = (path, i, key, value, label) =>
   `<label class="check"><input type="checkbox" data-path="${path}.${i}.${key}"${value ? ' checked' : ''} aria-label="${escapeHtml(label || key)}"> ${label}</label>`;
 
-const select = (path, i, key, optionsHtml, cls = '') =>
-  `<select class="${cls}" data-path="${path}.${i}.${key}" aria-label="${key}">${optionsHtml}</select>`;
+const select = (path, i, key, optionsHtml, cls = '', attrs = '') =>
+  `<select class="${cls}" data-path="${path}.${i}.${key}" aria-label="${key}"${attrs}>${optionsHtml}</select>`;
+
+/** "Included in ESPP" only matters, and only shows, while the variable part of ESPP is above 0. */
+const esppCheck = (path, i, it, ctx) => (ctx.esppVar ? check(path, i, 'inEspp', it.inEspp !== false, 'Included in ESPP') : '');
 
 const OT_OPTIONS = [...OT_TYPES.map((t) => ({ value: t.id, label: `${t.label} ×${t.mult}` })), { value: 'custom', label: 'Custom…' }];
 const MODE_OPTIONS = [{ value: 'progressive', label: 'Brackets' }, { value: 'flat', label: 'Flat' }];
@@ -29,10 +32,10 @@ const LEVY_BASES = [{ value: 'gross', label: 'Gross' }, { value: 'taxable', labe
 
 /** `ctx` carries per-render info: { currency, money, impacts: { overtime: [], cashAwards: [] } }. */
 export const ROW_TEMPLATES = {
-  incomes: (it, i) => `<div class="item income">
+  incomes: (it, i, ctx) => `<div class="item income">
     ${text('incomes', i, 'name', it.name, 'Name')}${num('incomes', i, 'amount', it.amount, 'Amount', { money: true })}
     ${select('incomes', i, 'per', periodOptions(it.per, itemPeriods('incomes', it)))}${removeBtn('incomes', i)}
-    ${advanced('incomes', i, `${check('incomes', i, 'taxable', it.taxable, 'Taxable')}${check('incomes', i, 'insurable', it.insurable, 'Counts toward SI base')}`)}</div>`,
+    ${advanced('incomes', i, `${check('incomes', i, 'taxable', it.taxable, 'Taxable')}${check('incomes', i, 'insurable', it.insurable, 'Counts toward SI base')}${esppCheck('incomes', i, it, ctx)}`)}</div>`,
 
   overtime: (it, i, ctx) => {
     const preset = otType(it.type);
@@ -48,27 +51,30 @@ export const ROW_TEMPLATES = {
 
   cashAwards: (it, i, ctx) => {
     const foreign = it.currency !== ctx.currency;
-    const currencies = [...new Set([...CURRENCIES, ctx.currency, it.currency])].map((c) => ({ value: c, label: c }));
+    const currencies = [...new Set([...CURRENCIES, it.currency])].map((c) => ({ value: c, label: c }));
     const tone = { ok: ' rate-ok', error: ' rate-error' }[rateStatus(i)] ?? '';
     const rateRow = `<div class="flags"><label class="inline">1 ${escapeHtml(it.currency)} = ${num('cashAwards', i, 'rate', it.rate, 'rate', { cls: `xs${tone}` })} ${escapeHtml(ctx.currency)}</label>
       <button type="button" class="btn sm ghost live${rateStatus(i) === 'loading' ? ' loading' : ''}" data-fetch-rate="${i}" title="Get the current rate online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Live rate</button></div>`;
     const impact = ctx.impacts.cashAwards[i];
+    // The month is calculated the same for both; they differ only in the year: One-time is paid once, Monthly 12 times.
+    const monthly = it.per === 'month';
     const net = impact && impact.annual > 0
-      ? `<div class="impact"><span>${ctx.money(impact.annual * ctx.factor)} gross / yr</span><b>${ctx.money(impact.netAnnual * ctx.factor)} net / yr</b></div>`
+      ? `<div class="impact"><span>${ctx.money((impact.annual / 12) * ctx.factor)} gross</span><b>+ ${ctx.money((impact.netAnnual / 12) * ctx.factor)} net${ctx.factor === 1 ? ' / month' : ''}</b></div>
+        <div class="impact sub"><span>${ctx.money((impact.annual / 12) * ctx.factor * (monthly ? 12 : 1))} gross / yr</span><b>${ctx.money((impact.netAnnual / 12) * ctx.factor * (monthly ? 12 : 1))} net / yr</b></div>`
       : '';
     return `<div class="item award">
       ${text('cashAwards', i, 'name', it.name, 'Name')}${num('cashAwards', i, 'amount', it.amount, 'Amount', { money: true })}
-      ${select('cashAwards', i, 'currency', optionList(currencies, it.currency))}${removeBtn('cashAwards', i)}
+      ${select('cashAwards', i, 'currency', optionList(currencies, it.currency), '', ' data-dd="currency"')}${removeBtn('cashAwards', i)}
       ${foreign ? rateRow : ''}
-      ${advanced('cashAwards', i, `${select('cashAwards', i, 'per', periodOptions(it.per, itemPeriods('cashAwards', it)), 'xs-select')}${check('cashAwards', i, 'taxable', it.taxable, 'Taxable')}`)}
+      ${advanced('cashAwards', i, `${select('cashAwards', i, 'per', periodOptions(it.per, itemPeriods('cashAwards', it)), 'xs-select')}${check('cashAwards', i, 'taxable', it.taxable, 'Taxable')}${esppCheck('cashAwards', i, it, ctx)}`)}
       ${net}</div>`;
   },
 
   deductions: (it, i) => `<div class="item income">
     ${text('deductions', i, 'name', it.name, 'Name')}${num('deductions', i, 'amount', it.amount, 'Amount', { money: true })}
     ${select('deductions', i, 'per', periodOptions(it.per, itemPeriods('deductions', it)))}${removeBtn('deductions', i)}
-    ${advanced('deductions', i, check('deductions', i, 'pretax', it.pretax, 'Before tax (reduces taxable income)'))}</div>`,
+    ${advanced('deductions', i, check('deductions', i, 'pretax', it.pretax, 'Exclude from taxable income'))}</div>`,
 
   '@.tax.brackets': (b, i) => {
     const p = '@.tax.brackets';

@@ -41,6 +41,9 @@ function sanitize(state) {
   [...state.incomes, ...state.deductions, ...state.cashAwards].forEach((item) => {
     if (!isItemPeriod(item.per)) item.per = 'month';
   });
+  [...state.incomes, ...state.cashAwards].forEach((item) => {
+    if (typeof item.inEspp !== 'boolean') item.inEspp = true;
+  });
   sortOvertime(state.overtime);
   // A blank withdrawal fee means "use the default" (type 0 for no fee). 54.95 was the previous default, so it moves too.
   const fee = String(state.espp.assumptions.withdrawalFee ?? '').trim();

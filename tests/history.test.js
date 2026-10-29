@@ -132,3 +132,8 @@ test('monthsOfYear lists twelve months', () => {
   assert.equal(monthsOfYear(2026)[0], '2026-01');
   assert.equal(monthsOfYear(2026)[11], '2026-12');
 });
+
+test('cash awards offer One-Time or Monthly only; older periods stay selectable', () => {
+  assert.deepEqual(itemPeriods('cashAwards', { name: 'Cash Award' }).map((p) => p.id), ['once', 'month']);
+  assert.deepEqual(itemPeriods('cashAwards', { per: 'year' }).map((p) => p.id), ['once', 'month', 'year']);
+});

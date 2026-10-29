@@ -33,9 +33,9 @@ export function breakdownLines(r, state, at, { net = true, entered = false } = {
     line(`${label}${netAnnual !== undefined ? ` <span class="hint">net ${at(netAnnual)}</span>` : ''}`, positive(at(annual)), `sub${mine}`);
   const earnings = [
     line('Basic salary', positive(at(r.baseAnnual)), mine.trim()),
-    ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? '' : ' <span class="hint">(exempt)</span>'), it.annual)),
+    ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? '' : ' <span class="hint">(exempt)</span>'), it.annual, it.taxable ? it.netAnnual : undefined)),
     ...r.overtime.filter((o) => o.annual).map((o) => sub(escapeHtml(o.label), o.annual, o.netAnnual)),
-    ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.netAnnual)),
+    ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.taxable ? a.netAnnual : undefined)),
     r.esppGain ? line(`ESPP gain <span class="hint">taxed, then offset</span>`, positive(at(r.esppGain)), `sub${mine}`) : '',
     line('Gross pay', positive(at(r.grossAnnual)), 'strong'),
   ];

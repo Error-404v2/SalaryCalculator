@@ -18,6 +18,7 @@ import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
 import { initMonthPickers } from './ui/monthPicker.js';
 import { ensureMonthRates, monthRates } from './ui/esppRates.js';
 import { initMoneyInputs } from './ui/numberInputs.js';
+import { initDropdowns, syncDropdowns } from './ui/dropdown.js';
 
 function compute(input) {
   const amount = toNumber(input.amount);
@@ -57,6 +58,7 @@ function render(state) {
     currency: input.profile.currency,
     money,
     factor: pay.factor,
+    esppVar: toNumber(state.espp?.varPct) > 0,
     impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] },
   });
   renderResults(result, input, money, pay);
@@ -77,6 +79,7 @@ function render(state) {
     renderGainEntries(report, money);
     ensureMonthRates(report.year, rebuild);
   }
+  syncDropdowns();
 }
 
 function rebuild() {
@@ -88,6 +91,7 @@ function rebuild() {
 
 initTabs();
 initMonthPickers();
+initDropdowns();
 initMoneyInputs();
 initBindings();
 initLists();

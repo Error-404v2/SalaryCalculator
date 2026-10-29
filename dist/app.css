@@ -504,11 +504,6 @@ details.more > .inner {
   padding: 0 10px;
   font-size: .82rem;
 }
-input.cur-code {
-  width: 90px;
-  flex: 0 0 auto;
-  text-transform: uppercase;
-}
 .pay-period .label {
   margin: 0;
 }
@@ -637,6 +632,10 @@ input.cur-code {
 .item .impact b {
   color: var(--ok);
   font-weight: 650;
+}
+.item .impact.sub {
+  border-top: 0;
+  padding-top: 0;
 }
 .inline {
   display: inline-flex;
@@ -1157,6 +1156,24 @@ input.rate-error {
 }
 
 /* css/tables.css */
+.sticky-first th:first-child,
+.sticky-first td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--surface);
+  box-shadow: 1px 0 0 var(--border);
+}
+.sticky-first th:first-child {
+  background: var(--surface-2);
+  z-index: 3;
+}
+.sticky-first tr.total td:first-child {
+  background: color-mix(in srgb, var(--accent-soft) 100%, var(--surface));
+}
+.sticky-first tr.active td:first-child {
+  box-shadow: inset 3px 0 0 var(--accent), 1px 0 0 var(--border);
+}
 .table-wrap {
   overflow-x: auto;
   border: 1px solid var(--border);
@@ -1623,6 +1640,68 @@ tr.active td:first-child {
 .month-item:hover {
   color: var(--accent);
 }
+.month-year-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 4px;
+  margin-top: 2px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-align: left;
+}
+.month-year-head .yr {
+  font-size: .8rem;
+}
+.month-year-head .hint {
+  margin: 0;
+  font-weight: 500;
+  font-size: .72rem;
+  letter-spacing: 0;
+}
+.month-year-head .yr-total {
+  margin-left: auto;
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.month-year-head .yr-chev {
+  flex: 0 0 28px;
+  margin-left: 4px;
+  display: flex;
+  justify-content: center;
+}
+.month-year-head.on {
+  color: var(--accent);
+}
+.month-year-head:hover {
+  color: var(--accent);
+}
+.month-year-head svg {
+  width: 9px;
+  height: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  transition: transform .15s;
+}
+.month-year:not(.open) .month-year-head svg {
+  transform: rotate(-90deg);
+}
+.month-year + .month-year {
+  border-top: 1px solid var(--border);
+}
+.month-year .month-row:first-of-type {
+  border-top: 0;
+}
 .month-item.add {
   color: var(--accent);
   font-weight: 600;
@@ -1878,6 +1957,190 @@ select option {
 }
 .hist-summary:not([open]) .chev {
   transform: rotate(-90deg);
+}
+
+/* css/dropdown.css */
+select[data-dd] {
+  display: none;
+}
+.dd {
+  position: relative;
+  min-width: 0;
+  --dd-h: 40px;
+  --dd-row: 32px;
+}
+.dd[hidden] {
+  display: none;
+}
+.dd.sm {
+  --dd-h: 34px;
+  font-size: .88rem;
+}
+.dd.xs-select {
+  --dd-h: 30px;
+  font-size: .85rem;
+}
+.save-slot .dd {
+  --dd-h: 32px;
+  font-size: .88rem;
+  width: 100%;
+}
+.gain-row .dd {
+  --dd-h: 30px;
+  font-size: .85rem;
+}
+.dd-btn {
+  width: 100%;
+  height: var(--dd-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 11px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: inherit;
+  color: var(--text);
+  text-align: left;
+  outline: none;
+}
+.dd.sm .dd-btn,
+.gain-row .dd-btn {
+  padding: 0 8px;
+}
+.dd-btn:hover,
+.dd-btn[aria-expanded=true] {
+  border-color: var(--accent);
+}
+.dd-btn:focus-visible,
+.dd.typing:focus-within .dd-btn {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.dd-btn:disabled {
+  opacity: .65;
+  cursor: not-allowed;
+}
+.dd-btn svg {
+  width: 10px;
+  height: 6px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: var(--muted);
+  stroke-width: 1.6;
+}
+.dd-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dd-label.placeholder {
+  color: var(--muted);
+}
+.dd .dd-input,
+.dd .dd-input:focus {
+  position: absolute;
+  left: 1px;
+  top: 1px;
+  bottom: 1px;
+  right: 30px;
+  width: auto;
+  height: auto;
+  padding: 0 10px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 1px) 0 0 calc(var(--radius-sm) - 1px);
+  box-shadow: none;
+  background: var(--surface-2);
+  font-size: inherit;
+  text-transform: uppercase;
+}
+.dd .dd-input[hidden] {
+  display: none;
+}
+.dd.typing .dd-label {
+  visibility: hidden;
+}
+.dd-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 100%;
+  width: max-content;
+  max-width: min(280px, 86vw);
+  max-height: calc(var(--dd-row) * 5.5 + 2px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
+}
+.dd-pop[hidden],
+.dd-items[hidden] {
+  display: none;
+}
+.save-slot .dd-pop {
+  left: auto;
+  right: 0;
+}
+.dd-opt,
+.dd-year {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  height: var(--dd-row);
+  padding: 0 11px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-size: .88rem;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.dd-opt:hover,
+.dd-year:hover {
+  background: var(--surface-2);
+}
+.dd-opt[aria-selected=true] {
+  color: var(--accent);
+  font-weight: 600;
+  background: var(--accent-soft);
+}
+.dd-year {
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .03em;
+  border-bottom: 1px solid var(--border);
+}
+.dd-year > span:first-child {
+  margin-right: auto;
+}
+.dd-n {
+  font-weight: 500;
+  font-size: .72rem;
+}
+.dd-year svg {
+  width: 9px;
+  height: 6px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  transition: transform .15s;
+}
+.dd-year[aria-expanded=false] svg {
+  transform: rotate(-90deg);
+}
+.dd-group .dd-opt {
+  padding-left: 20px;
 }
 
 /* css/main.css */

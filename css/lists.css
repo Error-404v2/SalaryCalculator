@@ -16,6 +16,7 @@
   font-size: .8rem; color: var(--muted); padding: 4px 2px 0; border-top: 1px dashed var(--border);
 }
 .item .impact b { color: var(--ok); font-weight: 650; }
+.item .impact.sub { border-top: 0; padding-top: 0; }
 .inline { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--muted); }
 @media (max-width: 420px) {
   .item, .item.award { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 34px; }

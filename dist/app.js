@@ -37,12 +37,13 @@
   var PERIOD_SETS = {
     occasional: ["once", "half", "quarter"],
     recurring: ["month", "year"],
+    award: ["once", "month"],
     deduction: ["month", "quarter", "half", "year"]
   };
   function itemPeriods(list, item = {}) {
     const name = String(item.name ?? "").toLowerCase();
     const recurring = name.startsWith("transport") || name.startsWith("medical");
-    const set2 = recurring ? PERIOD_SETS.recurring : list === "deductions" ? PERIOD_SETS.deduction : PERIOD_SETS.occasional;
+    const set2 = list === "cashAwards" ? PERIOD_SETS.award : recurring ? PERIOD_SETS.recurring : list === "deductions" ? PERIOD_SETS.deduction : PERIOD_SETS.occasional;
     const ids = item.per && !set2.includes(item.per) && isItemPeriod(item.per) ? [...set2, item.per] : set2;
     return ids.map((id) => ITEM_PERIODS.find((p) => p.id === id));
   }
@@ -158,9 +159,9 @@
   ];
   var PRESETS = {
     incomes: [
-      { name: "Transportation", amount: "1000", per: "month", taxable: true, insurable: false },
-      { name: "Profit share (GDP)", amount: "", per: "once", taxable: false, insurable: false },
-      { name: "Bonus", amount: "", per: "once", taxable: true, insurable: false }
+      { name: "Transportation", amount: "1000", per: "month", taxable: true, insurable: false, inEspp: true },
+      { name: "Profit share (GDP)", amount: "", per: "once", taxable: false, insurable: false, inEspp: true },
+      { name: "Bonus", amount: "", per: "once", taxable: true, insurable: false, inEspp: true }
     ],
     deductions: [
       { name: "Medical insurance", amount: "230.8", per: "month", pretax: false },
@@ -168,8 +169,8 @@
     ]
   };
   var BLANK_ROWS = {
-    incomes: { name: "", amount: "", per: "once", taxable: true, insurable: false },
-    cashAwards: { name: "Cash Award", amount: "", currency: "USD", rate: "", per: "once", taxable: true },
+    incomes: { name: "", amount: "", per: "once", taxable: true, insurable: false, inEspp: true },
+    cashAwards: { name: "Cash Award", amount: "", currency: "USD", rate: "", per: "once", taxable: true, inEspp: true },
     deductions: { name: "", amount: "", per: "month", pretax: false },
     "@.tax.brackets": { rate: "", min: "", max: "", exclusion: "" },
     "@.levies": { name: "", rate: "", base: "gross" },
@@ -205,7 +206,8 @@
       name: it.name || "Allowance",
       annual: toAnnual(it.amount, it.per || "month", schedule),
       taxable: it.taxable !== false,
-      insurable: !!it.insurable
+      insurable: !!it.insurable,
+      inEspp: it.inEspp !== false
     }));
   }
   function annualizeOvertime(overtime, hourlyRate) {
@@ -223,6 +225,7 @@
         per,
         annual: toAnnual(toNumber(a.amount) * rate, per, schedule),
         taxable: a.taxable !== false,
+        inEspp: a.inEspp !== false,
         missingRate: toNumber(a.amount) > 0 && !(rate > 0)
       };
     });
@@ -288,10 +291,11 @@
     const leviesTotal = sum(levies, (l) => l.annual);
     const espp = computeEspp(input.espp, {
       baseAnnual,
-      taxableAllowances: sum(incomes.filter((i) => i.taxable), (i) => i.annual),
-      exemptAllowances: sum(incomes.filter((i) => !i.taxable), (i) => i.annual),
+      // Allowances and awards unticked under "Included in ESPP" stay out of the variable base.
+      taxableAllowances: sum(incomes.filter((i) => i.taxable && i.inEspp), (i) => i.annual),
+      exemptAllowances: sum(incomes.filter((i) => !i.taxable && i.inEspp), (i) => i.annual),
       overtimeAnnual,
-      cashAwardsAnnual: sum(cashAwards, (a) => a.annual)
+      cashAwardsAnnual: sum(cashAwards.filter((a) => a.inEspp), (a) => a.annual)
     });
     const totalDeductions = si.employee + incomeTax + leviesTotal + preTax + postTax + espp.total + esppGain;
     const net = grossAnnual - totalDeductions;
@@ -355,17 +359,28 @@
     const gross = sum(items, (i) => i.annual);
     return items.map((i) => ({ ...i, netAnnual: gross > 0 ? groupNet * i.annual / gross : 0 }));
   }
+  function allocateTaxed(items, groupNet) {
+    const exempt = sum(items.filter((i) => !i.taxable), (i) => i.annual);
+    const shared = allocate(items.filter((i) => i.taxable), groupNet - exempt);
+    let k = 0;
+    return items.map((i) => i.taxable ? shared[k++] : { ...i, netAnnual: i.annual });
+  }
   function withImpacts(input, result) {
     const netWithout = (patch) => calculate({ ...input, ...patch }, result.baseAnnual).net;
     const overtimeNet = result.overtimeAnnual > 0 ? result.net - netWithout({ overtime: [] }) : 0;
     const hasAwards = result.cashAwards.some((a) => a.annual > 0);
     const cashAwardsNet = hasAwards ? result.net - netWithout({ cashAwards: [] }) : 0;
+    const taxedIncomes = result.incomes.filter((i) => i.taxable && i.annual > 0);
+    const incomesNet = taxedIncomes.length ? result.net - netWithout({ incomes: (input.incomes ?? []).filter((i) => i.taxable === false) }) : 0;
+    const incomeGross = sum(taxedIncomes, (i) => i.annual);
     return {
       ...result,
       overtimeNet,
       cashAwardsNet,
+      incomesNet,
+      incomes: result.incomes.map((i) => i.taxable && incomeGross > 0 ? { ...i, netAnnual: incomesNet * i.annual / incomeGross } : i),
       overtime: allocate(result.overtime, overtimeNet),
-      cashAwards: allocate(result.cashAwards, cashAwardsNet)
+      cashAwards: allocateTaxed(result.cashAwards, cashAwardsNet)
     };
   }
 
@@ -753,7 +768,7 @@
     exclusion: String(exclusion)
   }));
   var DEFAULT_WITHDRAWAL_FEE = "35";
-  var CURRENCIES = ["EGP", "USD", "EUR", "GBP", "SAR", "AED", "KWD", "QAR"];
+  var CURRENCIES = ["EGP", "USD", "SAR", "AED", "EUR"];
   var DEFAULT_PROFILE = Object.freeze({
     id: "eg-2026",
     name: "Egypt 2026",
@@ -788,7 +803,7 @@
     overrides: { siBase: "", taxable: "", taxablePer: "month" },
     payPeriod: { months: "1", days: "0" },
     schedule: { weeksPerYear: "52", daysPerWeek: "5", hoursPerDay: "8", otHoursBase: "170" },
-    incomes: [{ name: "Transportation", amount: "1000", per: "month", taxable: true, insurable: false }],
+    incomes: [{ name: "Transportation", amount: "1000", per: "month", taxable: true, insurable: false, inEspp: true }],
     overtime: [],
     cashAwards: [],
     deductions: [],
@@ -891,6 +906,9 @@
     if (state2.ui.resTab === "periods") state2.ui.resTab = "tax";
     [...state2.incomes, ...state2.deductions, ...state2.cashAwards].forEach((item) => {
       if (!isItemPeriod(item.per)) item.per = "month";
+    });
+    [...state2.incomes, ...state2.cashAwards].forEach((item) => {
+      if (typeof item.inEspp !== "boolean") item.inEspp = true;
     });
     sortOvertime(state2.overtime);
     const fee = String(state2.espp.assumptions.withdrawalFee ?? "").trim();
@@ -1263,15 +1281,16 @@
     value="${escapeHtml(money ? groupDigits(value) : value)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder || key2)}">`;
   var num = (path, i, key2, value, placeholder, extra = {}) => text(path, i, key2, value, placeholder, { ...extra, numeric: true });
   var check = (path, i, key2, value, label) => `<label class="check"><input type="checkbox" data-path="${path}.${i}.${key2}"${value ? " checked" : ""} aria-label="${escapeHtml(label || key2)}"> ${label}</label>`;
-  var select = (path, i, key2, optionsHtml, cls = "") => `<select class="${cls}" data-path="${path}.${i}.${key2}" aria-label="${key2}">${optionsHtml}</select>`;
+  var select = (path, i, key2, optionsHtml, cls = "", attrs = "") => `<select class="${cls}" data-path="${path}.${i}.${key2}" aria-label="${key2}"${attrs}>${optionsHtml}</select>`;
+  var esppCheck = (path, i, it, ctx2) => ctx2.esppVar ? check(path, i, "inEspp", it.inEspp !== false, "Included in ESPP") : "";
   var OT_OPTIONS = [...OT_TYPES.map((t) => ({ value: t.id, label: `${t.label} \xD7${t.mult}` })), { value: "custom", label: "Custom\u2026" }];
   var MODE_OPTIONS = [{ value: "progressive", label: "Brackets" }, { value: "flat", label: "Flat" }];
   var LEVY_BASES = [{ value: "gross", label: "Gross" }, { value: "taxable", label: "Taxable" }];
   var ROW_TEMPLATES = {
-    incomes: (it, i) => `<div class="item income">
+    incomes: (it, i, ctx2) => `<div class="item income">
     ${text("incomes", i, "name", it.name, "Name")}${num("incomes", i, "amount", it.amount, "Amount", { money: true })}
     ${select("incomes", i, "per", periodOptions(it.per, itemPeriods("incomes", it)))}${removeBtn("incomes", i)}
-    ${advanced("incomes", i, `${check("incomes", i, "taxable", it.taxable, "Taxable")}${check("incomes", i, "insurable", it.insurable, "Counts toward SI base")}`)}</div>`,
+    ${advanced("incomes", i, `${check("incomes", i, "taxable", it.taxable, "Taxable")}${check("incomes", i, "insurable", it.insurable, "Counts toward SI base")}${esppCheck("incomes", i, it, ctx2)}`)}</div>`,
     overtime: (it, i, ctx2) => {
       const preset = otType(it.type);
       const impact = ctx2.impacts.overtime[i];
@@ -1283,24 +1302,26 @@
     },
     cashAwards: (it, i, ctx2) => {
       const foreign = it.currency !== ctx2.currency;
-      const currencies = [.../* @__PURE__ */ new Set([...CURRENCIES, ctx2.currency, it.currency])].map((c) => ({ value: c, label: c }));
+      const currencies = [.../* @__PURE__ */ new Set([...CURRENCIES, it.currency])].map((c) => ({ value: c, label: c }));
       const tone = { ok: " rate-ok", error: " rate-error" }[rateStatus(i)] ?? "";
       const rateRow = `<div class="flags"><label class="inline">1 ${escapeHtml(it.currency)} = ${num("cashAwards", i, "rate", it.rate, "rate", { cls: `xs${tone}` })} ${escapeHtml(ctx2.currency)}</label>
       <button type="button" class="btn sm ghost live${rateStatus(i) === "loading" ? " loading" : ""}" data-fetch-rate="${i}" title="Get the current rate online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Live rate</button></div>`;
       const impact = ctx2.impacts.cashAwards[i];
-      const net = impact && impact.annual > 0 ? `<div class="impact"><span>${ctx2.money(impact.annual * ctx2.factor)} gross / yr</span><b>${ctx2.money(impact.netAnnual * ctx2.factor)} net / yr</b></div>` : "";
+      const monthly = it.per === "month";
+      const net = impact && impact.annual > 0 ? `<div class="impact"><span>${ctx2.money(impact.annual / 12 * ctx2.factor)} gross</span><b>+ ${ctx2.money(impact.netAnnual / 12 * ctx2.factor)} net${ctx2.factor === 1 ? " / month" : ""}</b></div>
+        <div class="impact sub"><span>${ctx2.money(impact.annual / 12 * ctx2.factor * (monthly ? 12 : 1))} gross / yr</span><b>${ctx2.money(impact.netAnnual / 12 * ctx2.factor * (monthly ? 12 : 1))} net / yr</b></div>` : "";
       return `<div class="item award">
       ${text("cashAwards", i, "name", it.name, "Name")}${num("cashAwards", i, "amount", it.amount, "Amount", { money: true })}
-      ${select("cashAwards", i, "currency", optionList(currencies, it.currency))}${removeBtn("cashAwards", i)}
+      ${select("cashAwards", i, "currency", optionList(currencies, it.currency), "", ' data-dd="currency"')}${removeBtn("cashAwards", i)}
       ${foreign ? rateRow : ""}
-      ${advanced("cashAwards", i, `${select("cashAwards", i, "per", periodOptions(it.per, itemPeriods("cashAwards", it)), "xs-select")}${check("cashAwards", i, "taxable", it.taxable, "Taxable")}`)}
+      ${advanced("cashAwards", i, `${select("cashAwards", i, "per", periodOptions(it.per, itemPeriods("cashAwards", it)), "xs-select")}${check("cashAwards", i, "taxable", it.taxable, "Taxable")}${esppCheck("cashAwards", i, it, ctx2)}`)}
       ${net}</div>`;
     },
     deductions: (it, i) => `<div class="item income">
     ${text("deductions", i, "name", it.name, "Name")}${num("deductions", i, "amount", it.amount, "Amount", { money: true })}
     ${select("deductions", i, "per", periodOptions(it.per, itemPeriods("deductions", it)))}${removeBtn("deductions", i)}
-    ${advanced("deductions", i, check("deductions", i, "pretax", it.pretax, "Before tax (reduces taxable income)"))}</div>`,
+    ${advanced("deductions", i, check("deductions", i, "pretax", it.pretax, "Exclude from taxable income"))}</div>`,
     "@.tax.brackets": (b, i) => {
       const p = "@.tax.brackets";
       return `<tr><td>${num(p, i, "rate", b.rate, "%")}</td><td>${num(p, i, "min", b.min, "0")}</td>
@@ -1324,14 +1345,166 @@
     }
   };
 
+  // js/ui/dropdown.js
+  var CHEVRON2 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var MONTH2 = /^(\d{4})-\d{2}$/;
+  var CUSTOM_ROW = "__custom";
+  var isCurrency = (select2) => select2.dataset.dd === "currency";
+  var wrapperOf = (select2) => select2.nextElementSibling?.classList.contains("dd") ? select2.nextElementSibling : null;
+  var selectOf = (wrap) => wrap.previousElementSibling;
+  var normalizeCode = (value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  var optionsOf = (select2) => [...select2.options].map((o) => ({ value: o.value, label: o.textContent, disabled: o.disabled }));
+  function create(select2) {
+    const wrap = document.createElement("div");
+    wrap.className = `dd ${select2.className}`.trim();
+    const label = select2.getAttribute("aria-label") ?? "";
+    wrap.innerHTML = `<button type="button" class="dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(label)}">
+      <span class="dd-label"></span>${CHEVRON2}</button>
+    ${isCurrency(select2) ? `<input class="dd-input" type="text" maxlength="6" placeholder="Code" autocapitalize="characters" spellcheck="false" aria-label="${escapeHtml(label)} code" hidden>` : ""}
+    <div class="dd-pop" role="listbox" hidden></div>`;
+    select2.after(wrap);
+    return wrap;
+  }
+  function listHtml(select2, wrap) {
+    const current = select2.value;
+    const rows = optionsOf(select2).filter((o) => !(o.disabled && o.value === "") && (!isCurrency(select2) || CURRENCIES.includes(o.value)));
+    if (isCurrency(select2)) rows.push({ value: CUSTOM_ROW, label: "Custom" });
+    const row = (o, text2 = o.label) => `<button type="button" class="dd-opt" role="option" data-v="${escapeHtml(o.value)}" aria-selected="${o.value === current}">${escapeHtml(text2)}</button>`;
+    const months = rows.filter((o) => MONTH2.test(o.value));
+    const years = [...new Set(months.map((o) => o.value.slice(0, 4)))].sort().reverse();
+    if (years.length < 2) return rows.map((o) => row(o)).join("");
+    const open3 = wrap._open;
+    const groups = years.map((year) => {
+      const inYear = months.filter((o) => o.value.startsWith(year));
+      const expanded = open3.has(year);
+      return `<div class="dd-group"><button type="button" class="dd-year" data-year="${year}" aria-expanded="${expanded}">
+        <span>${year}</span><span class="dd-n">${inYear.length}</span>${CHEVRON2}</button>
+      <div class="dd-items"${expanded ? "" : " hidden"}>${inYear.map((o) => row(o, o.label.replace(` ${year}`, ""))).join("")}</div></div>`;
+    });
+    return groups.concat(rows.filter((o) => !MONTH2.test(o.value)).map((o) => row(o))).join("");
+  }
+  function closeAll(except) {
+    $$(".dd-pop:not([hidden])").forEach((pop) => {
+      const wrap = pop.parentElement;
+      if (wrap === except) return;
+      pop.hidden = true;
+      wrap.querySelector(".dd-btn").setAttribute("aria-expanded", "false");
+    });
+  }
+  function openList(wrap) {
+    const select2 = selectOf(wrap);
+    closeAll(wrap);
+    const years = optionsOf(select2).map((o) => o.value.match(MONTH2)?.[0]?.slice(0, 4)).filter(Boolean);
+    wrap._open = new Set([years.sort().at(-1), select2.value.match(MONTH2)?.[0]?.slice(0, 4)].filter(Boolean));
+    const pop = wrap.querySelector(".dd-pop");
+    pop.innerHTML = listHtml(select2, wrap);
+    pop.hidden = false;
+    wrap.querySelector(".dd-btn").setAttribute("aria-expanded", "true");
+    pop.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }
+  function commit2(select2, value) {
+    if (select2.value !== value) {
+      if (![...select2.options].some((o) => o.value === value)) select2.append(new Option(value, value));
+      select2.value = value;
+      select2.dispatchEvent(new Event("input", { bubbles: true }));
+      select2.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+  }
+  function enterTyping(wrap, select2, focus) {
+    const input = wrap.querySelector(".dd-input");
+    wrap.classList.add("typing");
+    input.hidden = false;
+    if (focus) {
+      input.value = CURRENCIES.includes(select2.value) ? "" : select2.value;
+      input.focus();
+    }
+  }
+  function leaveTyping(wrap) {
+    wrap.classList.remove("typing");
+    wrap.querySelector(".dd-input").hidden = true;
+  }
+  function finishTyping(wrap) {
+    const select2 = selectOf(wrap);
+    const input = wrap.querySelector(".dd-input");
+    const code = normalizeCode(input.value);
+    if (!code) {
+      if (CURRENCIES.includes(select2.value)) leaveTyping(wrap);
+      else input.value = select2.value;
+      return;
+    }
+    input.value = code;
+    if (CURRENCIES.includes(code)) leaveTyping(wrap);
+    commit2(select2, code);
+  }
+  function choose(wrap, value) {
+    const select2 = selectOf(wrap);
+    closeAll();
+    if (value === CUSTOM_ROW) return enterTyping(wrap, select2, true);
+    if (isCurrency(select2)) leaveTyping(wrap);
+    commit2(select2, value);
+    update2(select2, wrap);
+    wrap.querySelector(".dd-btn").focus();
+  }
+  function update2(select2, wrap) {
+    const selected = select2.selectedOptions[0];
+    const label = wrap.querySelector(".dd-label");
+    label.textContent = selected?.textContent ?? "";
+    label.classList.toggle("placeholder", !select2.value);
+    const btn = wrap.querySelector(".dd-btn");
+    btn.disabled = select2.disabled;
+    btn.title = select2.title;
+    if (!isCurrency(select2)) return;
+    const input = wrap.querySelector(".dd-input");
+    const custom = !!select2.value && !CURRENCIES.includes(select2.value);
+    if (custom && !wrap.classList.contains("typing")) enterTyping(wrap, select2, false);
+    if (wrap.classList.contains("typing") && document.activeElement !== input && custom) input.value = select2.value;
+  }
+  function syncDropdowns(root = document) {
+    $$("select[data-dd]", root).forEach((select2) => {
+      const wrap = wrapperOf(select2) ?? create(select2);
+      wrap.hidden = select2.hidden;
+      update2(select2, wrap);
+    });
+  }
+  function initDropdowns() {
+    document.addEventListener("click", (e) => {
+      const wrap = e.target.closest(".dd");
+      if (!wrap) return closeAll();
+      const year = e.target.closest(".dd-year");
+      const opt = e.target.closest(".dd-opt");
+      if (year) {
+        const items = year.nextElementSibling;
+        items.hidden = !items.hidden;
+        year.setAttribute("aria-expanded", String(!items.hidden));
+      } else if (opt) {
+        choose(wrap, opt.dataset.v);
+      } else if (e.target.closest(".dd-btn")) {
+        if (wrap.querySelector(".dd-pop").hidden) openList(wrap);
+        else closeAll();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeAll();
+      if (e.key === "Enter" && e.target.classList?.contains("dd-input")) e.target.blur();
+    });
+    document.addEventListener("input", (e) => {
+      if (e.target.classList?.contains("dd-input")) e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+    });
+    document.addEventListener("focusout", (e) => {
+      if (e.target.classList?.contains("dd-input")) finishTyping(e.target.closest(".dd"));
+    });
+  }
+
   // js/ui/lists.js
   var RESET_PATHS = { brackets: ["@.tax.brackets", "tax.brackets"], caps: ["@.si.caps", "si.caps"], jobTypes: ["@.jobTypes", "jobTypes"] };
   var AFFECTS_SELECTS = ["@.jobTypes", "@.si.caps"];
   var IMPACT_LISTS = ["overtime", "cashAwards"];
-  var ctx = { currency: "", money: String, factor: 1, impacts: { overtime: [], cashAwards: [] } };
+  var ctx = { currency: "", money: String, factor: 1, esppVar: false, impacts: { overtime: [], cashAwards: [] } };
   function setListContext(next) {
+    const esppChanged = next.esppVar !== ctx.esppVar;
     ctx = next;
     IMPACT_LISTS.forEach(renderList);
+    if (esppChanged) renderList("incomes");
   }
   function renderList(path) {
     const host = $(`[data-list="${path}"]`);
@@ -1341,6 +1514,7 @@
     else if (host.tagName === "TBODY") host.innerHTML = '<tr><td colspan="6" class="hint">No rows</td></tr>';
     else host.innerHTML = host.hasAttribute("data-quiet") ? "" : '<div class="empty">Nothing added yet</div>';
     host.hidden = !items.length && host.hasAttribute("data-quiet");
+    syncDropdowns(host);
     updateCounts();
   }
   function updateCounts() {
@@ -1503,36 +1677,12 @@
       toast("Profile deleted");
     }
   };
-  var CUSTOM = "__custom";
-  var normalizeCode = (value) => value.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
-  function renderCurrency(profile, forceCustom = false) {
-    const select2 = $("#currencySel");
-    const input = $("#currencyCustom");
-    const custom = forceCustom || !CURRENCIES.includes(profile.currency);
-    select2.innerHTML = optionList(
-      [...CURRENCIES.map((c) => ({ value: c, label: c })), { value: CUSTOM, label: "Custom\u2026" }],
-      custom ? CUSTOM : profile.currency
-    );
-    input.hidden = !custom;
-    if (custom && document.activeElement !== input) input.value = CURRENCIES.includes(profile.currency) ? "" : profile.currency;
+  function renderCurrency(profile) {
+    $("#currencySel").innerHTML = optionList([.../* @__PURE__ */ new Set([...CURRENCIES, profile.currency])].map((c) => ({ value: c, label: c })), profile.currency);
   }
   function initCurrency(onProfileChanged) {
     $("#currencySel").addEventListener("change", (e) => {
-      if (e.target.value === CUSTOM) {
-        $("#currencyCustom").hidden = false;
-        $("#currencyCustom").value = "";
-        $("#currencyCustom").focus();
-        return;
-      }
       set("@.currency", e.target.value);
-      onProfileChanged();
-    });
-    $("#currencyCustom").addEventListener("input", (e) => {
-      const code = normalizeCode(e.target.value);
-      if (code) set("@.currency", code);
-    });
-    $("#currencyCustom").addEventListener("change", (e) => {
-      e.target.value = normalizeCode(e.target.value);
       onProfileChanged();
     });
   }
@@ -1565,8 +1715,7 @@
     $$("[data-profile-select]").forEach((el) => {
       if (el.value !== state2.profileId) el.value = state2.profileId;
     });
-    const editingCode = document.activeElement?.id === "currencyCustom";
-    if (document.activeElement?.id !== "currencySel") renderCurrency(activeProfile(), editingCode);
+    renderCurrency(activeProfile());
   }
 
   // js/ui/results/shared.js
@@ -1627,9 +1776,9 @@
     const sub = (label, annual, netAnnual) => line(`${label}${netAnnual !== void 0 ? ` <span class="hint">net ${at(netAnnual)}</span>` : ""}`, positive(at(annual)), `sub${mine}`);
     const earnings = [
       line("Basic salary", positive(at(r.baseAnnual)), mine.trim()),
-      ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? "" : ' <span class="hint">(exempt)</span>'), it.annual)),
+      ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? "" : ' <span class="hint">(exempt)</span>'), it.annual, it.taxable ? it.netAnnual : void 0)),
       ...r.overtime.filter((o) => o.annual).map((o) => sub(escapeHtml(o.label), o.annual, o.netAnnual)),
-      ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.netAnnual)),
+      ...r.cashAwards.filter((a) => a.annual).map((a) => sub(escapeHtml(a.name), a.annual, a.taxable ? a.netAnnual : void 0)),
       r.esppGain ? line(`ESPP gain <span class="hint">taxed, then offset</span>`, positive(at(r.esppGain)), `sub${mine}`) : "",
       line("Gross pay", positive(at(r.grossAnnual)), "strong")
     ];
@@ -1698,7 +1847,7 @@
       return `<tr class="${p.id === state2.ui.period ? "active" : ""}"><td><b>${label}</b></td>${cells}</tr>`;
     }).join("");
     const s = state2.schedule;
-    return `<div class="table-wrap"><table>
+    return `<div class="table-wrap"><table class="sticky-first">
       <thead><tr><th>Period</th>${columnsOf(full).map(([n]) => `<th class="r">${n}</th>`).join("")}</tr></thead>
       <tbody>${rows}</tbody></table></div>
     <p class="hint">Based on ${escapeHtml(s.weeksPerYear)} weeks/year, ${escapeHtml(s.daysPerWeek)} days/week,
@@ -1743,9 +1892,9 @@
     const note = excluded.length ? `<p class="hint">Taxable income exceeds ${money(excluded.at(-1).exclusion / k)}, so the
         ${excluded.map((b) => `${b.rate}%`).join(", ")} bracket${excluded.length > 1 ? "s are" : " is"} excluded.</p>` : "";
     return `<div class="section-title"><span>Brackets</span>${periodToggle(period)}</div>
-    <div class="table-wrap"><table>
+    <div class="table-wrap"><table class="sticky-first">
       <thead><tr><th>Rate</th><th>Range</th><th>Status</th><th class="r">Taxed amount</th><th class="r">Tax</th></tr></thead>
-      <tbody>${rows}<tr class="total"><td colspan="4">Income tax</td><td class="r">${money(r.incomeTax / k)}</td></tr></tbody>
+      <tbody>${rows}<tr class="total"><td>Income tax</td><td colspan="3"></td><td class="r">${money(r.incomeTax / k)}</td></tr></tbody>
     </table></div>${note}`;
   }
   function leviesNote(r, money) {
@@ -1891,6 +2040,7 @@
     let startY = 0;
     let stepsApplied = 0;
     let dragging = false;
+    const pxPerStep = Number(input.dataset.pxPerStep) || PX_PER_STEP;
     input.addEventListener("pointerdown", (e) => {
       if (e.pointerType === "mouse") return;
       startY = e.clientY;
@@ -1906,7 +2056,7 @@
         input.setPointerCapture(e.pointerId);
         input.blur();
       }
-      const target = Math.trunc(delta / PX_PER_STEP);
+      const target = Math.trunc(delta / pxPerStep);
       if (target !== stepsApplied) {
         applyStep(input, target - stepsApplied);
         stepsApplied = target;
@@ -2167,7 +2317,7 @@
 
   // js/ui/monthPicker.js
   var SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  var CHEVRON2 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var CHEVRON3 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var open = { id: "", year: 0 };
   var handlers = /* @__PURE__ */ new Map();
   var onMonthPick = (id, fn) => handlers.set(id, fn);
@@ -2203,11 +2353,11 @@
     const year = isOpen ? open.year : Number(shown.slice(0, 4));
     return `<div class="mpick" data-mpick="${id}" data-value="${shown}" data-saved="${saved.join(",")}">
     <button type="button" class="mpick-btn" data-mp-toggle="${id}" aria-haspopup="true" aria-expanded="${isOpen}">
-      <span>${monthLabel(shown, "long")}</span>${CHEVRON2}</button>
+      <span>${monthLabel(shown, "long")}</span>${CHEVRON3}</button>
     <div class="mpick-pop"${isOpen ? "" : " hidden"}>${popHtml(year, shown, saved)}</div>
   </div>`;
   }
-  function closeAll({ notify = true } = {}) {
+  function closeAll2({ notify = true } = {}) {
     const was = open.id;
     open.id = "";
     if (notify && was) setTimeout(() => closeHandlers.get(was)?.());
@@ -2221,11 +2371,11 @@
   function initMonthPickers() {
     document.addEventListener("click", (e) => {
       const root = e.target.closest(".mpick");
-      if (!root) return closeAll();
+      if (!root) return closeAll2();
       const id = root.dataset.mpick;
       if (e.target.closest("[data-mp-toggle]")) {
         const wasOpen = open.id === id;
-        closeAll({ notify: wasOpen });
+        closeAll2({ notify: wasOpen });
         if (wasOpen) return;
         open.id = id;
         open.year = Number(root.dataset.value.slice(0, 4));
@@ -2235,7 +2385,7 @@
         return;
       }
       if (e.target.closest("[data-mp-back]")) {
-        closeAll({ notify: false });
+        closeAll2({ notify: false });
         return backHandlers.get(id)?.();
       }
       const step = e.target.closest("[data-mp-year]");
@@ -2245,17 +2395,17 @@
       }
       const pick2 = e.target.closest("[data-mp-pick]");
       if (pick2) {
-        closeAll({ notify: false });
+        closeAll2({ notify: false });
         handlers.get(id)?.(pick2.dataset.mpPick);
       }
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeAll();
+      if (e.key === "Escape") closeAll2();
     });
   }
 
   // js/ui/esppGains.js
-  var CUSTOM2 = "custom";
+  var CUSTOM = "custom";
   var CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>';
   var pickerFor = "";
   var plain = (n) => (Number(n) || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
@@ -2265,7 +2415,7 @@
     if (pickerFor === row.month) return monthPickerHtml("gain", row.month, Object.keys(historyMonths));
     const options = monthChoices(historyMonths, monthKey(/* @__PURE__ */ new Date()), row.month).filter((c) => c.month === row.month || !taken.has(c.month)).map((c) => `<option value="${c.month}"${c.month === row.month ? " selected" : ""}>${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`).join("");
     const locked = row.derived ? ' disabled title="This month comes from History"' : "";
-    return `<select class="sm" data-gain-month="${row.month}" aria-label="Month"${locked}>${options}<option value="${CUSTOM2}">Custom\u2026</option></select>`;
+    return `<select class="sm" data-dd data-gain-month="${row.month}" aria-label="Month"${locked}>${options}<option value="${CUSTOM}">Custom\u2026</option></select>`;
   }
   function rowHtml(row, taken, historyMonths, money) {
     const m = row.month;
@@ -2325,7 +2475,7 @@
     document.addEventListener("change", (e) => {
       const select2 = e.target.closest?.("[data-gain-month]");
       if (!select2) return;
-      if (select2.value !== CUSTOM2) return moveTo(select2.dataset.gainMonth, select2.value);
+      if (select2.value !== CUSTOM) return moveTo(select2.dataset.gainMonth, select2.value);
       pickerFor = select2.dataset.gainMonth;
       onChanged();
       openMonthPicker("gain");
@@ -2361,9 +2511,10 @@
   var movingFrom = "";
   var overriding = false;
   var askOverride = false;
-  var CHEVRON3 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var CHEVRON4 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
   var RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
+  var yearToggled = /* @__PURE__ */ new Map();
   var setEntry = (home, saved, base) => {
     entry = { home, saved, base };
   };
@@ -2458,10 +2609,27 @@
     return isSaved(state2, month) && (overriding || scopeDirty());
   }
   function nextFreeMonth(state2) {
+    const taken = new Set([...monthList(state2.months), ...drafts.keys(), scopeMonth()].filter(Boolean));
     const now = monthKey(/* @__PURE__ */ new Date());
-    if (!state2.months[now]) return now;
-    const [y, m] = monthList(state2.months)[0].split("-").map(Number);
+    if (!taken.has(now)) return now;
+    const [y, m] = [...taken].sort().at(-1).split("-").map(Number);
     return monthKey(new Date(y, m, 1));
+  }
+  function newMonth() {
+    const state2 = getState();
+    const month = nextFreeMonth(state2);
+    const current = scopeMonth();
+    if (!current) return open2(month);
+    const pay = scopePay();
+    [current, entry.home].forEach((m) => m && drafts.delete(m));
+    clearRename();
+    askDelete = "";
+    const { base } = contentFor(state2, month);
+    update((s) => {
+      s.ui.histMonth = month;
+    });
+    setScope(month, pay, base);
+    setEntry(month, false, base);
   }
   function syncHistoryScope() {
     const s = getState();
@@ -2504,7 +2672,16 @@
     const months = /* @__PURE__ */ new Set([...monthList(state2.months), ...drafts.keys()]);
     if (movingFrom) months.delete(movingFrom);
     if (active) months.add(active);
-    const rows = [...months].sort((a, b) => b.localeCompare(a)).map((m) => monthRow(state2, m, active, money)).join("");
+    const sorted = [...months].sort((a, b) => b.localeCompare(a));
+    const years = [...new Set(sorted.map((m) => m.slice(0, 4)))];
+    const rows = years.length < 2 ? sorted.map((m) => monthRow(state2, m, active, money)).join("") : years.map((year) => {
+      const inYear = sorted.filter((m) => m.startsWith(year));
+      const total = inYear.reduce((n, m) => n + finalPay(state2, m === active ? scopePay() : drafts.get(m) ?? state2.months[m]), 0);
+      const open3 = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
+      return `<div class="month-year${open3 ? " open" : ""}">
+        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${open3}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Net pay of the year's months">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
+        ${open3 ? inYear.map((m) => monthRow(state2, m, active, money)).join("") : ""}</div>`;
+    }).join("");
     return `<details class="more" data-open="histSaved">
     <summary>Saved months <span class="count">${monthList(state2.months).length || ""}</span></summary>
     <div class="inner month-list">
@@ -2537,7 +2714,7 @@
       <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
     </div>${ask}
     <details class="hist-summary" data-open="histSummary">
-      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON3}</summary>
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON4}</summary>
       ${monthSummary(state2, money, pay)}
     </details>`;
   }
@@ -2596,6 +2773,7 @@
   }
   function resetHistory() {
     drafts.clear();
+    yearToggled.clear();
     clearRename();
     askDelete = "";
     setEntry("", false, null);
@@ -2617,6 +2795,12 @@
     document.addEventListener("click", (e) => {
       if (e.target.closest("[data-in-tabs] .tab")) {
         syncHistoryScope();
+        return onChanged();
+      }
+      const yearHead = e.target.closest("[data-hist-year]");
+      if (yearHead) {
+        const year = yearHead.dataset.histYear;
+        yearToggled.set(year, yearHead.getAttribute("aria-expanded") !== "true");
         return onChanged();
       }
       const pick2 = e.target.closest("[data-hist-pick]");
@@ -2641,7 +2825,7 @@
       if (act === "save") save();
       else if (act === "override-yes") commitSave();
       else if (act === "override-no") askOverride = false;
-      else if (act === "new") open2(nextFreeMonth(getState()));
+      else if (act === "new") newMonth();
       else if (act === "delete-yes") remove(askDelete);
       else if (act === "delete-no") askDelete = "";
       onChanged();
@@ -2649,7 +2833,7 @@
   }
 
   // js/ui/saveMonth.js
-  var CUSTOM3 = "custom";
+  var CUSTOM2 = "custom";
   function initSaveMonth(onChanged, onSaved) {
     const panel = $("#saveMonthPanel");
     const select2 = $("#saveMonthSel");
@@ -2667,15 +2851,17 @@
       pickHost.innerHTML = monthPickerHtml("save", custom, monthList(getState().months));
       pickHost.hidden = false;
       select2.hidden = true;
+      syncDropdowns();
     }
     function fillList(value) {
       const choices = monthChoices(getState().months, monthKey(/* @__PURE__ */ new Date()), custom);
       select2.innerHTML = [
         '<option value="" disabled>Choose a month\u2026</option>',
         ...choices.map((c) => `<option value="${c.month}">${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`),
-        `<option value="${CUSTOM3}">Custom\u2026</option>`
+        `<option value="${CUSTOM2}">Custom\u2026</option>`
       ].join("");
       select2.value = choices.some((c) => c.month === value) ? value : "";
+      syncDropdowns();
     }
     function showList() {
       pickHost.hidden = true;
@@ -2684,7 +2870,7 @@
       fillList(custom);
       ask.hidden = true;
     }
-    function commit2(month) {
+    function commit3(month) {
       const state2 = getState();
       if (!toNumber(state2.amount)) return toast("Enter a gross salary first");
       const replaced = !!state2.months[month];
@@ -2701,7 +2887,7 @@
     function done() {
       const month = chosen();
       if (!month) return;
-      if (!getState().months[month]) return commit2(month);
+      if (!getState().months[month]) return commit3(month);
       pending2 = month;
       $("#saveMonthAskText").textContent = `${monthLabel(month, "long")} is already saved. Override it?`;
       ask.hidden = false;
@@ -2719,7 +2905,7 @@
     $("#saveMonthBtn").addEventListener("click", () => panel.hidden ? open3() : close());
     select2.addEventListener("change", () => {
       ask.hidden = true;
-      if (select2.value !== CUSTOM3) return;
+      if (select2.value !== CUSTOM2) return;
       if (!custom) custom = monthKey(/* @__PURE__ */ new Date());
       drawPicker();
       openMonthPicker("save");
@@ -2734,7 +2920,7 @@
     });
     $("#saveMonthGo").addEventListener("click", done);
     $("#saveMonthYes").addEventListener("click", () => {
-      if (pending2) commit2(pending2);
+      if (pending2) commit3(pending2);
     });
     $("#saveMonthNo").addEventListener("click", () => {
       ask.hidden = true;
@@ -2816,6 +3002,7 @@
       currency: input.profile.currency,
       money,
       factor: pay.factor,
+      esppVar: toNumber(state2.espp?.varPct) > 0,
       impacts: { overtime: pay.result?.overtime ?? [], cashAwards: pay.result?.cashAwards ?? [] }
     });
     renderResults(result, input, money, pay);
@@ -2837,6 +3024,7 @@
       renderGainEntries(report, money);
       ensureMonthRates(report.year, rebuild);
     }
+    syncDropdowns();
   }
   function rebuild() {
     const state2 = view();
@@ -2846,6 +3034,7 @@
   }
   initTabs();
   initMonthPickers();
+  initDropdowns();
   initMoneyInputs();
   initBindings();
   initLists();
