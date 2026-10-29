@@ -57,11 +57,8 @@ export const ROW_TEMPLATES = {
       <button type="button" class="btn sm ghost live${rateStatus(i) === 'loading' ? ' loading' : ''}" data-fetch-rate="${i}" title="Get the current rate online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Live rate</button></div>`;
     const impact = ctx.impacts.cashAwards[i];
-    // The month is calculated the same for both; they differ only in the year: One-time is paid once, Monthly 12 times.
-    const monthly = it.per === 'month';
     const net = impact && impact.annual > 0
-      ? `<div class="impact"><span>${ctx.money((impact.annual / 12) * ctx.factor)} gross</span><b>+ ${ctx.money((impact.netAnnual / 12) * ctx.factor)} net${ctx.factor === 1 ? ' / month' : ''}</b></div>
-        <div class="impact sub"><span>${ctx.money((impact.annual / 12) * ctx.factor * (monthly ? 12 : 1))} gross / yr</span><b>${ctx.money((impact.netAnnual / 12) * ctx.factor * (monthly ? 12 : 1))} net / yr</b></div>`
+      ? `<div class="impact"><span>${ctx.money((impact.annual / 12) * ctx.factor)} gross</span><b>+ ${ctx.money((impact.netAnnual / 12) * ctx.factor)} net${ctx.factor === 1 ? ' / month' : ''}</b></div>`
       : '';
     return `<div class="item award">
       ${text('cashAwards', i, 'name', it.name, 'Name')}${num('cashAwards', i, 'amount', it.amount, 'Amount', { money: true })}

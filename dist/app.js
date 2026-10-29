@@ -1341,9 +1341,8 @@
       <button type="button" class="btn sm ghost live${rateStatus(i) === "loading" ? " loading" : ""}" data-fetch-rate="${i}" title="Get the current rate online">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5"/></svg>Live rate</button></div>`;
       const impact = ctx2.impacts.cashAwards[i];
-      const monthly = it.per === "month";
       const net = impact && impact.annual > 0 ? `<div class="impact"><span>${ctx2.money(impact.annual / 12 * ctx2.factor)} gross</span><b>+ ${ctx2.money(impact.netAnnual / 12 * ctx2.factor)} net${ctx2.factor === 1 ? " / month" : ""}</b></div>
-        <div class="impact sub"><span>${ctx2.money(impact.annual / 12 * ctx2.factor * (monthly ? 12 : 1))} gross / yr</span><b>${ctx2.money(impact.netAnnual / 12 * ctx2.factor * (monthly ? 12 : 1))} net / yr</b></div>` : "";
+` : "";
       return `<div class="item award">
       ${text("cashAwards", i, "name", it.name, "Name")}${num("cashAwards", i, "amount", it.amount, "Amount", { money: true })}
       ${select("cashAwards", i, "currency", optionList(currencies, it.currency), "", ' data-dd="currency"')}${removeBtn("cashAwards", i)}
