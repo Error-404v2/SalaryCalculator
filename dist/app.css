@@ -2000,7 +2000,12 @@ select option {
     font-size: .78rem;
   }
   .tab-actions .spin-label {
-    display: none;
+    font-size: 0;
+    padding-left: 7px;
+  }
+  .tab-actions .spin-label::before {
+    content: attr(data-short);
+    font-size: .7rem;
   }
   .tab-actions .spin input {
     width: 26px;

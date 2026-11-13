@@ -115,6 +115,8 @@ test('each Pay-tab item offers only its own period choices', () => {
   assert.deepEqual(ids('deductions', { name: 'Medical insurance' }), ['month', 'year']);
   const other = ids('deductions', { name: 'Loan' });
   assert.ok(!other.includes('day') && !other.includes('hour'));
+  assert.ok(other.includes('once'), 'an added deduction can be One-Time');
+  assert.ok(ids('deductions', { name: '' }).includes('once'), 'a new, unnamed deduction too');
 });
 
 test('an item saved with an older period keeps it, so its figures do not change', () => {
