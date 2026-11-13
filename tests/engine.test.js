@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  computeIncomeTax, calculate, solveForNet, periodsPerYear, validateBrackets, sortOvertime, withImpacts, resolvePayPeriod, fromAnnual, proRataInput,
+  computeIncomeTax, calculate, solveForNet, periodsPerYear, validateBrackets, sortOvertime, withImpacts, resolvePayPeriod, fromAnnual, proRataInput, siMonths,
 } from '../js/core/index.js';
 import { DEFAULT_STATE, DEFAULT_PROFILE } from '../js/data/defaults.js';
 import { stepValue } from '../js/utils/number.js';
@@ -124,6 +124,44 @@ test('pro-rata scales salary, brackets and exemption but keeps actual overtime a
   assert.ok(Math.abs(perPeriod(half) - full.overtimeAnnual / 12) < 1e-6);
   assert.ok(Math.abs((half.cashAwards[0].annual) * 0.5 - 1000) < 1e-6);
   assert.ok(Math.abs((half.baseAnnual / 12) * 0.5 - 15000) < 1e-6);
+});
+
+test('pro-rata: One-Time allowances and deductions are paid in full, not scaled by the days', () => {
+  const state = input({
+    amount: '30000', payPeriod: { months: '0', days: '15' },
+    incomes: [{ name: 'Bonus', amount: '2000', per: 'once', taxable: true }, { name: 'Transport', amount: '1000', per: 'month', taxable: true }],
+    deductions: [{ name: 'Fine', amount: '500', per: 'once', pretax: false }, { name: 'Loan', amount: '300', per: 'month', pretax: false }],
+  });
+  const full = calculate(state);
+  const half = calculate(proRataInput(state, 0.5), full.baseAnnual);
+  const inPeriod = (annual) => (annual / 12) * 0.5;
+  const income = (r, name) => r.incomes.find((i) => i.name === name).annual;
+  const deduction = (r, name) => r.deductions.find((d) => d.name === name).annual;
+  assert.ok(Math.abs(inPeriod(income(half, 'Bonus')) - 2000) < 1e-6, 'one-time bonus: the full 2,000');
+  assert.ok(Math.abs(inPeriod(income(half, 'Transport')) - 500) < 1e-6, 'monthly allowance: half');
+  assert.ok(Math.abs(inPeriod(deduction(half, 'Fine')) - 500) < 1e-6, 'one-time deduction: the full 500');
+  assert.ok(Math.abs(inPeriod(deduction(half, 'Loan')) - 150) < 1e-6, 'monthly deduction: half');
+});
+
+test('pro-rata: social insurance is a whole month by default; the option charges the days too', () => {
+  const base = { amount: '10000', payPeriod: { months: '0', days: '15' } };
+  const full = calculate(input(base));
+  const months = (r) => (r.si.employee / 12) * 0.5 / (full.si.employee / 12);
+  const off = calculate(proRataInput(input(base), 0.5), full.baseAnnual);
+  assert.ok(Math.abs(months(off) - 1) < 1e-9, '15 days, default: SI for one whole month');
+  const on = calculate(proRataInput(input({ ...base, overrides: { siBase: '', taxable: '', taxablePer: 'month', siProRata: true } }), 0.5), full.baseAnnual);
+  assert.ok(Math.abs(months(on) - 0.5) < 1e-9, 'with the option: SI for half a month');
+  const long = calculate(proRataInput(input({ amount: '10000', payPeriod: { months: '2', days: '10' } }), 2 + 1 / 3), full.baseAnnual);
+  assert.ok(Math.abs((long.si.employee / 12) * (2 + 1 / 3) / (full.si.employee / 12) - 2) < 1e-9, '2 months + 10 days, default: 2 months of SI');
+  assert.ok(off.net < on.net, 'charging a whole month of SI leaves less net pay');
+});
+
+test('siMonths: whole months, at least one, unless the days are included', () => {
+  assert.equal(siMonths({ months: '0', days: '15' }, 0.5, false), 1);
+  assert.equal(siMonths({ months: '1', days: '-10' }, 2 / 3, false), 1);
+  assert.equal(siMonths({ months: '3', days: '5' }, 3 + 1 / 6, false), 3);
+  assert.equal(siMonths({ months: '0', days: '15' }, 0.5, true), 0.5);
+  assert.equal(siMonths({ months: '0', days: '0' }, 0, false), 0);
 });
 
 test('new state starts with Transportation 1,000 / month', () => {

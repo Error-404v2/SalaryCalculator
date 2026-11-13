@@ -65,6 +65,12 @@ function computeEspp(espp, parts) {
   return { constant, variable, total: constant + variable, constBase: parts.baseAnnual, varBase };
 }
 
+/** Pro-rata (see proRata.js) may charge SI for a different share of the period than the salary. */
+function scaleSi(si, scale) {
+  if (scale === undefined || scale === 1) return si;
+  return { ...si, employee: si.employee * scale, employer: si.employer * scale };
+}
+
 function computeLevies(levies, grossAnnual, taxableAnnual) {
   return levies.map((l) => {
     const rate = toNumber(l.rate);
@@ -104,13 +110,13 @@ export function calculate(input, baseAnnualOverride) {
   const grossTaxable = baseAnnual + taxableExtras + overtimeAnnual + esppGain;
   const grossAnnual = grossTaxable + exemptAllowances;
 
-  const si = computeSocialInsurance({
+  const si = scaleSi(computeSocialInsurance({
     si: profile.si,
     baseOverride: overrides.siBase,
     year: input.year,
     enabled: !!job.si,
     insurableMonthly: (baseAnnual + insurableAllowances) / 12,
-  });
+  }), input.siScale);
 
   const exemption = job.exemption ? toNumber(profile.tax?.exemption) : 0;
   const autoTaxable = Math.max(0, grossTaxable - si.employee - exemption - preTax);

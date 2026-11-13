@@ -258,6 +258,10 @@
     const variable = varBase * toNumber(espp.varPct) / 100;
     return { constant, variable, total: constant + variable, constBase: parts.baseAnnual, varBase };
   }
+  function scaleSi(si, scale) {
+    if (scale === void 0 || scale === 1) return si;
+    return { ...si, employee: si.employee * scale, employer: si.employer * scale };
+  }
   function computeLevies(levies, grossAnnual, taxableAnnual) {
     return levies.map((l) => {
       const rate = toNumber(l.rate);
@@ -285,13 +289,13 @@
     const esppGain = toAnnual(input.espp?.gain, "once", schedule);
     const grossTaxable = baseAnnual + taxableExtras + overtimeAnnual + esppGain;
     const grossAnnual = grossTaxable + exemptAllowances;
-    const si = computeSocialInsurance({
+    const si = scaleSi(computeSocialInsurance({
       si: profile.si,
       baseOverride: overrides.siBase,
       year: input.year,
       enabled: !!job.si,
       insurableMonthly: (baseAnnual + insurableAllowances) / 12
-    });
+    }), input.siScale);
     const exemption = job.exemption ? toNumber(profile.tax?.exemption) : 0;
     const autoTaxable = Math.max(0, grossTaxable - si.employee - exemption - preTax);
     const overridden = isFilled(overrides.taxable);
@@ -398,12 +402,24 @@
   }
 
   // js/core/proRata.js
-  function proRataInput(input, factor) {
+  var unscale = (amount, factor) => String(toNumber(amount) / factor);
+  var oncePerPeriod = (items, factor) => (items ?? []).map((it) => it.per === "once" ? { ...it, amount: unscale(it.amount, factor) } : it);
+  function siMonths(payPeriod, factor, includeDays) {
+    if (includeDays) return factor;
+    const months = Math.max(0, Math.trunc(toNumber(payPeriod?.months)));
+    return factor > 0 ? Math.max(1, months) : 0;
+  }
+  function proRataInput(input, factor, payPeriod = input.payPeriod) {
     if (factor === 1 || factor <= 0) return input;
+    const months = siMonths(payPeriod, factor, !!input.overrides?.siProRata);
     return {
       ...input,
-      overtime: (input.overtime ?? []).map((o) => ({ ...o, hours: String(toNumber(o.hours) / factor) })),
-      cashAwards: (input.cashAwards ?? []).map((a) => ({ ...a, amount: String(toNumber(a.amount) / factor) }))
+      overtime: (input.overtime ?? []).map((o) => ({ ...o, hours: unscale(o.hours, factor) })),
+      cashAwards: (input.cashAwards ?? []).map((a) => ({ ...a, amount: unscale(a.amount, factor) })),
+      incomes: oncePerPeriod(input.incomes, factor),
+      deductions: oncePerPeriod(input.deductions, factor),
+      espp: input.espp ? { ...input.espp, gain: input.espp.gain ? unscale(input.espp.gain, factor) : input.espp.gain } : input.espp,
+      siScale: months / factor
     };
   }
 
@@ -818,7 +834,8 @@
     jobType: "ft",
     profileId: DEFAULT_PROFILE.id,
     profiles: [DEFAULT_PROFILE],
-    overrides: { siBase: "", taxable: "", taxablePer: "month" },
+    /** `siProRata`: in a pro-rata period, charge social insurance for the days too (off = whole months only). */
+    overrides: { siBase: "", taxable: "", taxablePer: "month", siProRata: false },
     payPeriod: { months: "1", days: "0" },
     schedule: { weeksPerYear: "52", daysPerWeek: "5", hoursPerDay: "8", otHoursBase: "170" },
     incomes: [{ name: "Transportation", amount: "1000", per: "month", taxable: true, insurable: false, inEspp: true }],
@@ -2179,7 +2196,7 @@
   var esppAdded = false;
   var hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0 || toNumber(s.espp.gain) > 0;
   var esppShown = (s) => esppAdded || hasEsppPct(s);
-  function renderEsppInputs(result, money, state2) {
+  function renderEsppInputs(result, money, state2, factor = 1) {
     const block = $("#esppBlock");
     if (!block) return;
     const shown = esppShown(state2);
@@ -2189,17 +2206,18 @@
     $$("[data-deduction-count]").forEach((b) => b.textContent = count ? String(count) : "");
     if (!shown) return;
     const e = result?.espp;
-    $("#esppTile").innerHTML = e?.total ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
-       <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
-       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>` : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
-    renderGainTile(result, money);
+    const inPeriod = (annual) => annual / 12 * factor;
+    $("#esppTile").innerHTML = e?.total ? `<div><span>Constant</span><b>${money(inPeriod(e.constant))}</b></div>
+       <div><span>Variable</span><b>${money(inPeriod(e.variable))}</b></div>
+       <div class="tot"><span>Total / month</span><b>${money(inPeriod(e.total))}</b></div>` : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
+    renderGainTile(result, money, inPeriod);
   }
-  function renderGainTile(result, money) {
+  function renderGainTile(result, money, inPeriod) {
     const tile2 = $("#esppGainTile");
-    const gain = (result?.esppGain ?? 0) / 12;
+    const gain = inPeriod(result?.esppGain ?? 0);
     tile2.hidden = !(gain > 0);
     if (!gain) return;
-    const tax = (result.esppGainTax ?? 0) / 12;
+    const tax = inPeriod(result.esppGainTax ?? 0);
     tile2.innerHTML = `<div><span>ESPP Gains</span><b>${money(gain)}</b></div>
     <div><span>Extra tax</span><b>${money(tax)}</b></div>
     <div class="tot"><span>Net cost</span><b>${money(tax)}</b></div>`;
@@ -3168,7 +3186,7 @@
   }
   function computeProRata(input, full, factor) {
     if (!full || factor === 1) return full;
-    const adjusted = proRataInput(input, factor);
+    const adjusted = proRataInput(input, factor, input.payPeriod);
     return withImpacts(adjusted, calculate(adjusted, full.baseAnnual));
   }
   var lastForm = "";
@@ -3198,7 +3216,7 @@
       lastForm = scopeMonth();
       resetEsppAdded();
     }
-    renderEsppInputs(pay.result ?? result, money, state2);
+    renderEsppInputs(pay.result ?? result, money, state2, pay.result ? pay.factor : 1);
     if (state2.ui.inTab === "history") {
       renderHistory(input, money, pay);
       syncCollapsibles(state2);

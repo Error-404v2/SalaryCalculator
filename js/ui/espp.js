@@ -26,7 +26,8 @@ let esppAdded = false;
 const hasEsppPct = (s) => toNumber(s.espp.constPct) > 0 || toNumber(s.espp.varPct) > 0 || toNumber(s.espp.gain) > 0;
 export const esppShown = (s) => esppAdded || hasEsppPct(s);
 
-export function renderEsppInputs(result, money, state) {
+/** `factor` is the pro-rata share of a month the result covers (1 for a normal month). */
+export function renderEsppInputs(result, money, state, factor = 1) {
   const block = $('#esppBlock');
   if (!block) return;
   const shown = esppShown(state);
@@ -36,21 +37,22 @@ export function renderEsppInputs(result, money, state) {
   $$('[data-deduction-count]').forEach((b) => (b.textContent = count ? String(count) : ''));
   if (!shown) return;
   const e = result?.espp;
+  const inPeriod = (annual) => (annual / 12) * factor;
   $('#esppTile').innerHTML = e?.total
-    ? `<div><span>Constant</span><b>${money(e.constant / 12)}</b></div>
-       <div><span>Variable</span><b>${money(e.variable / 12)}</b></div>
-       <div class="tot"><span>Total / month</span><b>${money(e.total / 12)}</b></div>`
+    ? `<div><span>Constant</span><b>${money(inPeriod(e.constant))}</b></div>
+       <div><span>Variable</span><b>${money(inPeriod(e.variable))}</b></div>
+       <div class="tot"><span>Total / month</span><b>${money(inPeriod(e.total))}</b></div>`
     : '<div class="hint">Enter a % above 0 to deduct part of your pay into shares.</div>';
-  renderGainTile(result, money);
+  renderGainTile(result, money, inPeriod);
 }
 
 /** The ESPP gain is added to taxable pay and then taken back out, so its only cost is the extra tax. */
-function renderGainTile(result, money) {
+function renderGainTile(result, money, inPeriod) {
   const tile = $('#esppGainTile');
-  const gain = (result?.esppGain ?? 0) / 12;
+  const gain = inPeriod(result?.esppGain ?? 0);
   tile.hidden = !(gain > 0);
   if (!gain) return;
-  const tax = (result.esppGainTax ?? 0) / 12;
+  const tax = inPeriod(result.esppGainTax ?? 0);
   tile.innerHTML = `<div><span>ESPP Gains</span><b>${money(gain)}</b></div>
     <div><span>Extra tax</span><b>${money(tax)}</b></div>
     <div class="tot"><span>Net cost</span><b>${money(tax)}</b></div>`;

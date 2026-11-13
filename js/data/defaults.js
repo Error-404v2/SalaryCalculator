@@ -55,7 +55,8 @@ export const DEFAULT_STATE = Object.freeze({
   jobType: 'ft',
   profileId: DEFAULT_PROFILE.id,
   profiles: [DEFAULT_PROFILE],
-  overrides: { siBase: '', taxable: '', taxablePer: 'month' },
+  /** `siProRata`: in a pro-rata period, charge social insurance for the days too (off = whole months only). */
+  overrides: { siBase: '', taxable: '', taxablePer: 'month', siProRata: false },
   payPeriod: { months: '1', days: '0' },
   schedule: { weeksPerYear: '52', daysPerWeek: '5', hoursPerDay: '8', otHoursBase: '170' },
   incomes: [{ name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false, inEspp: true }],

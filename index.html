@@ -138,6 +138,8 @@
               <label for="siBase">Social insurance base (monthly)</label>
               <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase" data-money>
               <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
+              <label class="check" style="margin-top:6px"><input type="checkbox" data-bind="overrides.siProRata"> Include pro-rata days in social insurance</label>
+              <div class="hint">Off: social insurance is charged for the whole month, whatever the days.</div>
             </div>
             <div class="field">
               <label for="ovTax">Manual taxable amount</label>

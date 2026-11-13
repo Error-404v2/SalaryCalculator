@@ -27,6 +27,8 @@ The salary amount is the only required field.
 
 - **First line:** Gross → Net or Net → Gross, with the tax year beside it.
 - **Pro-rata:** *Month* (default 1) and *Day* (default 0) spinners with ▲▼ buttons. As in the original sheet, the period is `months + days / 30` of a full month (for example 0 months + 15 days = half a month, 1 month − 10 days = ⅔).
+  - The days never scale **One-Time** allowances and deductions, overtime hours, cash awards or the ESPP gain: those are paid in full in the period.
+  - **Social insurance** is charged for whole months by default (at least one), so the days don't change it. Tick *Include pro-rata days in social insurance* (More options, under the SI base) to scale it with the days too.
   - These scale with the period: basic salary, allowances, the tax brackets and the exemption.
   - These stay as entered: actual overtime hours and cash awards.
 - **Salary amount and period:** swipe or scroll on the field, or press ↑ / ↓, to change it in steps of 100.

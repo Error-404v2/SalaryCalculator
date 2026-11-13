@@ -33,7 +33,7 @@ function compute(input) {
 /** The pro-rata result shares the solved basic salary, so Net → Gross stays anchored to a full month. */
 function computeProRata(input, full, factor) {
   if (!full || factor === 1) return full;
-  const adjusted = proRataInput(input, factor);
+  const adjusted = proRataInput(input, factor, input.payPeriod);
   return withImpacts(adjusted, calculate(adjusted, full.baseAnnual));
 }
 
@@ -64,7 +64,7 @@ function render(state) {
   });
   renderResults(result, input, money, pay);
   if (store.scopeMonth() !== lastForm) { lastForm = store.scopeMonth(); resetEsppAdded(); }
-  renderEsppInputs(pay.result ?? result, money, state);
+  renderEsppInputs(pay.result ?? result, money, state, pay.result ? pay.factor : 1);
   if (state.ui.inTab === 'history') {
     renderHistory(input, money, pay);
     syncCollapsibles(state);
