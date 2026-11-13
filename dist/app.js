@@ -51,7 +51,7 @@
     occasional: ["once", "half", "quarter"],
     recurring: ["month", "year"],
     award: ["once", "month"],
-    deduction: ["month", "quarter", "half", "year"]
+    deduction: ["once", "month", "quarter", "half", "year"]
   };
   function itemPeriods(list, item = {}) {
     const name = String(item.name ?? "").toLowerCase();

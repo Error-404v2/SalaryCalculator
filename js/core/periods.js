@@ -25,12 +25,12 @@ const PERIOD_SETS = {
   occasional: ['once', 'half', 'quarter'],
   recurring: ['month', 'year'],
   award: ['once', 'month'],
-  deduction: ['month', 'quarter', 'half', 'year'],
+  deduction: ['once', 'month', 'quarter', 'half', 'year'],
 };
 
 /**
  * Period choices for one Pay-tab item. Transportation and Medical are monthly or annual; other allowances
- * and bonuses are occasional; other deductions never use daily or hourly. An item already saved with a
+ * and bonuses are occasional; other deductions can be One-Time but never daily or hourly. An item already saved with a
  * period outside its list keeps that period selectable, so loading old data never changes its figures.
  */
 export function itemPeriods(list, item = {}) {

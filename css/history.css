@@ -107,7 +107,9 @@ select option { background: var(--surface); color: var(--text); }
 
 @media (max-width: 420px) {
   .tab-actions .btn { padding: 0 8px; font-size: .78rem; }
-  .tab-actions .spin-label { display: none; }
+  /* Phone: M and D instead of Month and Day */
+  .tab-actions .spin-label { font-size: 0; padding-left: 7px; }
+  .tab-actions .spin-label::before { content: attr(data-short); font-size: .7rem; }
   .tab-actions .spin input { width: 26px; }
   .save-month { padding: 10px 16px; }
 }
