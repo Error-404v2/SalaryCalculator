@@ -3,7 +3,7 @@ import { escapeHtml } from '../utils/format.js';
 import { toNumber } from '../utils/number.js';
 import {
   monthKey, monthLabel, monthList, monthInForce, snapshotPay, putMonth, dropMonth, applyPay, fromAnnual,
-  grossPay, withPay, calculate, moveMonth,
+  grossPay, withPay, moveMonth, periodNet, resolvePayPeriod,
 } from '../core/index.js';
 import { breakdownLines } from './results/summary.js';
 import { monthPickerHtml, onMonthPick } from './monthPicker.js';
@@ -43,8 +43,9 @@ function clearRename() {
 
 const isSaved = (state, month) => !!state.months[month];
 const withProfile = (state) => ({ ...state, profile: store.activeProfile() });
-/** A month's final (net) monthly pay, for the saved-months list. */
-const finalPay = (state, pay) => (toNumber(pay?.amount) > 0 ? calculate({ ...withPay(withProfile(state), pay), profile: store.activeProfile() }).net / 12 : 0);
+/** A month's final (net) pay for its own pro-rata period (a full month unless days were set), for the saved-months list. */
+const finalPay = (state, pay) =>
+  (toNumber(pay?.amount) > 0 ? periodNet({ ...withPay(withProfile(state), pay), profile: store.activeProfile() }) : 0);
 const isDirty = (month) => month === store.scopeMonth() ? store.scopeDirty() : drafts.has(month);
 
 /**
@@ -233,7 +234,7 @@ function savedList(state, active, money) {
       const total = inYear.reduce((n, m) => n + finalPay(state, m === active ? store.scopePay() : drafts.get(m) ?? state.months[m]), 0);
       const open = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
       return `<div class="month-year${open ? ' open' : ''}">
-        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? ' on' : ''}" data-hist-year="${year}" aria-expanded="${open}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Net pay of the year's months">${total ? money(total) : '—'}</span><span class="yr-chev">${CHEVRON}</span></button>
+        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? ' on' : ''}" data-hist-year="${year}" aria-expanded="${open}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : '—'}</span><span class="yr-chev">${CHEVRON}</span></button>
         ${open ? inYear.map((m) => monthRow(state, m, active, money)).join('') : ''}</div>`;
     }).join('');
   return `<details class="more" data-open="histSaved">
@@ -250,7 +251,7 @@ function monthSummary(state, money, pay) {
   const r = pay.result;
   if (!r) return '<div class="hint">Enter a gross salary below to see this month’s figures.</div>';
   const at = (annual) => money(fromAnnual(annual, 'month', state.schedule, pay.factor));
-  return `<div class="hist-net"><span>Net pay</span><b>${at(r.net)}</b></div>
+  return `<div class="hist-net"><span>Net pay${pay.factor === 1 ? '' : ' · ' + escapeHtml(resolvePayPeriod(state.payPeriod).label)}</span><b>${at(r.net)}</b></div>
     <div class="lines compact">${breakdownLines(r, state, at, { net: false, entered: true })}</div>`;
 }
 

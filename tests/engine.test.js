@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  computeIncomeTax, calculate, solveForNet, periodsPerYear, validateBrackets, sortOvertime, withImpacts, resolvePayPeriod, fromAnnual, proRataInput, siMonths,
+  computeIncomeTax, calculate, solveForNet, periodsPerYear, validateBrackets, sortOvertime, withImpacts, resolvePayPeriod, fromAnnual, proRataInput, siMonths, periodNet,
 } from '../js/core/index.js';
 import { DEFAULT_STATE, DEFAULT_PROFILE } from '../js/data/defaults.js';
 import { stepValue } from '../js/utils/number.js';
@@ -154,6 +154,22 @@ test('pro-rata: social insurance is a whole month by default; the option charges
   const long = calculate(proRataInput(input({ amount: '10000', payPeriod: { months: '2', days: '10' } }), 2 + 1 / 3), full.baseAnnual);
   assert.ok(Math.abs((long.si.employee / 12) * (2 + 1 / 3) / (full.si.employee / 12) - 2) < 1e-9, '2 months + 10 days, default: 2 months of SI');
   assert.ok(off.net < on.net, 'charging a whole month of SI leaves less net pay');
+});
+
+test('periodNet: a month saved with days shows the net of that period, not of a full month', () => {
+  const items = {
+    incomes: [{ name: 'Bonus', amount: '2000', per: 'once', taxable: true }, { name: 'Transportation', amount: '1000', per: 'month', taxable: true }],
+    deductions: [{ name: 'Fine', amount: '500', per: 'once', pretax: false }, { name: 'Loan', amount: '300', per: 'month', pretax: false }],
+  };
+  const fullMonth = input({ amount: '10000', ...items });
+  assert.ok(Math.abs(periodNet(fullMonth) - calculate(fullMonth).net / 12) < 1e-9, 'no days: the normal monthly net');
+  const half = input({ amount: '10000', payPeriod: { months: '0', days: '15' }, ...items });
+  assert.ok(Math.abs(periodNet(half) - 5060) < 1, '15 days: 5,060 (One-Time items whole, SI a whole month)');
+  const withDays = input({ amount: '10000', payPeriod: { months: '0', days: '15' }, overrides: { siBase: '', taxable: '', taxablePer: 'month', siProRata: true }, ...items });
+  assert.ok(Math.abs(periodNet(withDays) - 5500) < 1, '15 days with SI days: 5,500');
+  const two = input({ amount: '10000', payPeriod: { months: '2', days: '0' } });
+  assert.ok(Math.abs(periodNet(two) - 2 * calculate(two).net / 12) < 1e-6, 'two months: twice the monthly net');
+  assert.ok(periodNet(input({ amount: '10000', payPeriod: undefined })) > 0, 'an old month without a period still has a net');
 });
 
 test('siMonths: whole months, at least one, unless the days are included', () => {

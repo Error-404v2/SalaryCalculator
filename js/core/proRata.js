@@ -1,4 +1,6 @@
 import { toNumber } from '../utils/number.js';
+import { calculate } from './calculator.js';
+import { resolvePayPeriod } from './periods.js';
 
 const unscale = (amount, factor) => String(toNumber(amount) / factor);
 const oncePerPeriod = (items, factor) =>
@@ -33,4 +35,12 @@ export function proRataInput(input, factor, payPeriod = input.payPeriod) {
     espp: input.espp ? { ...input.espp, gain: input.espp.gain ? unscale(input.espp.gain, factor) : input.espp.gain } : input.espp,
     siScale: months / factor,
   };
+}
+
+/** Net pay for the input's own pro-rata period (a full month's net unless months/days were set). */
+export function periodNet(input) {
+  const { factor } = resolvePayPeriod(input.payPeriod);
+  const full = calculate(input);
+  if (factor === 1 || !(factor > 0)) return full.net / 12;
+  return (calculate(proRataInput(input, factor, input.payPeriod), full.baseAnnual).net / 12) * factor;
 }

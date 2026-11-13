@@ -1622,6 +1622,22 @@ tr.active td:first-child {
 .tab-actions .btn[hidden] {
   display: none;
 }
+.tab-actions .spins {
+  gap: 4px;
+}
+.tab-actions .spin {
+  height: 30px;
+}
+.tab-actions .spin input {
+  width: 30px;
+}
+.tab-actions .spin-label {
+  padding-left: 7px;
+  font-size: .7rem;
+}
+.tab-actions .spin-btns button {
+  width: 18px;
+}
 .save-month {
   display: flex;
   flex-direction: column;
@@ -1982,6 +1998,12 @@ select option {
   .tab-actions .btn {
     padding: 0 8px;
     font-size: .78rem;
+  }
+  .tab-actions .spin-label {
+    display: none;
+  }
+  .tab-actions .spin input {
+    width: 26px;
   }
   .save-month {
     padding: 10px 16px;

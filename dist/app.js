@@ -422,6 +422,12 @@
       siScale: months / factor
     };
   }
+  function periodNet(input) {
+    const { factor } = resolvePayPeriod(input.payPeriod);
+    const full = calculate(input);
+    if (factor === 1 || !(factor > 0)) return full.net / 12;
+    return calculate(proRataInput(input, factor, input.payPeriod), full.baseAnnual).net / 12 * factor;
+  }
 
   // js/core/history.js
   var HISTORY_FIELDS = [
@@ -2601,7 +2607,7 @@
   }
   var isSaved = (state2, month) => !!state2.months[month];
   var withProfile = (state2) => ({ ...state2, profile: activeProfile() });
-  var finalPay = (state2, pay) => toNumber(pay?.amount) > 0 ? calculate({ ...withPay(withProfile(state2), pay), profile: activeProfile() }).net / 12 : 0;
+  var finalPay = (state2, pay) => toNumber(pay?.amount) > 0 ? periodNet({ ...withPay(withProfile(state2), pay), profile: activeProfile() }) : 0;
   var isDirty = (month) => month === scopeMonth() ? scopeDirty() : drafts.has(month);
   function stash() {
     const month = scopeMonth();
@@ -2755,7 +2761,7 @@
       const total = inYear.reduce((n, m) => n + finalPay(state2, m === active ? scopePay() : drafts.get(m) ?? state2.months[m]), 0);
       const open3 = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
       return `<div class="month-year${open3 ? " open" : ""}">
-        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${open3}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Net pay of the year's months">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
+        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${open3}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
         ${open3 ? inYear.map((m) => monthRow(state2, m, active, money)).join("") : ""}</div>`;
     }).join("");
     return `<details class="more" data-open="histSaved">
@@ -2770,7 +2776,7 @@
     const r = pay.result;
     if (!r) return '<div class="hint">Enter a gross salary below to see this month\u2019s figures.</div>';
     const at = (annual) => money(fromAnnual(annual, "month", state2.schedule, pay.factor));
-    return `<div class="hist-net"><span>Net pay</span><b>${at(r.net)}</b></div>
+    return `<div class="hist-net"><span>Net pay${pay.factor === 1 ? "" : " \xB7 " + escapeHtml(resolvePayPeriod(state2.payPeriod).label)}</span><b>${at(r.net)}</b></div>
     <div class="lines compact">${breakdownLines(r, state2, at, { net: false, entered: true })}</div>`;
   }
   function renderHistory(state2, money, pay) {
