@@ -10,11 +10,12 @@ export function loadSaved() {
 }
 
 let timer;
+/** `data` may be a function, read when the save actually happens, so it is never stale. */
 export function saveDebounced(data, delay = 200) {
   clearTimeout(timer);
   timer = setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(typeof data === 'function' ? data() : data));
     } catch {
       // Storage may be blocked (private mode); the app still works for this session.
     }

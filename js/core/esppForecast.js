@@ -12,7 +12,7 @@ import { payBaseOf, payslipGainFor, gainRows } from './esppGains.js';
  */
 export const esppDeductionFor = (input) => (month) => {
   const saved = input.months?.[month];
-  return saved ? calculate(withPay(input, saved)).espp.total / 12 : 0;
+  return saved ? calculate(withPay(input, saved, month)).espp.total / 12 : 0;
 };
 
 /** Where each month's calculated deduction comes from, for the ledger's hint: its History entry, or nothing. */

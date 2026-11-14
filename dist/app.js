@@ -472,6 +472,16 @@
     keys.reduce((o, k) => o[k], obj)[last] = value;
   }
 
+  // js/core/taxYear.js
+  function taxYearFor(month, caps = []) {
+    const year = String(month ?? "").slice(0, 4);
+    if (!/^\d{4}$/.test(year)) return String((/* @__PURE__ */ new Date()).getFullYear());
+    const years = (caps ?? []).map((c) => String(c.year)).filter((y) => /^\d{4}$/.test(y));
+    if (!years.length || years.includes(year)) return year;
+    const at = toNumber(year);
+    return years.sort((a, b) => Math.abs(toNumber(a) - at) - Math.abs(toNumber(b) - at) || toNumber(b) - toNumber(a))[0];
+  }
+
   // js/core/months.js
   var PAY_KEYS = ["amount", "per", "mode", "payPeriod", "jobType", "overrides", "incomes", "overtime", "cashAwards", "deductions", "espp"];
   var ESPP_KEYS = ["constPct", "varPct", "variable", "gain"];
@@ -492,22 +502,15 @@
     const gross = fromAnnual(solved.baseAnnual, pay.per, input.schedule);
     return { ...clone(pay), mode: "gross", amount: String(Math.round(gross * 100) / 100) };
   }
-  function withPay(state2, pay) {
-    if (!pay) return state2;
+  function withPay(state2, pay, month = "") {
     const next = { ...state2 };
+    if (month) next.year = taxYearFor(month, (state2.profile ?? state2.profiles?.find((p) => p.id === state2.profileId))?.si?.caps);
+    if (!pay) return next;
     for (const key2 of PAY_KEYS) {
       if (!(key2 in pay)) continue;
       next[key2] = key2 === "espp" ? { ...state2.espp, ...clone(pay.espp) } : clone(pay[key2]);
     }
     return next;
-  }
-  function applyPay(state2, pay) {
-    for (const key2 of PAY_KEYS) {
-      if (!(key2 in pay)) continue;
-      if (key2 === "espp") Object.assign(state2.espp, clone(pay.espp));
-      else state2[key2] = clone(pay[key2]);
-    }
-    return state2;
   }
   function monthsWithDraft(months, month, pay, dirty) {
     if (!month || !pay || !(months?.[month] || dirty)) return months ?? {};
@@ -671,7 +674,7 @@
     const historyGain = saved ? toNumber(saved.espp?.gain) : 0;
     const used = typed ? typedRaw : historyGain > 0 ? saved.espp.gain : "";
     if (!(toNumber(used) > 0)) return { gain: 0, tax: 0, source: "", historyGain };
-    const base = saved ? withPay(input, saved) : payBase;
+    const base = saved ? withPay(input, saved, month) : withPay(payBase, null, month);
     const r = calculate({ ...base, espp: { ...base.espp, gain: used } });
     return { gain: r.esppGain / 12, tax: r.esppGainTax / 12, source: typed ? "typed" : "history", historyGain };
   }
@@ -728,7 +731,7 @@
   // js/core/esppForecast.js
   var esppDeductionFor = (input) => (month) => {
     const saved = input.months?.[month];
-    return saved ? calculate(withPay(input, saved)).espp.total / 12 : 0;
+    return saved ? calculate(withPay(input, saved, month)).espp.total / 12 : 0;
   };
   function deductionSource(input, month) {
     return input.months?.[month] ? { kind: "month", month } : { kind: "none", month: "" };
@@ -782,8 +785,8 @@
   var formatPercent = (ratio) => `${(ratio * 100).toFixed(1)}%`;
   var grouped = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   function groupDigits(value) {
-    const raw = String(value ?? "").replace(/,/g, "").trim();
-    return /^-?\d+(\.\d+)?$/.test(raw) ? grouped.format(Number(raw)) : String(value ?? "");
+    const raw2 = String(value ?? "").replace(/,/g, "").trim();
+    return /^-?\d+(\.\d+)?$/.test(raw2) ? grouped.format(Number(raw2)) : String(value ?? "");
   }
 
   // js/data/defaults.js
@@ -880,7 +883,6 @@
     /** Saved months: "YYYY-MM" → a full copy of the Pay tab inputs for that month (see core/months.js). */
     months: {},
     ui: {
-      inTab: "pay",
       resTab: "summary",
       esppYear: "",
       histMonth: "",
@@ -897,8 +899,8 @@
   var STORAGE_KEY = "salary-calc-v1";
   function loadSaved() {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      return raw ? JSON.parse(raw) : null;
+      const raw2 = localStorage.getItem(STORAGE_KEY);
+      return raw2 ? JSON.parse(raw2) : null;
     } catch {
       return null;
     }
@@ -908,7 +910,7 @@
     clearTimeout(timer);
     timer = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(typeof data === "function" ? data() : data));
       } catch {
       }
     }, delay);
@@ -959,10 +961,10 @@
   }
   var MONTH = /^\d{4}-\d{2}$/;
   function restoreEntries(state2, saved) {
-    const raw = saved?.espp?.entries;
+    const raw2 = saved?.espp?.entries;
     const entries = {};
-    if (raw && typeof raw === "object") {
-      for (const [month, row] of Object.entries(raw)) {
+    if (raw2 && typeof raw2 === "object") {
+      for (const [month, row] of Object.entries(raw2)) {
         if (!MONTH.test(month) || !row || typeof row !== "object") continue;
         const { gainTax, ...rest } = row;
         if (Object.keys(rest).length) entries[month] = rest;
@@ -980,14 +982,14 @@
     return state2;
   }
   function restoreMonths(state2, saved) {
-    const raw = saved?.months;
+    const raw2 = saved?.months;
     const months = {};
-    if (raw && typeof raw === "object") {
-      for (const [month, pay] of Object.entries(raw)) {
+    if (raw2 && typeof raw2 === "object") {
+      for (const [month, pay] of Object.entries(raw2)) {
         if (MONTH.test(month) && pay && typeof pay === "object" && "amount" in pay) months[month] = pay;
       }
     }
-    state2.months = Object.keys(months).length || raw ? months : monthsFromHistory(state2.history, state2);
+    state2.months = Object.keys(months).length || raw2 ? months : monthsFromHistory(state2.history, state2);
     return state2;
   }
   function grossMonths(state2) {
@@ -1020,7 +1022,17 @@
   // js/state/store.js
   var PROFILE_PREFIX = "@";
   var listeners = /* @__PURE__ */ new Set();
-  var state = hydrate(loadSaved());
+  var raw = loadSaved();
+  var state = hydrate(raw);
+  var loadedWork = raw && typeof raw.work === "object" ? raw.work : null;
+  var workProvider = () => null;
+  var setWorkProvider = (fn) => {
+    workProvider = fn;
+  };
+  var persisted = () => {
+    const work2 = workProvider();
+    return work2 ? { ...state, work: work2 } : state;
+  };
   var scope = null;
   var getState = () => state;
   var view = () => scope ? withPay(state, scope.pay) : state;
@@ -1048,7 +1060,7 @@
     return () => listeners.delete(fn);
   }
   function commit() {
-    saveDebounced(state);
+    saveDebounced(persisted);
     const current = view();
     listeners.forEach((fn) => fn(current));
   }
@@ -1091,8 +1103,7 @@
 
   // js/ui/tabs.js
   var GROUPS = [
-    { nav: "[data-tabs]", key: "ui.resTab", panel: "data-panel" },
-    { nav: "[data-in-tabs]", key: "ui.inTab", panel: "data-in-panel" }
+    { nav: "[data-tabs]", key: "ui.resTab", panel: "data-panel" }
   ];
   function initTabs() {
     GROUPS.forEach(({ nav, key: key2 }) => {
@@ -1144,9 +1155,6 @@
     $("#ovPer").innerHTML = periodOptions(state2.overrides.taxablePer);
     if (!profile.jobTypes.some((j) => j.id === state2.jobType) && profile.jobTypes[0]) state2.jobType = profile.jobTypes[0].id;
     $("#jobSel").innerHTML = optionList(profile.jobTypes.map((j) => ({ value: j.id, label: j.name })), state2.jobType);
-    const years = new Set(profile.si.caps.map((c) => String(c.year)).filter(Boolean));
-    years.add(String(state2.year));
-    $("#yearSel").innerHTML = optionList([...years].sort().map((y) => ({ value: y, label: y })), String(state2.year));
     const profiles = state2.profiles.map((p) => ({ value: p.id, label: p.name || "Untitled" }));
     $$(".profile-select").forEach((el) => el.innerHTML = optionList(profiles, state2.profileId));
   }
@@ -1793,9 +1801,9 @@
     const total = segments.reduce((a, s) => a + s.value, 0) || 1;
     let angle = 0;
     const stops = segments.map((s) => {
-      const start = angle;
+      const start2 = angle;
       angle += s.value / total * 360;
-      return `${s.color} ${start}deg ${angle}deg`;
+      return `${s.color} ${start2}deg ${angle}deg`;
     });
     return `<div class="donut-box">
     <div class="donut" style="background:conic-gradient(${stops.join(",")})"><div class="c"><b>${centerValue}</b><span>${centerLabel}</span></div></div>
@@ -2057,7 +2065,8 @@
   var BACKUP_KIND = "salary-calculator";
   var BACKUP_VERSION = 2;
   function exportData(state2, now = /* @__PURE__ */ new Date()) {
-    return { kind: BACKUP_KIND, version: BACKUP_VERSION, exportedAt: now.toISOString(), state: clone(state2) };
+    const { work: work2, ...saved } = clone(state2);
+    return { kind: BACKUP_KIND, version: BACKUP_VERSION, exportedAt: now.toISOString(), state: saved };
   }
   function importData(json) {
     const data = typeof json === "string" ? JSON.parse(json) : json;
@@ -2586,13 +2595,15 @@
     });
   }
 
-  // js/ui/history.js
+  // js/ui/entry.js
   var drafts = /* @__PURE__ */ new Map();
   var askDelete = "";
   var entry = { home: "", saved: false, base: null };
   var movingFrom = "";
   var overriding = false;
   var askOverride = false;
+  var picking = false;
+  var CUSTOM2 = "custom";
   var CHEVRON4 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
   var RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
@@ -2607,8 +2618,9 @@
   }
   var isSaved = (state2, month) => !!state2.months[month];
   var withProfile = (state2) => ({ ...state2, profile: activeProfile() });
-  var finalPay = (state2, pay) => toNumber(pay?.amount) > 0 ? periodNet({ ...withPay(withProfile(state2), pay), profile: activeProfile() }) : 0;
+  var finalPay = (state2, pay, month) => toNumber(pay?.amount) > 0 ? periodNet(withPay(withProfile(state2), pay, month)) : 0;
   var isDirty = (month) => month === scopeMonth() ? scopeDirty() : drafts.has(month);
+  var payOf = (state2, month, active) => month === active ? scopePay() : drafts.get(month) ?? state2.months[month];
   function stash() {
     const month = scopeMonth();
     if (!month) return;
@@ -2623,8 +2635,8 @@
     const saved = state2.months[month];
     if (saved) return { pay: drafts.get(month) ?? saved, base: saved };
     const before = monthInForce(state2.months, month);
-    const start = before ? state2.months[before] : grossPay(snapshotPay(state2), withProfile(state2));
-    return { pay: drafts.get(month) ?? start, base: start };
+    const start2 = before ? state2.months[before] : grossPay(snapshotPay(state2), withProfile(state2));
+    return { pay: drafts.get(month) ?? start2, base: start2 };
   }
   function open2(month) {
     if (month === scopeMonth()) return;
@@ -2652,7 +2664,7 @@
     setScope(month, pay, base);
     setEntry(month, isSaved(getState(), month), base);
   }
-  function pickMonth(month) {
+  function rename(month) {
     const state2 = getState();
     const current = scopeMonth();
     if (!current || month === current) return open2(month);
@@ -2713,23 +2725,6 @@
     setScope(month, pay, base);
     setEntry(month, false, base);
   }
-  function syncHistoryScope() {
-    const s = getState();
-    if (s.ui.inTab !== "history") {
-      stash();
-      clearRename();
-      setEntry("", false, null);
-      if (scopeMonth()) setScope("");
-      return;
-    }
-    const month = s.ui.histMonth && (isSaved(s, s.ui.histMonth) || drafts.has(s.ui.histMonth)) ? s.ui.histMonth : monthList(s.months)[0] ?? monthKey(/* @__PURE__ */ new Date());
-    open2(month);
-  }
-  function placePayForm(state2) {
-    const form = $("#payForm");
-    const target = state2.ui.inTab === "history" && scopeMonth() ? $("#payFormSlot") : $("#payFormHome");
-    if (form && target && form.parentElement !== target) target.appendChild(form);
-  }
   function monthRow(state2, month, active, money) {
     const name = escapeHtml(monthLabel(month, "long"));
     if (askDelete === month) {
@@ -2737,15 +2732,16 @@
       <span class="row"><button class="btn sm danger" data-hist-act="delete-yes">Delete</button>
       <button class="btn sm ghost" data-hist-act="delete-no">Keep</button></span></div>`;
     }
-    const pay = month === active ? scopePay() : drafts.get(month) ?? state2.months[month];
+    const pay = payOf(state2, month, active);
     const moved = month === active && movingFrom ? `<span class="tag">from ${escapeHtml(monthLabel(movingFrom))}</span>` : "";
     const pending2 = isDirty(month) || month === active && overriding;
     const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : pending2 ? '<span class="tag">unsaved</span>' : "");
     const now = month === monthKey(/* @__PURE__ */ new Date()) ? '<span class="hint">now</span>' : "";
     const reset = canReset(state2, month, active) ? `<button type="button" class="btn icon ghost reset" data-hist-reset="${month}" aria-label="Reset ${name} to saved" title="Reset to saved">${RESET_ICON}</button>` : "";
+    const net = finalPay(state2, pay, month);
     return `<div class="month-row${month === active ? " on" : ""}">
     <button type="button" class="month-item" data-hist-pick="${month}"><span>${name}${now}${tag}</span>
-      <span class="hint" title="Net pay">${finalPay(state2, pay) ? money(finalPay(state2, pay)) : "\u2014"}</span></button>
+      <span class="hint" title="Net pay for this month's own pro-rata period">${net ? money(net) : "\u2014"}</span></button>
     ${reset}<button type="button" class="btn icon ghost danger" data-hist-del="${month}" aria-label="${isSaved(state2, month) ? "Delete" : "Discard"} ${name}"
       title="${isSaved(state2, month) ? "Delete month" : "Discard"}">${RED_MINUS}</button>
   </div>`;
@@ -2756,13 +2752,13 @@
     if (active) months.add(active);
     const sorted = [...months].sort((a, b) => b.localeCompare(a));
     const years = [...new Set(sorted.map((m) => m.slice(0, 4)))];
-    const rows = years.length < 2 ? sorted.map((m) => monthRow(state2, m, active, money)).join("") : years.map((year) => {
+    const rows = years.map((year) => {
       const inYear = sorted.filter((m) => m.startsWith(year));
-      const total = inYear.reduce((n, m) => n + finalPay(state2, m === active ? scopePay() : drafts.get(m) ?? state2.months[m]), 0);
-      const open3 = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
-      return `<div class="month-year${open3 ? " open" : ""}">
-        <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${open3}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
-        ${open3 ? inYear.map((m) => monthRow(state2, m, active, money)).join("") : ""}</div>`;
+      const total = inYear.reduce((n, m) => n + finalPay(state2, payOf(state2, m, active), m), 0);
+      const opened = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
+      return `<div class="month-year${opened ? " open" : ""}">
+      <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${opened}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
+      ${opened ? inYear.map((m) => monthRow(state2, m, active, money)).join("") : ""}</div>`;
     }).join("");
     return `<details class="more" data-open="histSaved">
     <summary>Saved months <span class="count">${monthList(state2.months).length || ""}</span></summary>
@@ -2779,22 +2775,34 @@
     return `<div class="hist-net"><span>Net pay${pay.factor === 1 ? "" : " \xB7 " + escapeHtml(resolvePayPeriod(state2.payPeriod).label)}</span><b>${at(r.net)}</b></div>
     <div class="lines compact">${breakdownLines(r, state2, at, { net: false, entered: true })}</div>`;
   }
-  function renderHistory(state2, money, pay) {
-    const host2 = $("#historyList");
-    if (!host2) return;
+  function saveToHtml(state2, month) {
+    if (picking) return monthPickerHtml("entry", month, monthList(state2.months));
+    const choices = monthChoices(state2.months, monthKey(/* @__PURE__ */ new Date()), month);
+    const options = choices.map((c) => `<option value="${c.month}"${c.month === month ? " selected" : ""}>${escapeHtml(monthLabel(c.month, "long"))}${c.saved ? "" : " (not saved)"}</option>`).join("");
+    return `<select class="sm" data-dd data-entry-month aria-label="Month to save this entry to">${options}<option value="${CUSTOM2}">Custom\u2026</option></select>`;
+  }
+  var needsSave = (state2, month) => !isSaved(state2, month) || scopeDirty() || !!movingFrom || overriding;
+  function renderEntry(state2, money, pay) {
+    const month = scopeMonth();
+    if (!month) return;
+    const save2 = $("#saveBtn");
+    const dirty = needsSave(state2, month);
+    save2.textContent = dirty ? "Save" : "Saved";
+    save2.disabled = !dirty;
+    save2.classList.toggle("primary", dirty);
+    save2.classList.toggle("done", !dirty);
+    save2.title = dirty ? `Save this entry as ${monthLabel(month, "long")}` : `${monthLabel(month, "long")} is saved`;
+    const slot = $("#saveToSlot");
+    if (!slot.contains(document.activeElement) && !slot.querySelector(".mpick-pop:not([hidden])")) {
+      slot.innerHTML = saveToHtml(state2, month);
+    }
+    const host2 = $("#entryHead");
     const focused = document.activeElement;
     if (host2.contains(focused) && focused.tagName === "INPUT") return;
-    const month = scopeMonth();
-    const saved = isSaved(state2, month);
-    const dirty = !saved || scopeDirty() || !!movingFrom || overriding;
     const ask = askOverride ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, "long"))} is already saved. Override it?</span>
         <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
         <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>` : "";
-    host2.innerHTML = `${savedList(state2, month, money)}
-    <div class="row hist-bar">
-      ${monthPickerHtml("hist", month, monthList(state2.months))}
-      <button type="button" class="btn sm ${dirty ? "primary" : "ghost done"}" data-hist-act="save"${dirty ? "" : ' disabled aria-disabled="true"'}>${dirty ? "Save" : "Saved"}</button>
-    </div>${ask}
+    host2.innerHTML = `${savedList(state2, month, money)}${ask}
     <details class="hist-summary" data-open="histSummary">
       <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON4}</summary>
       ${monthSummary(state2, money, pay)}
@@ -2824,23 +2832,6 @@
     setEntry(month, true, scopeBase());
     toast(from ? `Moved ${monthLabel(from, "long")} to ${monthLabel(month, "long")}` : `${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
   }
-  function showTab(tab, month = "") {
-    stash();
-    update((s) => {
-      s.ui.inTab = tab;
-      if (month) s.ui.histMonth = month;
-    });
-    syncHistoryScope();
-  }
-  function fillPay() {
-    const month = scopeMonth();
-    const pay = scopePay();
-    if (!pay) return;
-    update((s) => applyPay(s, pay));
-    drafts.delete(month);
-    showTab("pay");
-    toast(`Pay tab filled with ${monthLabel(month, "long")}`);
-  }
   function remove(month) {
     const saved = isSaved(getState(), month);
     drafts.delete(month);
@@ -2851,38 +2842,90 @@
     toast(`${saved ? "Deleted" : "Discarded"} ${monthLabel(month, "long")}`);
     if (scopeMonth() !== month) return;
     setScope("");
-    open2(monthList(getState().months)[0] ?? monthKey(/* @__PURE__ */ new Date()));
+    setEntry("", false, null);
+    start();
   }
-  function resetHistory() {
+  function work() {
+    const month = scopeMonth();
+    if (!month) return null;
+    return {
+      month,
+      pay: scopePay(),
+      base: scopeBase(),
+      entry,
+      movingFrom,
+      overriding,
+      drafts: Object.fromEntries(drafts)
+    };
+  }
+  var MONTH3 = /^\d{4}-\d{2}$/;
+  var isPay = (p) => p && typeof p === "object" && !Array.isArray(p);
+  function start(saved = null) {
+    const state2 = getState();
+    if (saved && MONTH3.test(saved.month) && isPay(saved.pay)) {
+      drafts.clear();
+      for (const [m, p] of Object.entries(saved.drafts ?? {})) if (MONTH3.test(m) && isPay(p)) drafts.set(m, p);
+      const e = saved.entry ?? {};
+      setEntry(MONTH3.test(e.home) ? e.home : saved.month, !!(e.saved && state2.months[e.home]), isPay(e.base) ? e.base : null);
+      movingFrom = MONTH3.test(saved.movingFrom) && state2.months[saved.movingFrom] ? saved.movingFrom : "";
+      overriding = !!saved.overriding && isSaved(state2, saved.month);
+      update((s) => {
+        s.ui.histMonth = saved.month;
+      });
+      setScope(saved.month, saved.pay, isPay(saved.base) ? saved.base : state2.months[saved.month] ?? saved.pay);
+      return;
+    }
+    const last = state2.ui.histMonth;
+    open2(MONTH3.test(last) && (isSaved(state2, last) || drafts.has(last)) ? last : monthKey(/* @__PURE__ */ new Date()));
+  }
+  function resetEntry() {
     drafts.clear();
     yearToggled.clear();
     clearRename();
     askDelete = "";
+    picking = false;
     setEntry("", false, null);
-    syncHistoryScope();
+    setScope("");
+    start();
   }
-  function syncHistoryBar(state2) {
-    $("#fillPayBtn").hidden = state2.ui.inTab !== "history" || !scopeMonth();
-  }
-  function initHistory(onChanged) {
-    syncHistoryScope();
-    onMonthPick("hist", (month) => {
-      pickMonth(month);
+  function initEntry(onChanged) {
+    setWorkProvider(work);
+    start(loadedWork);
+    onMonthPick("entry", (month) => {
+      picking = false;
+      rename(month);
       onChanged();
     });
-    $("#fillPayBtn").addEventListener("click", () => {
-      fillPay();
+    onMonthBack("entry", () => {
+      picking = false;
+      onChanged();
+    });
+    onMonthClose("entry", () => {
+      if (picking) {
+        picking = false;
+        onChanged();
+      }
+    });
+    document.addEventListener("change", (e) => {
+      const select2 = e.target.closest?.("[data-entry-month]");
+      if (!select2) return;
+      if (select2.value === CUSTOM2) {
+        picking = true;
+        onChanged();
+        openMonthPicker("entry");
+        return;
+      }
+      rename(select2.value);
       onChanged();
     });
     document.addEventListener("click", (e) => {
-      if (e.target.closest("[data-in-tabs] .tab")) {
-        syncHistoryScope();
+      if (e.target.closest("[data-entry-save]")) {
+        save();
         return onChanged();
       }
       const yearHead = e.target.closest("[data-hist-year]");
       if (yearHead) {
-        const year = yearHead.dataset.histYear;
-        yearToggled.set(year, yearHead.getAttribute("aria-expanded") !== "true");
+        yearToggled.set(yearHead.dataset.histYear, yearHead.getAttribute("aria-expanded") !== "true");
         return onChanged();
       }
       const pick2 = e.target.closest("[data-hist-pick]");
@@ -2904,116 +2947,13 @@
       }
       const act = e.target.closest("[data-hist-act]")?.dataset.histAct;
       if (!act) return;
-      if (act === "save") save();
-      else if (act === "override-yes") commitSave();
+      if (act === "override-yes") commitSave();
       else if (act === "override-no") askOverride = false;
       else if (act === "new") newMonth();
       else if (act === "delete-yes") remove(askDelete);
       else if (act === "delete-no") askDelete = "";
       onChanged();
     });
-  }
-
-  // js/ui/saveMonth.js
-  var CUSTOM2 = "custom";
-  function initSaveMonth(onChanged, onSaved) {
-    const panel = $("#saveMonthPanel");
-    const select2 = $("#saveMonthSel");
-    const pickHost = $("#saveMonthPickHost");
-    const ask = $("#saveMonthAsk");
-    let custom = "";
-    let pending2 = "";
-    function close() {
-      panel.hidden = true;
-      ask.hidden = true;
-      pending2 = "";
-    }
-    const chosen = () => select2.hidden ? custom : select2.value;
-    function drawPicker() {
-      pickHost.innerHTML = monthPickerHtml("save", custom, monthList(getState().months));
-      pickHost.hidden = false;
-      select2.hidden = true;
-      syncDropdowns();
-    }
-    function fillList(value) {
-      const choices = monthChoices(getState().months, monthKey(/* @__PURE__ */ new Date()), custom);
-      select2.innerHTML = [
-        '<option value="" disabled>Choose a month\u2026</option>',
-        ...choices.map((c) => `<option value="${c.month}">${monthLabel(c.month, "long")}${c.saved ? "" : " (not saved)"}</option>`),
-        `<option value="${CUSTOM2}">Custom\u2026</option>`
-      ].join("");
-      select2.value = choices.some((c) => c.month === value) ? value : "";
-      syncDropdowns();
-    }
-    function showList() {
-      pickHost.hidden = true;
-      pickHost.innerHTML = "";
-      select2.hidden = false;
-      fillList(custom);
-      ask.hidden = true;
-    }
-    function commit3(month) {
-      const state2 = getState();
-      if (!toNumber(state2.amount)) return toast("Enter a gross salary first");
-      const replaced = !!state2.months[month];
-      const pay = grossPay(snapshotPay(state2), { ...state2, profile: activeProfile() });
-      update((s) => {
-        s.months = putMonth(s.months, month, pay);
-        s.ui.histMonth = month;
-      });
-      if (month === custom) custom = "";
-      close();
-      toast(`${replaced ? "Updated" : "Saved"} ${monthLabel(month, "long")}`);
-      onSaved(month);
-    }
-    function done() {
-      const month = chosen();
-      if (!month) return;
-      if (!getState().months[month]) return commit3(month);
-      pending2 = month;
-      $("#saveMonthAskText").textContent = `${monthLabel(month, "long")} is already saved. Override it?`;
-      ask.hidden = false;
-    }
-    function open3() {
-      const now = monthKey(/* @__PURE__ */ new Date());
-      const startAt = custom && !getState().months[custom] ? custom : now;
-      pickHost.hidden = true;
-      pickHost.innerHTML = "";
-      select2.hidden = false;
-      fillList(startAt);
-      ask.hidden = true;
-      panel.hidden = false;
-    }
-    $("#saveMonthBtn").addEventListener("click", () => panel.hidden ? open3() : close());
-    select2.addEventListener("change", () => {
-      ask.hidden = true;
-      if (select2.value !== CUSTOM2) return;
-      if (!custom) custom = monthKey(/* @__PURE__ */ new Date());
-      drawPicker();
-      openMonthPicker("save");
-    });
-    onMonthBack("save", showList);
-    onMonthPick("save", (month) => {
-      custom = month;
-      showList();
-    });
-    onMonthClose("save", () => {
-      if (!panel.hidden && select2.hidden) showList();
-    });
-    $("#saveMonthGo").addEventListener("click", done);
-    $("#saveMonthYes").addEventListener("click", () => {
-      if (pending2) commit3(pending2);
-    });
-    $("#saveMonthNo").addEventListener("click", () => {
-      ask.hidden = true;
-      pending2 = "";
-    });
-    $("#saveMonthCancel").addEventListener("click", close);
-  }
-  function syncSaveMonth(state2) {
-    const onPay = state2.ui.inTab === "pay";
-    $("#saveMonthBtn").hidden = !onPay;
-    if (!onPay) $("#saveMonthPanel").hidden = true;
   }
 
   // js/ui/esppRates.js
@@ -3197,15 +3137,14 @@
   }
   var lastForm = "";
   function render(state2) {
-    const input = { ...state2, profile: activeProfile() };
+    const profile = activeProfile();
+    const month = scopeMonth();
+    const input = { ...state2, profile, year: month ? taxYearFor(month, profile.si?.caps) : state2.year };
     const money = createMoneyFormatter(input.profile.currency);
     const result = compute(input);
     const pay = resolvePayPeriod(state2.payPeriod);
     pay.result = computeProRata(input, result, pay.factor);
     syncTabs(state2);
-    placePayForm(state2);
-    syncSaveMonth(state2);
-    syncHistoryBar(state2);
     syncCollapsibles(state2);
     syncBindings(state2);
     syncProfiles(state2);
@@ -3223,14 +3162,12 @@
       resetEsppAdded();
     }
     renderEsppInputs(pay.result ?? result, money, state2, pay.result ? pay.factor : 1);
-    if (state2.ui.inTab === "history") {
-      renderHistory(input, money, pay);
-      syncCollapsibles(state2);
-    }
+    renderEntry(input, money, pay);
+    syncCollapsibles(state2);
     if (state2.ui.resTab === "espp") {
       const draft = scopePay();
       const months = monthsWithDraft(state2.months, scopeMonth(), draft && grossPay(draft, input), scopeDirty());
-      const payTab = { ...getState(), profile: input.profile };
+      const payTab = { ...state2, profile: input.profile };
       const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state2) });
       renderEsppTab(report, money);
       renderGainEntries(report, money);
@@ -3255,7 +3192,7 @@
   initProfiles(rebuild);
   initResults();
   initSettings(() => {
-    resetHistory();
+    resetEntry();
     rebuild();
   });
   initSteppers();
@@ -3263,11 +3200,7 @@
   initEspp(rebuild);
   initGainEntries(rebuild);
   initSavingsEditor(rebuild);
-  initHistory(rebuild);
-  initSaveMonth(rebuild, (month) => {
-    showTab("history", month);
-    rebuild();
-  });
+  initEntry(rebuild);
   subscribe(render);
   rebuild();
 })();

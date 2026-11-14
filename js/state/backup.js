@@ -10,7 +10,9 @@ export const BACKUP_KIND = 'salary-calculator';
 export const BACKUP_VERSION = 2;
 
 export function exportData(state, now = new Date()) {
-  return { kind: BACKUP_KIND, version: BACKUP_VERSION, exportedAt: now.toISOString(), state: clone(state) };
+  // `work` (the entry in progress and its drafts) lives only in this browser; the export holds saved data.
+  const { work, ...saved } = clone(state);
+  return { kind: BACKUP_KIND, version: BACKUP_VERSION, exportedAt: now.toISOString(), state: saved };
 }
 
 /** Reads an exported file. Older exports (the bare state, from before the wrapper existed) still load. */

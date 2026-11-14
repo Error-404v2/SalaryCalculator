@@ -25,7 +25,7 @@ export function payslipGainFor(input, month, payBase = input) {
   const used = typed ? typedRaw : historyGain > 0 ? saved.espp.gain : '';
   if (!(toNumber(used) > 0)) return { gain: 0, tax: 0, source: '', historyGain };
 
-  const base = saved ? withPay(input, saved) : payBase;
+  const base = saved ? withPay(input, saved, month) : withPay(payBase, null, month);
   const r = calculate({ ...base, espp: { ...base.espp, gain: used } });
   return { gain: r.esppGain / 12, tax: r.esppGainTax / 12, source: typed ? 'typed' : 'history', historyGain };
 }

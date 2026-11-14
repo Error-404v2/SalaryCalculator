@@ -1,4 +1,4 @@
-import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport, monthsWithDraft, grossPay } from './core/index.js';
+import { calculate, solveForNet, toAnnual, withImpacts, resolvePayPeriod, proRataInput, esppReport, monthsWithDraft, grossPay, taxYearFor } from './core/index.js';
 import { toNumber } from './utils/number.js';
 import { createMoneyFormatter } from './utils/format.js';
 import * as store from './state/store.js';
@@ -13,8 +13,7 @@ import { initSteppers } from './ui/stepper.js';
 import { initRateFetcher } from './ui/rateFetcher.js';
 import { initEspp, renderEsppInputs, renderEsppTab, resetEsppAdded } from './ui/espp.js';
 import { initGainEntries, renderGainEntries } from './ui/esppGains.js';
-import { initHistory, renderHistory, placePayForm, syncHistoryBar, showTab, resetHistory } from './ui/history.js';
-import { initSaveMonth, syncSaveMonth } from './ui/saveMonth.js';
+import { initEntry, renderEntry, resetEntry } from './ui/entry.js';
 import { initMonthPickers } from './ui/monthPicker.js';
 import { ensureMonthRates, monthRates } from './ui/esppRates.js';
 import { initMoneyInputs } from './ui/numberInputs.js';
@@ -39,18 +38,17 @@ function computeProRata(input, full, factor) {
 
 let lastForm = '';
 
-/** `state` is the store's view: the Pay tab, or on the History tab the month being edited. */
+/** `state` is the store's view: the entry being worked on, calculated under its month's tax year. */
 function render(state) {
-  const input = { ...state, profile: store.activeProfile() };
+  const profile = store.activeProfile();
+  const month = store.scopeMonth();
+  const input = { ...state, profile, year: month ? taxYearFor(month, profile.si?.caps) : state.year };
   const money = createMoneyFormatter(input.profile.currency);
   const result = compute(input);
   const pay = resolvePayPeriod(state.payPeriod);
   pay.result = computeProRata(input, result, pay.factor);
 
   syncTabs(state);
-  placePayForm(state);
-  syncSaveMonth(state);
-  syncHistoryBar(state);
   syncCollapsibles(state);
   syncBindings(state);
   syncProfiles(state);
@@ -65,16 +63,14 @@ function render(state) {
   renderResults(result, input, money, pay);
   if (store.scopeMonth() !== lastForm) { lastForm = store.scopeMonth(); resetEsppAdded(); }
   renderEsppInputs(pay.result ?? result, money, state, pay.result ? pay.factor : 1);
-  if (state.ui.inTab === 'history') {
-    renderHistory(input, money, pay);
-    syncCollapsibles(state);
-  }
+  renderEntry(input, money, pay);
+  syncCollapsibles(state);
   if (state.ui.resTab === 'espp') {
-    // The History month being edited counts as soon as it changes, saved or not.
+    // The entry being worked on counts for its month as soon as it changes, saved or not.
     const draft = store.scopePay();
     const months = monthsWithDraft(state.months, store.scopeMonth(), draft && grossPay(draft, input), store.scopeDirty());
-    // A gain month with no History entry is taxed on the real Pay tab, even while a History month is open.
-    const payTab = { ...store.getState(), profile: input.profile };
+    // A gain month with no saved entry is taxed on the entry being worked on.
+    const payTab = { ...state, profile: input.profile };
     const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state) });
     renderEsppTab(report, money);
     renderGainEntries(report, money);
@@ -100,13 +96,12 @@ initLists();
 initCollapsibles();
 initProfiles(rebuild);
 initResults();
-initSettings(() => { resetHistory(); rebuild(); });
+initSettings(() => { resetEntry(); rebuild(); });
 initSteppers();
 initRateFetcher();
 initEspp(rebuild);
 initGainEntries(rebuild);
 initSavingsEditor(rebuild);
-initHistory(rebuild);
-initSaveMonth(rebuild, (month) => { showTab('history', month); rebuild(); });
+initEntry(rebuild);
 store.subscribe(render);
 rebuild();

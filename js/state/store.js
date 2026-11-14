@@ -6,11 +6,21 @@ import { isPayPath, withPay } from '../core/months.js';
 
 const PROFILE_PREFIX = '@';
 const listeners = new Set();
-let state = hydrate(loadSaved());
+const raw = loadSaved();
+let state = hydrate(raw);
 
 /**
- * While the History tab edits a saved month, the Pay form's paths (amount, incomes, overtime, …) read and
- * write that month's draft instead of the Pay tab. Drafts are never stored until saved.
+ * The entry being worked on and the unsaved drafts of other months, kept on this device (never in a saved month
+ * or an export) so a reload picks up where it was left. Read once at start.
+ */
+export const loadedWork = raw && typeof raw.work === 'object' ? raw.work : null;
+let workProvider = () => null;
+export const setWorkProvider = (fn) => { workProvider = fn; };
+const persisted = () => { const work = workProvider(); return work ? { ...state, work } : state; };
+
+/**
+ * The form's paths (amount, incomes, overtime, …) read and write the entry being worked on (`scope`), not the
+ * root state. The entry is only stored in a month when it is saved.
  */
 let scope = null;
 
@@ -53,7 +63,7 @@ export function subscribe(fn) {
 }
 
 function commit() {
-  saveDebounced(state);
+  saveDebounced(persisted);
   const current = view();
   listeners.forEach((fn) => fn(current));
 }

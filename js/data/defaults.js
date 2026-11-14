@@ -88,7 +88,6 @@ export const DEFAULT_STATE = Object.freeze({
   /** Saved months: "YYYY-MM" → a full copy of the Pay tab inputs for that month (see core/months.js). */
   months: {},
   ui: {
-    inTab: 'pay',
     resTab: 'summary',
     esppYear: '',
     histMonth: '',

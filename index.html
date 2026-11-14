@@ -22,11 +22,8 @@
   <main class="layout">
     <!-- SALARY -->
     <section class="card" aria-label="Salary">
-      <nav class="tabs has-actions" role="tablist" data-in-tabs>
-        <button class="tab" role="tab" data-tab="pay">Pay</button>
-        <button class="tab" role="tab" data-tab="history">History</button>
-        <span class="tab-actions">
-          <div class="spins" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
+      <div class="entry-bar">
+        <div class="spins" title="Pro-rata: months paid, plus extra (+) or missing (−) days, counted as 30-day months">
             <div class="spin">
               <span class="spin-label" data-short="M">Month</span>
               <input type="text" inputmode="numeric" data-bind="payPeriod.months" data-step="1" data-swipe data-px-per-step="64" data-min="0" data-max="24" aria-label="Months">
@@ -44,31 +41,18 @@
               </span>
             </div>
           </div>
-          <button type="button" class="btn sm primary" id="saveMonthBtn" title="Store the Pay tab under a month you choose">Save Month</button>
-          <button type="button" class="btn sm" id="fillPayBtn" title="Copy this month into the Pay tab" hidden>Fill Pay</button>
-        </span>
-      </nav>
-      <div class="save-month" id="saveMonthPanel" hidden>
-        <div class="save-row">
-          <button class="btn sm primary" id="saveMonthGo">Done</button>
-          <button class="btn sm ghost" id="saveMonthCancel">Cancel</button>
-          <span class="save-slot"><select id="saveMonthSel" data-dd aria-label="Month to save to"></select><span id="saveMonthPickHost" hidden></span></span>
-        </div>
-        <span class="confirm" id="saveMonthAsk" hidden>
-          <span id="saveMonthAskText"></span>
-          <button class="btn sm danger" id="saveMonthYes">Override</button>
-          <button class="btn sm ghost" id="saveMonthNo">No</button>
-        </span>
+        <button type="button" class="btn sm primary" id="saveBtn" data-entry-save>Save</button>
       </div>
-      <div class="card-body" data-in-panel="pay">
-        <div class="row between field">
+      <div class="card-body">
+        <div id="entryHead"></div>
+        <div class="row between field entry-mode">
           <div class="seg" data-seg="mode">
             <button data-v="gross">Gross &rarr; Net</button>
             <button data-v="net">Net &rarr; Gross</button>
           </div>
-          <select id="yearSel" class="sm year-select" data-dd data-bind="year" aria-label="Tax year"></select>
+          <span class="save-slot" id="saveToSlot"></span>
         </div>
-        <div id="payFormHome"><div id="payForm">
+        <div id="payForm">
         <div class="field">
           <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
           <div class="row">
@@ -174,12 +158,7 @@
               </details>
           </div>
         </details>
-        </div></div>
-      </div>
-
-      <div class="card-body" data-in-panel="history" hidden>
-        <div id="historyList"></div>
-        <div id="payFormSlot"></div>
+        </div>
       </div>
     </section>
 

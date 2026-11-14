@@ -2,6 +2,7 @@ import { clone } from '../utils/object.js';
 import { isFilled, toNumber } from '../utils/number.js';
 import { HISTORY_FIELDS, nearestFirst } from './history.js';
 import { solveForNet } from './solver.js';
+import { taxYearFor } from './taxYear.js';
 import { toAnnual, fromAnnual } from './periods.js';
 
 /**
@@ -40,10 +41,14 @@ export function grossPay(pay, context) {
   return { ...clone(pay), mode: 'gross', amount: String(Math.round(gross * 100) / 100) };
 }
 
-/** The state with a saved month's Pay inputs applied over it, for calculating or editing that month. */
-export function withPay(state, pay) {
-  if (!pay) return state;
+/**
+ * The state with a saved month's Pay inputs applied over it, for calculating or editing that month. Given the
+ * `month`, its tax year follows it (see taxYearFor), so a month is always worked out under its own year's rules.
+ */
+export function withPay(state, pay, month = '') {
   const next = { ...state };
+  if (month) next.year = taxYearFor(month, (state.profile ?? state.profiles?.find((p) => p.id === state.profileId))?.si?.caps);
+  if (!pay) return next;
   for (const key of PAY_KEYS) {
     if (!(key in pay)) continue;
     next[key] = key === 'espp' ? { ...state.espp, ...clone(pay.espp) } : clone(pay[key]);

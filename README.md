@@ -25,8 +25,8 @@ npm test           # engine unit tests (Node 18+)
 
 The salary amount is the only required field.
 
-- **First line:** Gross → Net or Net → Gross, with the tax year beside it.
-- **Pro-rata:** *Month* (default 1) and *Day* (default 0) spinners with ▲▼ buttons, in the tab bar to the left of *Save Month* / *Fill Pay*. On the Pay tab they set the Pay tab's period; on the History tab they set the period of the month that is open, and it is saved with that month. As in the original sheet, the period is `months + days / 30` of a full month (for example 0 months + 15 days = half a month, 1 month − 10 days = ⅔).
+- **Top bar:** the *Month* / *Day* pro-rata spinners on the left and *Save* on the right. Below it come the *Saved months* list and the summary of the entry you are working on, then *Gross → Net* / *Net → Gross* with the month to save to beside it, then the form.
+- **Pro-rata:** *Month* (default 1) and *Day* (default 0) spinners with ▲▼ buttons, in the top bar. They set the period of the entry you are working on, and it is saved with that month. As in the original sheet, the period is `months + days / 30` of a full month (for example 0 months + 15 days = half a month, 1 month − 10 days = ⅔).
   - The days never scale **One-Time** allowances and deductions, overtime hours, cash awards or the ESPP gain: those are paid in full in the period.
   - **Social insurance** is charged for whole months by default (at least one), so the days don't change it. Tick *Include pro-rata days in social insurance* (More options, under the SI base) to scale it with the days too.
   - These scale with the period: basic salary, allowances, the tax brackets and the exemption.
@@ -43,19 +43,18 @@ Collapsible sections, in this order:
    - **Stocks:** add it with *+ Stocks* (before Loan) or *+ Add Stocks*. It becomes the first deduction: *Constant %* (of basic) and *Variable %* (of whatever is ticked under More options → Settings → *Stocks: what counts as variable*), side by side, then a banner with the monthly amounts. It comes out of net pay after tax and is on whenever a % is above 0.
      - **ESPP gains:** the one number to enter, straight from the payslip. Payroll adds it to taxable pay ("ESPP gain") and takes it straight back out ("ESPP gain offset"), so net pay only drops by the extra tax, which is worked out for you (no tax or rate to type). A banner shows the gain, the extra tax and the net cost, and it disappears when the gain is 0. Save it in a month and the ESPP tab picks it up.
 4. **More options:** **job type** first, then social insurance base override, manual taxable amount, and compact **Settings** (weeks/year, days/week, hours/day, OT base hours/month, export/import/reset).
-   - **Export** saves everything in one file (`salary-calculator-YYYY-MM-DD.json`): the Pay tab, tax profiles, every saved History month with all its entries (overtime, allowances, cash awards, deductions, Stocks % and ESPP gain), the ESPP ledger values, ESPP Gains entries, fetched USD rates, assumptions and your view choices. **Import** restores exactly that (older exports still load). The file holds your pay figures, so keep it private.
+   - **Export** saves everything in one file (`salary-calculator-YYYY-MM-DD.json`): tax profiles, every saved month with all its entries (overtime, allowances, cash awards, deductions, Stocks % and ESPP gain), the ESPP ledger values, ESPP Gains entries, fetched USD rates, assumptions and your view choices. **Import** restores exactly that (older exports still load). The file holds your pay figures, so keep it private.
 
 Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the right of a single line, with a faded preview of the first options on its left. Clicking it expands the options: the *taxable* / *counts toward SI base* flags, a cash award's period and taxable flag, and a deduction's before-tax flag.
 
-**Save Month** (Pay tab bar, right): stores a full copy of the Pay tab under a month, always as a **gross** salary (a Net → Gross Pay tab is solved first). One line: *Done*, *Cancel*, then a dropdown of saved months (nearest first) and *Custom…*, which turns into a calendar. The last calendar pick stays in the dropdown as "(not saved)". Saving over an existing month asks first, inline; after saving, the History tab opens on that month.
-
-**History tab** (input card), with *Fill Pay* in the tab bar to copy the open month into the Pay tab:
-- **Saved months:** collapsible; with several years, grouped under compact year headers (newest, and the open month's year, expanded). *+ New month* copies the values currently entered (unsaved ones included) into the new month and puts the month it came from back to its saved state.
-- **Dropdowns:** the month, year and currency lists show 5½ rows and scroll; month lists spanning several years group them under expandable years, with only the latest expanded.
-- **Saved months (old note):** *+ New month* first, then one line per month with its final (net) pay for that month's own pro-rata period in grey and a red − to delete it (asks inline). While a saved month has changes waiting to be saved (edits, or a rename), a **reset** arrow appears before the − and puts it back to its saved state.
-- **Month and Save:** a calendar on the left and *Save* on the right (greyed out as *Saved* when nothing changed). Picking another month only renames the open entry: its values carry over untouched, even when the picked month is already saved (that month's own entry is never opened or merged). Save stores it under the picked month, and asks "Override it?" first if that month already exists. Renaming through a saved month and on (e.g. new October → May → October) never touches May: both stay listed and May keeps its saved values. To open a saved month, use the *Saved months* list.
+**One input panel** (the old Pay and History tabs, merged). You always work on one *entry*, one month's full set of inputs. The *Saved months* list loads a month into it; nothing is stored in a month until you press *Save*.
+- **Save** (top bar, right): stores the entry under the month chosen beside Gross → Net, always as a **gross** salary (a Net → Gross entry is solved first). It is greyed out as *Saved* when nothing changed. Saving onto a month that already exists asks "Override it?" first.
+- **Month to save to** (right of Gross → Net / Net → Gross): a dropdown of saved months (nearest first) ending in *Custom…*, which opens the month picker. Choosing a month only renames the entry: its values carry over untouched, even when that month is already saved (that month's own entry is never opened or merged). Renaming through a saved month and on (e.g. new October → May → October) never touches May: both stay listed and May keeps its saved values. To open a saved month, use the *Saved months* list.
+- **Tax year:** follows the entry's month (October 2025 uses the 2025 rules). A month beyond the last year with insurance caps uses the nearest year that has them. There is no year dropdown any more.
+- **Saved months:** collapsible, grouped under a compact header per year with that year's total (each month for its own pro-rata period), newest year and the open month's year expanded. *+ New month* copies the values currently entered (unsaved ones included) into the new month and puts the month it came from back to its saved state. Each row shows the month's net for its own pro-rata period and a red − to delete it (asks inline). While a saved month has changes waiting (edits or a rename), a **reset** arrow appears before the − and puts it back to its saved state.
+- **Pick up where you left off:** the entry and the unsaved edits of other months are remembered on this device, so a reload (or a later visit) continues from there. They are not saved into any month and are not part of an export. The app opens on the month you last worked on, or this month.
 - **Summary of (month):** collapsible; net pay, then the pay items and deductions as compact lines, with the values you entered softly highlighted.
-- **The Pay form:** the same collapsibles and items as the Pay tab, editing that month. Gross → Net and the tax year stay on the Pay tab.
+- **Dropdowns:** the month and currency lists show 5½ rows and scroll; month lists spanning several years group them under expandable years, with only the latest expanded.
 
 **Results tabs**
 
@@ -71,8 +70,8 @@ Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the 
   Each part of the editor is collapsible. This means any progressive tax system can be modelled. Below the editor, it shows how taxable income is reached and the status of each bracket, and ends with the **By period** table (annual, monthly, daily, hourly).
 - **ESPP:** top tiles for *Withdrawal*, *Profit* and *Shares*, each shown up to the adjusted month and as a full-year forecast, then a to-date vs. forecast breakdown and the month-by-month ledger.
   - **Yellow columns** (Deducted, Deducted USD, Dividend, ACC. Shares) show the calculated value in grey; type the actual value to override it, clear it to go back.
-  - **Deducted** comes only from that month's own History entry (its *Stocks* %). A month with no History entry is **0**: the Pay tab and other months never feed it, so saving August changes August only. Type a value to override a History month or to fill a month that has none; clear it to go back.
-  - **ESPP Gains** (collapsible, under *Assumptions & live data*): one compact line per payslip month, newest first: *Month* (a dropdown of your saved History months nearest first, ending in *Custom…* which opens the month picker, like Save Month), the *Gain tax* in the middle, and the *Payslip gain* on the right. The gain is what you typed, else that month's History *ESPP gain*, else 0. The tax is always calculated from that month's History entry, or from the Pay tab when the month has none. History months with a gain are listed by themselves; *+ Add entry* adds a month (this month, or the nearest earlier free one), and the red cross removes it. The Pay/History tabs never read anything from the ESPP tab.
+  - **Deducted** comes only from that month's own History entry (its *Stocks* %). A month with no saved entry is **0**: the entry you are working on and other months never feed it, so saving August changes August only. Type a value to override a History month or to fill a month that has none; clear it to go back.
+  - **ESPP Gains** (collapsible, under *Assumptions & live data*): one compact line per payslip month, newest first: *Month* (a dropdown of your saved months nearest first, ending in *Custom…* which opens the month picker, like Save Month), the *Gain tax* in the middle, and the *Payslip gain* on the right. The gain is what you typed, else that month's History *ESPP gain*, else 0. The tax is always calculated from that month's History entry, or from the Pay tab when the month has none. History months with a gain are listed by themselves; *+ Add entry* adds a month (this month, or the nearest earlier free one), and the red cross removes it. The Pay/History tabs never read anything from the ESPP tab.
   - The **Monthly ledger** is collapsible and sits under the year selector, above the breakdown. The *Month* column stays fixed while the ledger scrolls sideways, and typing in a cell keeps the scroll position.
   - **Deducted USD** = Deducted ÷ the USD rate IBM used. IBM converts around the 19th–21st, so a past month uses the average of those days (fetched once and saved); a month not yet converted uses today's rate. Once you type Equate's USD, the tooltip shows the exact rate IBM used.
   - **Dividend** (Mar/Jun/Sep/Dec) = shares held two months earlier × IBM's $/share, less 15% US tax, less the 2% reinvestment fee (max $3), per the prospectus. A typed dividend changes the shares from that month on.
@@ -112,11 +111,13 @@ js/
     proRata.js       month/day pro-rata input adjustment
     history.js       month keys and labels, old per-field history
     months.js        saved months (full Pay copies), gross conversion, moves
+    taxYear.js       the tax year a month is calculated under
     espp.js          ESPP ledger, summary, adjusted month
     esppForecast.js  ESPP report from saved months
   data/              Egypt 2026 profile, presets, currencies
   state/             store ("@." paths = active profile), migration, localStorage
-  ui/                tabs, form bindings, collapsibles, row templates, lists,
+  ui/                entry.js (the single input panel: saved months, save-to month, Save), results tabs,
+                     form bindings, collapsibles, row templates, lists,
                      tax profiles, settings, swipe stepper, advanced toggles
     results/         one renderer per results tab
   services/          http.js (timeouts, fallbacks, cache), exchangeRates.js (live + dated FX),
