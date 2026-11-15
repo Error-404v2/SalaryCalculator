@@ -891,7 +891,7 @@
       bracketPeriod: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, settings: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, esppVariable: false, savings: false, histSaved: true, histSummary: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, savings: false, histSaved: true, histSummary: true }
     }
   });
 
