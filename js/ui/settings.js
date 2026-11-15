@@ -56,6 +56,7 @@ export function initSettings(onReplaced) {
 
   $('#exportCsvBtn').addEventListener('click', () => {
     const state = store.getState();
+    if (!settingsGroups().length) toast('No settings chosen: settings.csv will be empty');
     const pick = exportSelection();
     const files = [
       { name: 'entries.csv', text: entriesCsv(state.months, pick) },

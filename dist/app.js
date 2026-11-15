@@ -2772,7 +2772,7 @@
       const item = e.target.closest("[data-group]");
       if (!item) return;
       const g = item.dataset.group;
-      if (g === "all") groups = new Set(GROUPS2.map(([x]) => x));
+      if (g === "all") groups = groups.size === GROUPS2.length ? /* @__PURE__ */ new Set() : new Set(GROUPS2.map(([x]) => x));
       else if (groups.has(g)) groups.delete(g);
       else groups.add(g);
       renderGroupsPick();
@@ -2822,6 +2822,7 @@
     });
     $("#exportCsvBtn").addEventListener("click", () => {
       const state2 = getState();
+      if (!settingsGroups().length) toast("No settings chosen: settings.csv will be empty");
       const pick2 = exportSelection();
       const files = [
         { name: "entries.csv", text: entriesCsv(state2.months, pick2) },

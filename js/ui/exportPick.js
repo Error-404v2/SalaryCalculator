@@ -83,7 +83,8 @@ export function initExportPick(getState, getMonth = () => '') {
 // ---------- settings.csv groups ----------
 /**
  * Which groups go into settings.csv (General, ESPP, Tax, Month settings), in a dropdown styled like the month
- * picker: each click ticks or unticks a group; "All settings" ticks every group again.
+ * picker: each click ticks or unticks a group; "All settings" ticks every group, or unticks them all when they are
+ * already all ticked.
  */
 const GROUPS = [['general', 'General'], ['espp', 'ESPP'], ['tax', 'Tax'], ['months', 'Month settings']];
 let groups = new Set(GROUPS.map(([g]) => g));
@@ -118,7 +119,7 @@ export function initGroupsPick() {
     const item = e.target.closest('[data-group]');
     if (!item) return;
     const g = item.dataset.group;
-    if (g === 'all') groups = new Set(GROUPS.map(([x]) => x));
+    if (g === 'all') groups = groups.size === GROUPS.length ? new Set() : new Set(GROUPS.map(([x]) => x));
     else if (groups.has(g)) groups.delete(g);
     else groups.add(g);
     renderGroupsPick();
