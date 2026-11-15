@@ -125,7 +125,8 @@ test('payslip gain and its tax come from that month in History, not from the Pay
   near(apr.gain, 1000);
   assert.equal(apr.source, 'history');
   assert.ok(apr.tax > 0);
-  near(apr.tax, calculate({ ...s, ...month, espp: { ...s.espp, ...month.espp } }).esppGainTax / 12);
+  // The month is worked out under its own tax year (2030 has no caps, so the nearest year with caps: 2027).
+  near(apr.tax, calculate({ ...s, ...month, year: '2027', espp: { ...s.espp, ...month.espp } }).esppGainTax / 12);
   assert.deepEqual(payslipGainFor(s, '2030-05'), { gain: 0, tax: 0, source: '', historyGain: 0 });
   assert.equal(payslipGainFor(s, '2030-03').gain, 0);
 });

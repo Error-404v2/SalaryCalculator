@@ -10,7 +10,6 @@
 .grow { flex: 1; }
 .period-select { width: 120px; flex: 0 0 auto; }
 input.big + .period-select { height: 50px; }
-.year-select { width: auto; min-width: 84px; flex: 0 0 auto; }
 @media (max-width: 420px) { .row.between .seg button { padding: 6px 9px; font-size: .84rem; } }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
 @media (max-width: 420px) { .grid2 { grid-template-columns: 1fr; } }

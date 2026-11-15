@@ -4,7 +4,6 @@ import * as store from '../state/store.js';
 /** Each tab bar names its state key and its panel attribute. */
 const GROUPS = [
   { nav: '[data-tabs]', key: 'ui.resTab', panel: 'data-panel' },
-  { nav: '[data-in-tabs]', key: 'ui.inTab', panel: 'data-in-panel' },
 ];
 
 export function initTabs() {

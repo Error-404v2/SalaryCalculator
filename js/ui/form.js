@@ -47,9 +47,6 @@ export function fillSelects(state) {
   if (!profile.jobTypes.some((j) => j.id === state.jobType) && profile.jobTypes[0]) state.jobType = profile.jobTypes[0].id;
   $('#jobSel').innerHTML = optionList(profile.jobTypes.map((j) => ({ value: j.id, label: j.name })), state.jobType);
 
-  const years = new Set(profile.si.caps.map((c) => String(c.year)).filter(Boolean));
-  years.add(String(state.year));
-  $('#yearSel').innerHTML = optionList([...years].sort().map((y) => ({ value: y, label: y })), String(state.year));
 
   const profiles = state.profiles.map((p) => ({ value: p.id, label: p.name || 'Untitled' }));
   $$('.profile-select').forEach((el) => (el.innerHTML = optionList(profiles, state.profileId)));
