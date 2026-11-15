@@ -596,14 +596,13 @@ details.more > .inner {
   padding: 3px 10px;
   font-size: .78rem;
 }
-details.more[data-open=options] > summary {
-  gap: 8px;
+details.more[data-open=options] {
+  position: relative;
 }
-details.more[data-open=options] > summary > span {
-  flex: 1;
-}
-details.more[data-open=options] > summary .reset-all {
-  flex: 0 0 auto;
+details.more[data-open=options] > .reset-all {
+  position: absolute;
+  top: 6px;
+  right: 34px;
   height: 26px;
   padding: 0 8px;
   font-size: .78rem;
@@ -611,13 +610,10 @@ details.more[data-open=options] > summary .reset-all {
   color: var(--danger);
   border-color: transparent;
 }
-details.more[data-open=options] > summary .reset-all:hover {
+details.more[data-open=options] > .reset-all:hover {
   border-color: var(--danger);
 }
-details.more[data-open=options] > summary::after {
-  margin-left: 4px;
-}
-details.more[data-open=options]:not([open]) > summary .reset-all {
+details.more[data-open=options]:not([open]) > .reset-all {
   display: none;
 }
 details.more[data-open=transfer] {
@@ -642,6 +638,42 @@ details.more[data-open=transfer] > .inner {
 }
 .transfer-row .btn {
   height: 34px;
+}
+.import-field {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.import-label {
+  font-size: .85rem;
+  font-weight: 700;
+}
+.import-or {
+  margin: 0;
+  font-size: .82rem;
+}
+.drop-zone {
+  margin-top: 8px;
+  padding: 14px 10px;
+  border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--border));
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  color: var(--muted);
+  font-size: .85rem;
+  text-align: center;
+}
+.drop-zone[hidden] {
+  display: none;
+}
+.drop-zone.over {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 .import-review {
   margin-top: 8px;

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Salary Calculator</title>
 <meta name="description" content="Salary and income tax calculator with editable tax profiles, social insurance, allowances, overtime and cash awards.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%277%27 fill=%27%237b93ff%27/%3E%3Ctext x=%2716%27 y=%2722%27 font-family=%27Arial%27 font-size=%2716%27 font-weight=%27700%27 text-anchor=%27middle%27 fill=%27%230f1117%27%3E%C2%A3%3C/text%3E%3C/svg%3E">
 <link rel="stylesheet" href="dist/app.css">
 </head>
 <body>
@@ -110,7 +111,8 @@
         </details>
 
         <details class="more" data-open="options">
-          <summary><span>Settings</span><button type="button" class="btn sm ghost danger reset-all" id="resetAll">Reset everything</button></summary>
+          <summary><span>Settings</span></summary>
+          <button type="button" class="btn sm ghost danger reset-all" id="resetAll">Reset everything</button>
           <div class="inner">
             <details class="more" data-open="transfer">
               <summary>Export / Import</summary>
@@ -128,13 +130,15 @@
                   </div>
                   <div class="hint">CSV: entries (one row per month), the ESPP ledger, and settings. Savings stay in the .json only.</div>
                 </div>
-                <div class="field">
-                  <span class="label">Import</span>
-                  <div class="row wrap transfer-row">
-                    <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Import</label>
+                <div class="field import-field">
+                  <div class="transfer-row import-row">
+                    <span class="import-label">Import:</span>
+                    <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Choose file…</label>
+                    <span class="hint import-or">or drop here</span>
                     <input id="importFile" type="file" accept=".csv,text/csv,.zip,application/zip,.json,application/json" multiple class="sr">
                   </div>
-                  <div class="hint">CSV only adds or changes the values it has, other months stay intact.<br>A .json backup replaces everything. You see what will change before anything is imported.</div>
+                  <div class="drop-zone" id="importDrop" hidden>Drop a CSV, .zip or .json file</div>
+                  <div class="hint">CSV adds or changes only what it holds. A .json backup replaces everything.</div>
                   <div id="importReview"></div>
                 </div>
               </div>

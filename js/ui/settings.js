@@ -71,9 +71,14 @@ export function initSettings(onReplaced) {
    * One Import button: a .json backup replaces everything; CSV files and the .zip only add or change what they hold.
    * The type is worked out from each file's content (a CSV header, a zip, or JSON), not only its name.
    */
-  $('#importFile').addEventListener('change', async (e) => {
+  $('#importFile').addEventListener('change', (e) => {
     const chosen = [...e.target.files];
     e.target.value = '';
+    importFiles(chosen);
+  });
+  initDropZone();
+
+  async function importFiles(chosen) {
     if (!chosen.length) return;
     try {
       const csv = [];
@@ -100,7 +105,49 @@ export function initSettings(onReplaced) {
       clearReview();
       toast(`Could not import: ${err.message}`);
     }
-  });
+  }
+
+  /**
+   * Dropping files: while a file is held over the page, the drop zone shows under Import (opening Settings and
+   * Export / Import if needed); dropping it there imports it like Choose file…. It hides again when the file leaves.
+   */
+  function initDropZone() {
+    const zone = $('#importDrop');
+    let depth = 0;
+    const holdsFiles = (e) => [...(e.dataTransfer?.types ?? [])].includes('Files');
+    const show = (on) => {
+      zone.hidden = !on;
+      if (!on) zone.classList.remove('over');
+    };
+    document.addEventListener('dragenter', (e) => {
+      if (!holdsFiles(e)) return;
+      depth++;
+      if (depth === 1) {
+        document.querySelector('details[data-open="options"]').open = true;
+        document.querySelector('details[data-open="transfer"]').open = true;
+        show(true);
+      }
+    });
+    document.addEventListener('dragleave', (e) => {
+      if (!holdsFiles(e)) return;
+      depth = Math.max(0, depth - 1);
+      if (!depth) show(false);
+    });
+    document.addEventListener('dragover', (e) => {
+      if (!holdsFiles(e)) return;
+      e.preventDefault();
+      zone.classList.toggle('over', zone.contains(e.target));
+      e.dataTransfer.dropEffect = zone.contains(e.target) ? 'copy' : 'none';
+    });
+    document.addEventListener('drop', (e) => {
+      if (!holdsFiles(e)) return;
+      e.preventDefault();
+      depth = 0;
+      const onZone = zone.contains(e.target);
+      show(false);
+      if (onZone) importFiles([...e.dataTransfer.files]);
+    });
+  }
 
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-import-cancel]')) return clearReview();
