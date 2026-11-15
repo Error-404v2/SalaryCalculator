@@ -257,6 +257,8 @@ const needsSave = (state, month) => !isSaved(state, month) || store.scopeDirty()
 export function renderEntry(state, money, pay) {
   const month = store.scopeMonth();
   if (!month) return;
+  const mode = store.scheduleMode();
+  document.querySelectorAll('[data-schedule-mode] button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === mode)));
   const save = $('#saveBtn');
   const dirty = needsSave(state, month);
   save.textContent = dirty ? 'Save' : 'Saved';
@@ -391,6 +393,8 @@ export function initEntry(onChanged) {
 
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-entry-save]')) { save(); return onChanged(); }
+    const scheduleBtn = e.target.closest('[data-schedule-mode] button');
+    if (scheduleBtn) { store.setScheduleMode(scheduleBtn.dataset.v); return onChanged(); }
     const yearHead = e.target.closest('[data-hist-year]');
     if (yearHead) {
       yearToggled.set(yearHead.dataset.histYear, yearHead.getAttribute('aria-expanded') !== 'true');

@@ -2,7 +2,7 @@ import { DEFAULT_STATE } from '../data/defaults.js';
 import { clone, getPath, setPath } from '../utils/object.js';
 import { loadSaved, saveDebounced } from './storage.js';
 import { hydrate } from './migrate.js';
-import { isPayPath, withPay } from '../core/months.js';
+import { isPayPath, withPay, isLocalSchedule } from '../core/months.js';
 
 const PROFILE_PREFIX = '@';
 const listeners = new Set();
@@ -54,8 +54,27 @@ export function resolve(path) {
 }
 
 const scoped = (path) => !!scope && isPayPath(path);
+/** `schedule.*` reads and writes the entry's own schedule while it is local, the global one otherwise. */
+const localSchedule = (path) => !!scope && path.startsWith('schedule.') && isLocalSchedule(scope.pay.scheduleLocal);
+const localPath = (path) => `scheduleLocal${path.slice('schedule'.length)}`;
 
-export const get = (path) => (scoped(path) ? getPath(scope.pay, path) : getPath(state, resolve(path)));
+export const get = (path) => {
+  if (localSchedule(path)) return getPath(scope.pay, localPath(path));
+  return scoped(path) ? getPath(scope.pay, path) : getPath(state, resolve(path));
+};
+
+export const scheduleMode = () => (scope && isLocalSchedule(scope.pay.scheduleLocal) ? 'local' : 'global');
+
+/** Global: the entry follows the shared schedule. Local: it keeps its own copy, starting from the values in use now. */
+export function setScheduleMode(mode) {
+  if (!scope) return;
+  if (mode === 'local') {
+    if (!isLocalSchedule(scope.pay.scheduleLocal)) scope.pay.scheduleLocal = clone(state.schedule);
+  } else {
+    delete scope.pay.scheduleLocal;
+  }
+  commit();
+}
 
 export function subscribe(fn) {
   listeners.add(fn);
@@ -69,7 +88,8 @@ function commit() {
 }
 
 export function set(path, value) {
-  if (scoped(path)) setPath(scope.pay, path, value);
+  if (localSchedule(path)) setPath(scope.pay, localPath(path), value);
+  else if (scoped(path)) setPath(scope.pay, path, value);
   else setPath(state, resolve(path), value);
   commit();
 }

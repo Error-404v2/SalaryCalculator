@@ -53,8 +53,16 @@ export function withPay(state, pay, month = '') {
     if (!(key in pay)) continue;
     next[key] = key === 'espp' ? { ...state.espp, ...clone(pay.espp) } : clone(pay[key]);
   }
+  // A month with its own (local) work schedule uses it; otherwise the global schedule applies.
+  if (isLocalSchedule(pay.scheduleLocal)) next.schedule = { ...(state.schedule ?? {}), ...clone(pay.scheduleLocal) };
   return next;
 }
+
+/**
+ * Work schedule per month: a month either follows the global schedule (no `scheduleLocal`) or keeps its own
+ * values in `scheduleLocal`. A month created from another one carries its choice and its values forward.
+ */
+export const isLocalSchedule = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
 
 /** Writes a month's Pay inputs onto `state` itself (Fill Pay). The ESPP ledger and assumptions are left alone. */
 export function applyPay(state, pay) {

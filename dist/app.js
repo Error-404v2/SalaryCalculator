@@ -510,8 +510,10 @@
       if (!(key2 in pay)) continue;
       next[key2] = key2 === "espp" ? { ...state2.espp, ...clone(pay.espp) } : clone(pay[key2]);
     }
+    if (isLocalSchedule(pay.scheduleLocal)) next.schedule = { ...state2.schedule ?? {}, ...clone(pay.scheduleLocal) };
     return next;
   }
+  var isLocalSchedule = (value) => !!value && typeof value === "object" && !Array.isArray(value);
   function monthsWithDraft(months, month, pay, dirty) {
     if (!month || !pay || !(months?.[month] || dirty)) return months ?? {};
     return { ...months, [month]: pay };
@@ -1054,7 +1056,22 @@
     return path.startsWith(`${PROFILE_PREFIX}.`) ? `profiles.${activeIndex()}${path.slice(1)}` : path;
   }
   var scoped = (path) => !!scope && isPayPath(path);
-  var get = (path) => scoped(path) ? getPath(scope.pay, path) : getPath(state, resolve(path));
+  var localSchedule = (path) => !!scope && path.startsWith("schedule.") && isLocalSchedule(scope.pay.scheduleLocal);
+  var localPath = (path) => `scheduleLocal${path.slice("schedule".length)}`;
+  var get = (path) => {
+    if (localSchedule(path)) return getPath(scope.pay, localPath(path));
+    return scoped(path) ? getPath(scope.pay, path) : getPath(state, resolve(path));
+  };
+  var scheduleMode = () => scope && isLocalSchedule(scope.pay.scheduleLocal) ? "local" : "global";
+  function setScheduleMode(mode) {
+    if (!scope) return;
+    if (mode === "local") {
+      if (!isLocalSchedule(scope.pay.scheduleLocal)) scope.pay.scheduleLocal = clone(state.schedule);
+    } else {
+      delete scope.pay.scheduleLocal;
+    }
+    commit();
+  }
   function subscribe(fn) {
     listeners.add(fn);
     return () => listeners.delete(fn);
@@ -1065,7 +1082,8 @@
     listeners.forEach((fn) => fn(current));
   }
   function set(path, value) {
-    if (scoped(path)) setPath(scope.pay, path, value);
+    if (localSchedule(path)) setPath(scope.pay, localPath(path), value);
+    else if (scoped(path)) setPath(scope.pay, path, value);
     else setPath(state, resolve(path), value);
     commit();
   }
@@ -2787,6 +2805,8 @@
   function renderEntry(state2, money, pay) {
     const month = scopeMonth();
     if (!month) return;
+    const mode = scheduleMode();
+    document.querySelectorAll("[data-schedule-mode] button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === mode)));
     const save2 = $("#saveBtn");
     const dirty = needsSave(state2, month);
     save2.textContent = dirty ? "Save" : "Saved";
@@ -2926,6 +2946,11 @@
     document.addEventListener("click", (e) => {
       if (e.target.closest("[data-entry-save]")) {
         save();
+        return onChanged();
+      }
+      const scheduleBtn = e.target.closest("[data-schedule-mode] button");
+      if (scheduleBtn) {
+        setScheduleMode(scheduleBtn.dataset.v);
         return onChanged();
       }
       const yearHead = e.target.closest("[data-hist-year]");
