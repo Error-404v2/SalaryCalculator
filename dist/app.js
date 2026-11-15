@@ -768,10 +768,10 @@
     ["tax", "Tax settings"],
     ["months", "Month settings"]
   ];
-  function settingsCsv(state2, selection2 = "all", groups = SETTING_GROUPS.map(([g]) => g)) {
+  function settingsCsv(state2, selection2 = "all", groups2 = SETTING_GROUPS.map(([g]) => g)) {
     const rows = [];
     const add = (section, setting, value, month = "", profile = "") => rows.push([section, setting, month, profile, value ?? ""]);
-    const want = new Set(groups);
+    const want = new Set(groups2);
     if (want.has("general")) {
       for (const [k, label2] of SCHEDULE_KEYS) add("Work schedule", label2, state2.schedule?.[k]);
     }
@@ -1920,14 +1920,14 @@
     const years = [...new Set(months.map((o) => o.value.slice(0, 4)))].sort().reverse();
     if (years.length < 2) return rows.map((o) => row(o)).join("");
     const open4 = wrap._open;
-    const groups = years.map((year) => {
+    const groups2 = years.map((year) => {
       const inYear = months.filter((o) => o.value.startsWith(year));
       const expanded = open4.has(year);
       return `<div class="dd-group"><button type="button" class="dd-year" data-year="${year}" aria-expanded="${expanded}">
         <span>${year}</span><span class="dd-n">${inYear.length}</span>${CHEVRON2}</button>
       <div class="dd-items"${expanded ? "" : " hidden"}>${inYear.map((o) => row(o, o.label.replace(` ${year}`, ""))).join("")}</div></div>`;
     });
-    return groups.concat(rows.filter((o) => !MONTH3.test(o.value)).map((o) => row(o))).join("");
+    return groups2.concat(rows.filter((o) => !MONTH3.test(o.value)).map((o) => row(o))).join("");
   }
   function closeAll(except) {
     $$(".dd-pop:not([hidden])").forEach((pop) => {
@@ -2734,6 +2734,50 @@
       }
     });
   }
+  var GROUPS2 = [["general", "General"], ["espp", "ESPP"], ["tax", "Tax"], ["months", "Month settings"]];
+  var groups = new Set(GROUPS2.map(([g]) => g));
+  var groupsOpen = false;
+  var settingsGroups = () => GROUPS2.map(([g]) => g).filter((g) => groups.has(g));
+  function groupsLabel() {
+    if (groups.size === GROUPS2.length) return "All settings";
+    if (!groups.size) return "No settings";
+    return GROUPS2.filter(([g]) => groups.has(g)).map(([, name]) => name).join(", ");
+  }
+  function renderGroupsPick() {
+    const host2 = $("#groupsPick");
+    if (!host2) return;
+    const mark = (on) => `<span class="pick-box${on ? " on" : ""}" aria-hidden="true"></span>`;
+    const all = groups.size === GROUPS2.length;
+    host2.innerHTML = `<button type="button" class="pick-btn" data-groups-toggle aria-haspopup="listbox" aria-expanded="${groupsOpen}" title="What goes into settings.csv"><span>${escapeHtml(groupsLabel())}</span>${CHEVRON3}</button>
+    <div class="pick-pop"${groupsOpen ? "" : " hidden"}>
+      <div class="pick-row all${all ? " on" : ""}"><button type="button" class="pick-item" data-group="all">${mark(all)}<b>All settings</b></button></div>
+      ${GROUPS2.map(([g, name]) => `<div class="pick-row${groups.has(g) ? " on" : ""}"><button type="button" class="pick-item" data-group="${g}">${mark(groups.has(g))}${name}</button></div>`).join("")}
+    </div>`;
+  }
+  function initGroupsPick() {
+    document.addEventListener("click", (e) => {
+      const host2 = $("#groupsPick");
+      if (!host2) return;
+      if (!host2.contains(e.target)) {
+        if (groupsOpen) {
+          groupsOpen = false;
+          renderGroupsPick();
+        }
+        return;
+      }
+      if (e.target.closest("[data-groups-toggle]")) {
+        groupsOpen = !groupsOpen;
+        return renderGroupsPick();
+      }
+      const item = e.target.closest("[data-group]");
+      if (!item) return;
+      const g = item.dataset.group;
+      if (g === "all") groups = new Set(GROUPS2.map(([x]) => x));
+      else if (groups.has(g)) groups.delete(g);
+      else groups.add(g);
+      renderGroupsPick();
+    });
+  }
 
   // js/ui/settings.js
   function applyTheme(theme) {
@@ -2766,6 +2810,7 @@
   };
   function initSettings(onReplaced) {
     initExportPick(() => getState(), () => scopeMonth());
+    initGroupsPick();
     $("#themeBtn").addEventListener("click", () => {
       const { theme } = getState().ui;
       const isDark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
@@ -2781,7 +2826,7 @@
       const files = [
         { name: "entries.csv", text: entriesCsv(state2.months, pick2) },
         { name: "espp.csv", text: esppCsv(state2.espp, pick2) },
-        { name: "settings.csv", text: settingsCsv(state2, pick2, [...document.querySelectorAll("[data-settings-group]:checked")].map((b) => b.dataset.settingsGroup)) }
+        { name: "settings.csv", text: settingsCsv(state2, pick2, settingsGroups()) }
       ];
       const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
       download(`salary-calculator-${stamp}.zip`, zipFiles(files), "application/zip");
@@ -2841,6 +2886,7 @@
   function syncSettings(state2) {
     applyTheme(state2.ui.theme);
     renderExportPick(getState(), scopeMonth());
+    renderGroupsPick();
   }
 
   // js/ui/stepper.js

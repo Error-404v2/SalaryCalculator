@@ -79,3 +79,48 @@ export function initExportPick(getState, getMonth = () => '') {
     if (item) { toggle(item.dataset.pick); redraw(); }
   });
 }
+
+// ---------- settings.csv groups ----------
+/**
+ * Which groups go into settings.csv (General, ESPP, Tax, Month settings), in a dropdown styled like the month
+ * picker: each click ticks or unticks a group; "All settings" ticks every group again.
+ */
+const GROUPS = [['general', 'General'], ['espp', 'ESPP'], ['tax', 'Tax'], ['months', 'Month settings']];
+let groups = new Set(GROUPS.map(([g]) => g));
+let groupsOpen = false;
+
+export const settingsGroups = () => GROUPS.map(([g]) => g).filter((g) => groups.has(g));
+
+function groupsLabel() {
+  if (groups.size === GROUPS.length) return 'All settings';
+  if (!groups.size) return 'No settings';
+  return GROUPS.filter(([g]) => groups.has(g)).map(([, name]) => name).join(', ');
+}
+
+export function renderGroupsPick() {
+  const host = $('#groupsPick');
+  if (!host) return;
+  const mark = (on) => `<span class="pick-box${on ? ' on' : ''}" aria-hidden="true"></span>`;
+  const all = groups.size === GROUPS.length;
+  host.innerHTML = `<button type="button" class="pick-btn" data-groups-toggle aria-haspopup="listbox" aria-expanded="${groupsOpen}" title="What goes into settings.csv"><span>${escapeHtml(groupsLabel())}</span>${CHEVRON}</button>
+    <div class="pick-pop"${groupsOpen ? '' : ' hidden'}>
+      <div class="pick-row all${all ? ' on' : ''}"><button type="button" class="pick-item" data-group="all">${mark(all)}<b>All settings</b></button></div>
+      ${GROUPS.map(([g, name]) => `<div class="pick-row${groups.has(g) ? ' on' : ''}"><button type="button" class="pick-item" data-group="${g}">${mark(groups.has(g))}${name}</button></div>`).join('')}
+    </div>`;
+}
+
+export function initGroupsPick() {
+  document.addEventListener('click', (e) => {
+    const host = $('#groupsPick');
+    if (!host) return;
+    if (!host.contains(e.target)) { if (groupsOpen) { groupsOpen = false; renderGroupsPick(); } return; }
+    if (e.target.closest('[data-groups-toggle]')) { groupsOpen = !groupsOpen; return renderGroupsPick(); }
+    const item = e.target.closest('[data-group]');
+    if (!item) return;
+    const g = item.dataset.group;
+    if (g === 'all') groups = new Set(GROUPS.map(([x]) => x));
+    else if (groups.has(g)) groups.delete(g);
+    else groups.add(g);
+    renderGroupsPick();
+  });
+}

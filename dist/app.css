@@ -756,9 +756,23 @@ details.more[data-open=options]:not([open]) > summary .reset-all {
   border-radius: 3px;
   flex: 0 0 auto;
 }
+.pick-box {
+  position: relative;
+}
 .pick-box.on {
   background: var(--accent);
   border-color: var(--accent);
+}
+.pick-box.on::after {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  top: 0.5px;
+  width: 4px;
+  height: 8px;
+  border: solid var(--accent-text);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
 }
 .pick-row.all {
   margin-bottom: 4px;
@@ -769,18 +783,35 @@ details.more[data-open=options]:not([open]) > summary .reset-all {
 .pick-row.all .pick-item {
   font-size: .9rem;
 }
-.settings-groups {
+.export-row {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 6px;
   align-items: center;
-  gap: 4px 12px;
-  margin-top: 8px;
 }
-.settings-groups .hint {
-  margin: 0;
+.export-row .pick {
+  flex: 1 1 0;
+  min-width: 0;
 }
-.settings-groups .check {
-  font-size: .82rem;
+.export-row .groups-pick {
+  flex: 0 1 150px;
+}
+.export-row .btn {
+  flex: 0 0 auto;
+}
+.export-row .json-btn {
+  margin-left: auto;
+}
+@media (max-width: 560px) {
+  .export-row {
+    flex-wrap: wrap;
+  }
+  .export-row .pick {
+    flex: 1 1 45%;
+  }
+  .export-row .groups-pick {
+    flex: 1 1 45%;
+  }
 }
 
 /* css/lists.css */

@@ -6,7 +6,7 @@ import { exportData, importData } from '../state/backup.js';
 import { entriesCsv, esppCsv, settingsCsv, applyCsv, jsonChanges, csvKind } from '../core/index.js';
 import { hydrate } from '../state/migrate.js';
 import { zipFiles, unzipFiles } from '../utils/zip.js';
-import { exportSelection, initExportPick, renderExportPick } from './exportPick.js';
+import { exportSelection, initExportPick, renderExportPick, settingsGroups, initGroupsPick, renderGroupsPick } from './exportPick.js';
 
 function applyTheme(theme) {
   if (theme) document.documentElement.dataset.theme = theme;
@@ -41,6 +41,7 @@ const clearReview = () => { pending = null; $('#importReview').innerHTML = ''; }
 
 export function initSettings(onReplaced) {
   initExportPick(() => store.getState(), () => store.scopeMonth());
+  initGroupsPick();
 
   $('#themeBtn').addEventListener('click', () => {
     const { theme } = store.getState().ui;
@@ -59,7 +60,7 @@ export function initSettings(onReplaced) {
     const files = [
       { name: 'entries.csv', text: entriesCsv(state.months, pick) },
       { name: 'espp.csv', text: esppCsv(state.espp, pick) },
-      { name: 'settings.csv', text: settingsCsv(state, pick, [...document.querySelectorAll('[data-settings-group]:checked')].map((b) => b.dataset.settingsGroup)) },
+      { name: 'settings.csv', text: settingsCsv(state, pick, settingsGroups()) },
     ];
     const stamp = new Date().toISOString().slice(0, 10);
     download(`salary-calculator-${stamp}.zip`, zipFiles(files), 'application/zip');
@@ -124,4 +125,5 @@ export function initSettings(onReplaced) {
 export function syncSettings(state) {
   applyTheme(state.ui.theme);
   renderExportPick(store.getState(), store.scopeMonth());
+  renderGroupsPick();
 }

@@ -108,12 +108,22 @@ details.more[data-open="options"]:not([open]) > summary .reset-all { display: no
 .pick-arrow { flex: 0 0 30px; height: 28px; display: flex; align-items: center; justify-content: center; border: 0; background: none; cursor: pointer; }
 .pick-arrow:not(.open) svg { transform: rotate(-90deg); }
 .pick-box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 3px; flex: 0 0 auto; }
+.pick-box { position: relative; }
 .pick-box.on { background: var(--accent); border-color: var(--accent); }
+/* a checkmark, so a ticked row reads as ticked on the highlighted background too */
+.pick-box.on::after { content: ""; position: absolute; left: 3.5px; top: 0.5px; width: 4px; height: 8px; border: solid var(--accent-text); border-width: 0 2px 2px 0; transform: rotate(45deg); }
 /* "All months" stands apart at the top, with a line under it */
 .pick-row.all { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--border); border-radius: 6px 6px 0 0; }
 .pick-row.all .pick-item { font-size: .9rem; }
 
-/* settings.csv groups to include */
-.settings-groups { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 8px; }
-.settings-groups .hint { margin: 0; }
-.settings-groups .check { font-size: .82rem; }
+/* Export on one line: months, settings.csv groups, CSV, then Everything (.json) on the far right */
+.export-row { display: flex; flex-wrap: nowrap; gap: 6px; align-items: center; }
+.export-row .pick { flex: 1 1 0; min-width: 0; }
+.export-row .groups-pick { flex: 0 1 150px; }
+.export-row .btn { flex: 0 0 auto; }
+.export-row .json-btn { margin-left: auto; }
+@media (max-width: 560px) {
+  .export-row { flex-wrap: wrap; }
+  .export-row .pick { flex: 1 1 45%; }
+  .export-row .groups-pick { flex: 1 1 45%; }
+}
