@@ -565,6 +565,420 @@
     return months;
   }
 
+  // js/core/csv.js
+  var quote = (value) => {
+    const s = value === void 0 || value === null ? "" : String(value);
+    return /[",\r\n]/.test(s) || /^\s|\s$/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  var toCsv = (header, rows) => [header, ...rows].map((r) => r.map(quote).join(",")).join("\r\n") + "\r\n";
+  function parseCsv(text2) {
+    const rows = [];
+    let row = [];
+    let field = "";
+    let quoted = false;
+    const src = String(text2 ?? "").replace(/^﻿/, "");
+    for (let i = 0; i < src.length; i++) {
+      const c = src[i];
+      if (quoted) {
+        if (c === '"' && src[i + 1] === '"') {
+          field += '"';
+          i++;
+        } else if (c === '"') quoted = false;
+        else field += c;
+      } else if (c === '"') quoted = true;
+      else if (c === ",") {
+        row.push(field);
+        field = "";
+      } else if (c === "\n" || c === "\r") {
+        if (c === "\r" && src[i + 1] === "\n") i++;
+        row.push(field);
+        rows.push(row);
+        row = [];
+        field = "";
+      } else field += c;
+    }
+    if (field !== "" || row.length) {
+      row.push(field);
+      rows.push(row);
+    }
+    return rows.filter((r) => r.some((v) => v !== ""));
+  }
+  function readTable(text2) {
+    const [header = [], ...rows] = parseCsv(text2);
+    return { header, rows: rows.map((r) => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""]))) };
+  }
+  var MONTH = /^\d{4}-\d{2}$/;
+  function inSelection(month, selection2) {
+    if (!selection2 || selection2 === "all") return true;
+    return selection2.some((s) => s === month || /^\d{4}$/.test(s) && month.startsWith(`${s}-`));
+  }
+  var boolText = (v) => v ? "yes" : "no";
+  var readBool = (v, fallback = false) => {
+    const s = String(v ?? "").trim().toLowerCase();
+    if (["yes", "true", "1", "y"].includes(s)) return true;
+    if (["no", "false", "0", "n"].includes(s)) return false;
+    return fallback;
+  };
+  var otLabel = (o) => {
+    const t = OT_TYPES.find((x) => x.id === o.type);
+    return t ? `${t.label} \xD7${t.mult}` : `Custom \xD7${o.mult}`;
+  };
+  function itemsOf(pay) {
+    const out = [];
+    const seen = /* @__PURE__ */ new Map();
+    const add = (kind, name, fields) => {
+      const key2 = `${kind}|${name}`;
+      const n = (seen.get(key2) ?? 0) + 1;
+      seen.set(key2, n);
+      out.push([kind, n > 1 ? `${name} #${n}` : name, fields]);
+    };
+    for (const o of pay.overtime ?? []) {
+      const preset = OT_TYPES.find((t) => t.id === o.type);
+      add("Overtime", otLabel(o), { hours: o.hours, factor: preset ? preset.mult : o.mult });
+    }
+    for (const it of pay.incomes ?? []) add("Allowance", it.name || "Allowance", { amount: it.amount, period: it.per });
+    for (const a of pay.cashAwards ?? []) add("Cash award", a.name || "Cash award", { amount: a.amount, currency: a.currency, rate: a.rate, period: a.per });
+    for (const d of pay.deductions ?? []) add("Deduction", d.name || "Deduction", { amount: d.amount, period: d.per });
+    return out;
+  }
+  var ITEM_FIELDS = { Overtime: ["hours", "factor"], Allowance: ["amount", "period"], "Cash award": ["amount", "currency", "rate", "period"], Deduction: ["amount", "period"] };
+  var KIND_ORDER = ["Overtime", "Allowance", "Cash award", "Deduction"];
+  var BASE_COLUMNS = [
+    ["Month", (m) => m],
+    ["Gross salary", (m, p) => p.amount],
+    ["Salary period", (m, p) => p.per],
+    ["Pro-rata months", (m, p) => p.payPeriod?.months],
+    ["Pro-rata days", (m, p) => p.payPeriod?.days],
+    ["Stocks constant %", (m, p) => p.espp?.constPct],
+    ["Stocks variable %", (m, p) => p.espp?.varPct],
+    ["ESPP gain", (m, p) => p.espp?.gain]
+  ];
+  function entriesCsv(months, selection2 = "all") {
+    const list = Object.keys(months ?? {}).filter((m) => MONTH.test(m) && inSelection(m, selection2)).sort();
+    const cols = [];
+    const known = /* @__PURE__ */ new Set();
+    for (const m of list) {
+      for (const [kind, name] of itemsOf(months[m])) {
+        for (const f of ITEM_FIELDS[kind]) {
+          const col = `${kind}: ${name} ${f}`;
+          if (!known.has(col)) {
+            known.add(col);
+            cols.push({ col, kind, name, f });
+          }
+        }
+      }
+    }
+    cols.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
+    const header = [...BASE_COLUMNS.map(([h]) => h), ...cols.map((c) => c.col)];
+    const rows = list.map((m) => {
+      const p = months[m];
+      const items = new Map(itemsOf(p).map(([kind, name, fields]) => [`${kind}|${name}`, fields]));
+      return [...BASE_COLUMNS.map(([, get2]) => get2(m, p) ?? ""), ...cols.map((c) => items.get(`${c.kind}|${c.name}`)?.[c.f] ?? "")];
+    });
+    return toCsv(header, rows);
+  }
+  var LEDGER_KEYS = [["deducted", "Deducted"], ["deductedUsd", "Deducted USD"], ["dividend", "Dividend"], ["shares", "ACC. Shares"], ["gain", "ESPP gain (typed)"]];
+  function esppCsv(espp = {}, selection2 = "all") {
+    const months = new Set([
+      ...Object.keys(espp.entries ?? {}),
+      ...espp.gainMonths ?? [],
+      ...Object.keys(espp.rates ?? {})
+    ].filter((m) => MONTH.test(m) && inSelection(m, selection2)));
+    const header = ["Month", ...LEDGER_KEYS.map(([, h]) => h), "In ESPP Gains list", "USD rate (fetched)"];
+    const rows = [...months].sort().map((m) => {
+      const e = espp.entries?.[m] ?? {};
+      return [m, ...LEDGER_KEYS.map(([k]) => e[k] ?? ""), (espp.gainMonths ?? []).includes(m) ? "yes" : "", espp.rates?.[m] ?? ""];
+    });
+    return toCsv(header, rows);
+  }
+  var SETTINGS_HEADER = ["Section", "Setting", "Month", "Profile", "Value"];
+  function monthSettings(p) {
+    const out = [];
+    const push = (k, v2) => out.push([k, v2 ?? ""]);
+    push("Mode", p.mode);
+    push("Job type", p.jobType);
+    push("SI base override", p.overrides?.siBase);
+    push("SI pro-rata days", boolText(!!p.overrides?.siProRata));
+    push("Manual taxable amount", p.overrides?.taxable);
+    push("Manual taxable period", p.overrides?.taxablePer);
+    const v = p.espp?.variable ?? {};
+    for (const [k, label2] of [["allowances", "Taxable allowances"], ["exempt", "Exempt (profit share)"], ["overtime", "Overtime"], ["cashAwards", "Cash awards"]]) {
+      if (k in v) push(`Stocks variable: ${label2}`, boolText(!!v[k]));
+    }
+    for (const [kind, name, , item] of itemsWithSource(p)) {
+      if (kind === "Allowance") {
+        push(`Allowance: ${name} taxable`, boolText(item.taxable !== false));
+        push(`Allowance: ${name} counts toward SI base`, boolText(!!item.insurable));
+        push(`Allowance: ${name} included in ESPP`, boolText(item.inEspp !== false));
+      } else if (kind === "Cash award") {
+        push(`Cash award: ${name} taxable`, boolText(item.taxable !== false));
+        push(`Cash award: ${name} included in ESPP`, boolText(item.inEspp !== false));
+      } else if (kind === "Deduction") {
+        push(`Deduction: ${name} before tax`, boolText(!!item.pretax));
+      }
+    }
+    if (isLocalSchedule(p.scheduleLocal)) {
+      for (const [k, label2] of SCHEDULE_KEYS) push(`Work schedule (local): ${label2}`, p.scheduleLocal[k]);
+    }
+    return out;
+  }
+  function itemsWithSource(p) {
+    const named = itemsOf(p);
+    const sources3 = [...p.overtime ?? [], ...p.incomes ?? [], ...p.cashAwards ?? [], ...p.deductions ?? []];
+    return named.map(([kind, name, fields], i) => [kind, name, fields, sources3[i]]);
+  }
+  var SCHEDULE_KEYS = [["weeksPerYear", "Weeks / year"], ["daysPerWeek", "Days / week"], ["hoursPerDay", "Hours / day"], ["otHoursBase", "OT base hrs / mo"]];
+  var ASSUMPTION_KEYS = [
+    ["price", "Share price $"],
+    ["fx", "1 USD ="],
+    ["discount", "Discount %"],
+    ["dividend", "Dividend $/share"],
+    ["dividendTax", "Dividend US tax %"],
+    ["reinvestRate", "Reinvest fee %"],
+    ["reinvestCap", "Reinvest cap $"],
+    ["feeIn", "Fee in $ (Jan/Jul)"],
+    ["withdrawalFee", "Withdrawal fee $"]
+  ];
+  function settingsCsv(state2, selection2 = "all") {
+    const rows = [];
+    const add = (section, setting, value, month = "", profile = "") => rows.push([section, setting, month, profile, value ?? ""]);
+    for (const [k, label2] of SCHEDULE_KEYS) add("Work schedule", label2, state2.schedule?.[k]);
+    add("General", "Active tax profile", state2.profileId);
+    const espp = state2.espp ?? {};
+    add("ESPP", "Symbol", espp.symbol);
+    for (const [k, label2] of ASSUMPTION_KEYS) add("ESPP assumptions", label2, espp.assumptions?.[k]);
+    add("ESPP", "Change day", espp.changeDay);
+    add("ESPP", "Month offset", espp.monthOffset);
+    for (const p of state2.profiles ?? []) {
+      const id = p.id;
+      add("Tax profile", "Name", p.name, "", id);
+      add("Tax profile", "Currency", p.currency, "", id);
+      add("Tax", "Personal exemption", p.tax?.exemption, "", id);
+      (p.tax?.brackets ?? []).forEach((b, i) => {
+        add("Tax bracket", `${i + 1} rate %`, b.rate, "", id);
+        add("Tax bracket", `${i + 1} from`, b.min, "", id);
+        add("Tax bracket", `${i + 1} to`, b.max, "", id);
+        add("Tax bracket", `${i + 1} excluded above`, b.exclusion, "", id);
+      });
+      (p.levies ?? []).forEach((l, i) => {
+        add("Levy", `${i + 1} name`, l.name, "", id);
+        add("Levy", `${i + 1} rate %`, l.rate, "", id);
+        add("Levy", `${i + 1} base`, l.base, "", id);
+      });
+      add("Social insurance", "Employee share %", p.si?.employeeRate, "", id);
+      add("Social insurance", "Employer share %", p.si?.employerRate, "", id);
+      (p.si?.caps ?? []).forEach((c, i) => {
+        add("SI cap", `${i + 1} year`, c.year, "", id);
+        add("SI cap", `${i + 1} min`, c.min, "", id);
+        add("SI cap", `${i + 1} max`, c.max, "", id);
+      });
+      (p.jobTypes ?? []).forEach((j, i) => {
+        add("Job type", `${i + 1} id`, j.id, "", id);
+        add("Job type", `${i + 1} name`, j.name, "", id);
+        add("Job type", `${i + 1} social insurance`, boolText(!!j.si), "", id);
+        add("Job type", `${i + 1} exemption`, boolText(!!j.exemption), "", id);
+        add("Job type", `${i + 1} mode`, j.mode, "", id);
+        add("Job type", `${i + 1} flat rate %`, j.flatRate, "", id);
+      });
+    }
+    for (const m of Object.keys(state2.months ?? {}).filter((x) => MONTH.test(x) && inSelection(x, selection2)).sort()) {
+      for (const [setting, value] of monthSettings(state2.months[m])) add("Month", setting, value, m);
+    }
+    return toCsv(SETTINGS_HEADER, rows);
+  }
+  var FILE_KINDS = {
+    entries: (h) => h[0] === "Month" && h.includes("Gross salary"),
+    espp: (h) => h[0] === "Month" && h.includes("Deducted USD"),
+    settings: (h) => h.join(",") === SETTINGS_HEADER.join(",")
+  };
+  function csvKind(text2) {
+    const [header = []] = parseCsv(text2);
+    return Object.keys(FILE_KINDS).find((k) => FILE_KINDS[k](header)) ?? "";
+  }
+  var OT_BY_LABEL = new Map(OT_TYPES.map((t) => [t.label, t]));
+  var stripCount = (name) => name.replace(/ #\d+$/, "");
+  var stripFactor = (name) => name.replace(/ ×[\d.]+$/, "");
+  function monthFromRow(row, header, settingRows = []) {
+    const s = new Map(settingRows.map((r) => [r.Setting, r.Value]));
+    const pay = {
+      amount: row["Gross salary"] ?? "",
+      per: row["Salary period"] || "month",
+      mode: s.get("Mode") || "gross",
+      payPeriod: { months: row["Pro-rata months"] || "1", days: row["Pro-rata days"] || "0" },
+      jobType: s.get("Job type") || "ft",
+      overrides: {
+        siBase: s.get("SI base override") ?? "",
+        taxable: s.get("Manual taxable amount") ?? "",
+        taxablePer: s.get("Manual taxable period") || "month",
+        siProRata: readBool(s.get("SI pro-rata days"))
+      },
+      incomes: [],
+      overtime: [],
+      cashAwards: [],
+      deductions: [],
+      espp: {
+        constPct: row["Stocks constant %"] ?? "",
+        varPct: row["Stocks variable %"] ?? "",
+        gain: row["ESPP gain"] ?? "",
+        // Only the ticks the month had are written back; a tick missing from the file stays missing.
+        variable: Object.fromEntries([["allowances", "Taxable allowances"], ["exempt", "Exempt (profit share)"], ["overtime", "Overtime"], ["cashAwards", "Cash awards"]].filter(([, label2]) => s.has(`Stocks variable: ${label2}`)).map(([k, label2]) => [k, readBool(s.get(`Stocks variable: ${label2}`))]))
+      }
+    };
+    const items = /* @__PURE__ */ new Map();
+    for (const h of header) {
+      const m = h.match(/^(Overtime|Allowance|Cash award|Deduction): (.+) (hours|factor|amount|period|currency|rate)$/);
+      if (!m || row[h] === "" || row[h] === void 0) continue;
+      const key2 = `${m[1]}|${m[2]}`;
+      if (!items.has(key2)) items.set(key2, { kind: m[1], name: m[2], fields: {} });
+      items.get(key2).fields[m[3]] = row[h];
+    }
+    for (const { kind, name, fields } of items.values()) {
+      const base = stripCount(name);
+      const flag = (suffix, fallback) => readBool(s.get(`${kind}: ${name} ${suffix}`), fallback);
+      if (kind === "Overtime") {
+        const preset = OT_BY_LABEL.get(stripFactor(base));
+        pay.overtime.push(preset ? { type: preset.id, mult: preset.mult, hours: fields.hours ?? "" } : { type: "custom", mult: fields.factor ?? "", hours: fields.hours ?? "" });
+      } else if (kind === "Allowance") {
+        pay.incomes.push({ name: base, amount: fields.amount ?? "", per: fields.period || "month", taxable: flag("taxable", true), insurable: flag("counts toward SI base", false), inEspp: flag("included in ESPP", true) });
+      } else if (kind === "Cash award") {
+        pay.cashAwards.push({ name: base, amount: fields.amount ?? "", currency: fields.currency || "USD", rate: fields.rate ?? "", per: fields.period || "once", taxable: flag("taxable", true), inEspp: flag("included in ESPP", true) });
+      } else {
+        pay.deductions.push({ name: base, amount: fields.amount ?? "", per: fields.period || "month", pretax: flag("before tax", false) });
+      }
+    }
+    const local = SCHEDULE_KEYS.map(([k, label2]) => [k, s.get(`Work schedule (local): ${label2}`)]);
+    if (local.some(([, v]) => v !== void 0)) pay.scheduleLocal = Object.fromEntries(local.map(([k, v]) => [k, v ?? ""]));
+    return pay;
+  }
+  var sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  function applyCsv(state2, files) {
+    const next = structuredClone(state2);
+    const changes = [];
+    const problems = [];
+    const byKind = {};
+    for (const { name, text: text2 } of files) {
+      const kind = csvKind(text2);
+      if (!kind) problems.push(`${name}: not an entries, ESPP or settings file`);
+      else byKind[kind] = readTable(text2);
+    }
+    const settings = byKind.settings?.rows ?? [];
+    const monthRows = /* @__PURE__ */ new Map();
+    for (const r of settings) if (r.Section === "Month" && MONTH.test(r.Month)) monthRows.set(r.Month, [...monthRows.get(r.Month) ?? [], r]);
+    if (byKind.entries) {
+      for (const row of byKind.entries.rows) {
+        if (!MONTH.test(row.Month)) {
+          problems.push(`entries: row "${row.Month}" is not a YYYY-MM month`);
+          continue;
+        }
+        if (!String(row["Gross salary"] ?? "").trim()) {
+          problems.push(`entries: ${row.Month} has no gross salary, skipped`);
+          continue;
+        }
+        const pay = monthFromRow(row, byKind.entries.header, monthRows.get(row.Month) ?? []);
+        const before = next.months[row.Month];
+        if (!before) changes.push(`Add month ${row.Month}`);
+        else if (!sameJson({ ...before }, pay)) changes.push(`Overwrite month ${row.Month}`);
+        next.months[row.Month] = pay;
+      }
+    }
+    if (byKind.espp) {
+      next.espp = { ...next.espp, entries: { ...next.espp.entries }, rates: { ...next.espp.rates }, gainMonths: [...next.espp.gainMonths ?? []] };
+      for (const row of byKind.espp.rows) {
+        if (!MONTH.test(row.Month)) {
+          problems.push(`espp: row "${row.Month}" is not a YYYY-MM month`);
+          continue;
+        }
+        const entry2 = Object.fromEntries(LEDGER_KEYS.map(([k, h]) => [k, row[h] ?? ""]).filter(([, v]) => v !== ""));
+        const before = next.espp.entries[row.Month];
+        if (Object.keys(entry2).length) {
+          if (before && !sameJson(before, entry2)) changes.push(`Overwrite ESPP ledger ${row.Month}`);
+          else if (!before) changes.push(`Add ESPP ledger ${row.Month}`);
+          next.espp.entries[row.Month] = entry2;
+        }
+        if (row["USD rate (fetched)"]) next.espp.rates[row.Month] = row["USD rate (fetched)"];
+        if (readBool(row["In ESPP Gains list"]) && !next.espp.gainMonths.includes(row.Month)) next.espp.gainMonths.push(row.Month);
+      }
+    }
+    if (settings.length) applySettingRows(next, settings, changes, problems);
+    return { state: next, changes, problems };
+  }
+  function applySettingRows(next, rows, changes, problems) {
+    const set2 = (label2, target, key2, value) => {
+      if (value === void 0) return;
+      if (String(target[key2] ?? "") !== String(value)) {
+        if (String(target[key2] ?? "") !== "") changes.push(`Overwrite ${label2}: ${target[key2]} \u2192 ${value}`);
+        target[key2] = value;
+      }
+    };
+    const get2 = (section, setting, profile = "") => rows.find((r) => r.Section === section && r.Setting === setting && (r.Profile ?? "") === profile && !r.Month)?.Value;
+    next.schedule = { ...next.schedule };
+    for (const [k, label2] of SCHEDULE_KEYS) set2(`work schedule ${label2}`, next.schedule, k, get2("Work schedule", label2));
+    next.espp.assumptions = { ...next.espp.assumptions };
+    for (const [k, label2] of ASSUMPTION_KEYS) {
+      const value = get2("ESPP assumptions", label2);
+      if (value === void 0) continue;
+      const before = String(next.espp.assumptions[k] ?? "");
+      if (before !== String(value)) {
+        changes.push(before === "" ? `Set ESPP ${label2} to ${value}` : `Overwrite ESPP ${label2}: ${before} \u2192 ${value}`);
+        next.espp.assumptions[k] = value;
+      }
+    }
+    set2("ESPP symbol", next.espp, "symbol", get2("ESPP", "Symbol"));
+    set2("ESPP change day", next.espp, "changeDay", get2("ESPP", "Change day"));
+    set2("ESPP month offset", next.espp, "monthOffset", get2("ESPP", "Month offset"));
+    const ids = [...new Set(rows.filter((r) => r.Profile).map((r) => r.Profile))];
+    for (const id of ids) {
+      const mine = rows.filter((r) => r.Profile === id);
+      const val = (section, setting) => mine.find((r) => r.Section === section && r.Setting === setting)?.Value;
+      const list = (section, fields) => {
+        const out = [];
+        for (const r of mine.filter((x) => x.Section === section)) {
+          const m = r.Setting.match(/^(\d+) (.+)$/);
+          if (!m) continue;
+          const i = Number(m[1]) - 1;
+          const f = fields[m[2]];
+          if (!f) continue;
+          out[i] = { ...out[i] ?? {}, [f]: r.Value };
+        }
+        return out.filter(Boolean);
+      };
+      const profile = {
+        id,
+        name: val("Tax profile", "Name") ?? id,
+        currency: val("Tax profile", "Currency") ?? "EGP",
+        tax: { exemption: val("Tax", "Personal exemption") ?? "", brackets: list("Tax bracket", { "rate %": "rate", from: "min", to: "max", "excluded above": "exclusion" }) },
+        levies: list("Levy", { name: "name", "rate %": "rate", base: "base" }),
+        si: { employeeRate: val("Social insurance", "Employee share %") ?? "", employerRate: val("Social insurance", "Employer share %") ?? "", caps: list("SI cap", { year: "year", min: "min", max: "max" }) },
+        jobTypes: list("Job type", { id: "id", name: "name", "social insurance": "si", exemption: "exemption", mode: "mode", "flat rate %": "flatRate" }).map((j) => ({ ...j, si: readBool(j.si, true), exemption: readBool(j.exemption, true) }))
+      };
+      const at = next.profiles.findIndex((p) => p.id === id);
+      if (at === -1) {
+        changes.push(`Add tax profile ${profile.name}`);
+        next.profiles.push(profile);
+      } else if (!sameJson(next.profiles[at], profile)) {
+        changes.push(`Overwrite tax profile ${profile.name} (brackets, exemption, levies, SI, job types)`);
+        next.profiles[at] = profile;
+      }
+    }
+    const active = get2("General", "Active tax profile");
+    if (active && next.profiles.some((p) => p.id === active)) set2("active tax profile", next, "profileId", active);
+    if (active && !next.profiles.some((p) => p.id === active)) problems.push(`settings: active tax profile "${active}" is not in the file`);
+  }
+  function jsonChanges(state2, incoming) {
+    const changes = [];
+    for (const m of Object.keys(incoming.months ?? {}).sort()) {
+      if (!state2.months?.[m]) changes.push(`Add month ${m}`);
+      else if (!sameJson(state2.months[m], incoming.months[m])) changes.push(`Overwrite month ${m}`);
+    }
+    for (const m of Object.keys(state2.months ?? {}).sort()) if (!incoming.months?.[m]) changes.push(`Remove month ${m} (not in the file)`);
+    if (!sameJson(state2.espp?.entries, incoming.espp?.entries)) changes.push("Replace the ESPP ledger");
+    if (!sameJson(state2.espp?.assumptions, incoming.espp?.assumptions)) changes.push("Replace the ESPP assumptions");
+    if (!sameJson(state2.profiles, incoming.profiles)) changes.push("Replace the tax profiles");
+    if (!sameJson(state2.schedule, incoming.schedule)) changes.push("Replace the work schedule");
+    if (!sameJson(state2.savings, incoming.savings)) changes.push("Replace the Savings plan");
+    return changes;
+  }
+
   // js/core/espp.js
   var DIVIDEND_MONTHS = /* @__PURE__ */ new Set([3, 6, 9, 12]);
   var FEE_MONTHS = /* @__PURE__ */ new Set([1, 7]);
@@ -779,10 +1193,10 @@
   var escapeHtml = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   var formatNumber = (v) => whole.format(v);
   function createMoneyFormatter(currency) {
-    const label = escapeHtml(currency);
+    const label2 = escapeHtml(currency);
     return (value, withCents = false) => {
       const useCents = withCents || value !== 0 && Math.abs(value) < 100;
-      return `${label} ${(useCents ? cents : whole).format(value)}`;
+      return `${label2} ${(useCents ? cents : whole).format(value)}`;
     };
   }
   var formatPercent = (ratio) => `${(ratio * 100).toFixed(1)}%`;
@@ -894,7 +1308,7 @@
       bracketPeriod: "month",
       theme: "",
       taxEdit: false,
-      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, savings: false, histSaved: true, histSummary: true }
+      open: { overtime: false, extras: false, deductions: false, espp: false, options: false, transfer: false, brackets: false, exemption: false, levies: false, si: false, jobs: false, esppTable: true, esppAssumptions: false, esppGains: false, savings: false, histSaved: true, histSummary: true }
     }
   });
 
@@ -962,23 +1376,23 @@
     if (!["year", "month"].includes(state2.ui.bracketPeriod)) state2.ui.bracketPeriod = "month";
     return state2;
   }
-  var MONTH = /^\d{4}-\d{2}$/;
+  var MONTH2 = /^\d{4}-\d{2}$/;
   function restoreEntries(state2, saved) {
     const raw2 = saved?.espp?.entries;
     const entries = {};
     if (raw2 && typeof raw2 === "object") {
       for (const [month, row] of Object.entries(raw2)) {
-        if (!MONTH.test(month) || !row || typeof row !== "object") continue;
+        if (!MONTH2.test(month) || !row || typeof row !== "object") continue;
         const { gainTax, ...rest } = row;
         if (Object.keys(rest).length) entries[month] = rest;
       }
     }
     state2.espp.entries = entries;
     const listed = Array.isArray(saved?.espp?.gainMonths) ? saved.espp.gainMonths : [];
-    state2.espp.gainMonths = [...new Set(listed.filter((m) => typeof m === "string" && MONTH.test(m)))];
+    state2.espp.gainMonths = [...new Set(listed.filter((m) => typeof m === "string" && MONTH2.test(m)))];
     const rates = {};
     for (const [month, rate] of Object.entries(saved?.espp?.rates ?? {})) {
-      if (MONTH.test(month) && Number(rate) > 0) rates[month] = String(rate);
+      if (MONTH2.test(month) && Number(rate) > 0) rates[month] = String(rate);
     }
     state2.espp.rates = rates;
     state2.history = (state2.history ?? []).filter((h) => h && typeof h === "object" && h.field);
@@ -989,7 +1403,7 @@
     const months = {};
     if (raw2 && typeof raw2 === "object") {
       for (const [month, pay] of Object.entries(raw2)) {
-        if (MONTH.test(month) && pay && typeof pay === "object" && "amount" in pay) months[month] = pay;
+        if (MONTH2.test(month) && pay && typeof pay === "object" && "amount" in pay) months[month] = pay;
       }
     }
     state2.months = Object.keys(months).length || raw2 ? months : monthsFromHistory(state2.history, state2);
@@ -1142,7 +1556,7 @@
 
   // js/ui/form.js
   var periodOptions = (selected, periods = PERIODS) => periods.map((p) => `<option value="${p.id}"${p.id === selected ? " selected" : ""}>${p.label}</option>`).join("");
-  var optionList = (items, selected) => items.map(({ value, label }) => `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(label)}</option>`).join("");
+  var optionList = (items, selected) => items.map(({ value, label: label2 }) => `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(label2)}</option>`).join("");
   var readValue = (el) => el.type === "checkbox" ? el.checked : el.value;
   function initBindings() {
     document.addEventListener("input", (e) => {
@@ -1186,21 +1600,21 @@
   var key = (path, index) => `${path}:${index}`;
   var CHEVRON = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var isAdvancedOpen = (path, index) => openRows.has(key(path, index));
-  function advanced(path, index, innerHtml, label = "Advanced") {
-    const open3 = isAdvancedOpen(path, index);
-    return `<div class="adv${open3 ? " open" : ""}">
-    <div class="adv-body"${open3 ? "" : " inert"}>${innerHtml}</div>
-    <button type="button" class="adv-toggle" data-adv="${path}" data-i="${index}" aria-expanded="${open3}">${label}${CHEVRON}</button></div>`;
+  function advanced(path, index, innerHtml, label2 = "Advanced") {
+    const open4 = isAdvancedOpen(path, index);
+    return `<div class="adv${open4 ? " open" : ""}">
+    <div class="adv-body"${open4 ? "" : " inert"}>${innerHtml}</div>
+    <button type="button" class="adv-toggle" data-adv="${path}" data-i="${index}" aria-expanded="${open4}">${label2}${CHEVRON}</button></div>`;
   }
   function handleAdvancedToggle(button) {
     const path = button.dataset.adv;
     const index = Number(button.dataset.i);
-    const open3 = !openRows.delete(key(path, index));
-    if (open3) openRows.add(key(path, index));
+    const open4 = !openRows.delete(key(path, index));
+    if (open4) openRows.add(key(path, index));
     const wrap = button.closest(".adv");
-    wrap.classList.toggle("open", open3);
-    button.setAttribute("aria-expanded", String(open3));
-    wrap.querySelector(".adv-body").toggleAttribute("inert", !open3);
+    wrap.classList.toggle("open", open4);
+    button.setAttribute("aria-expanded", String(open4));
+    wrap.querySelector(".adv-body").toggleAttribute("inert", !open4);
   }
   function shiftAdvancedAfterRemove(path, removed) {
     const prefix = `${path}:`;
@@ -1363,7 +1777,7 @@
   var text = (path, i, key2, value, placeholder = "", { numeric = false, disabled = false, cls = "", money = false } = {}) => `<input type="text" class="${cls}"${numeric ? ' inputmode="decimal"' : ""}${money ? " data-money" : ""}${disabled ? " disabled" : ""} data-path="${path}.${i}.${key2}"
     value="${escapeHtml(money ? groupDigits(value) : value)}" placeholder="${escapeHtml(placeholder)}" aria-label="${escapeHtml(placeholder || key2)}">`;
   var num = (path, i, key2, value, placeholder, extra = {}) => text(path, i, key2, value, placeholder, { ...extra, numeric: true });
-  var check = (path, i, key2, value, label) => `<label class="check"><input type="checkbox" data-path="${path}.${i}.${key2}"${value ? " checked" : ""} aria-label="${escapeHtml(label || key2)}"> ${label}</label>`;
+  var check = (path, i, key2, value, label2) => `<label class="check"><input type="checkbox" data-path="${path}.${i}.${key2}"${value ? " checked" : ""} aria-label="${escapeHtml(label2 || key2)}"> ${label2}</label>`;
   var select = (path, i, key2, optionsHtml, cls = "", attrs = "") => `<select class="${cls}" data-path="${path}.${i}.${key2}" aria-label="${key2}"${attrs}>${optionsHtml}</select>`;
   var esppCheck = (path, i, it, ctx2) => ctx2.esppVar ? check(path, i, "inEspp", it.inEspp !== false, "Included in ESPP") : "";
   var OT_OPTIONS = [...OT_TYPES.map((t) => ({ value: t.id, label: `${t.label} \xD7${t.mult}` })), { value: "custom", label: "Custom\u2026" }];
@@ -1429,7 +1843,7 @@
 
   // js/ui/dropdown.js
   var CHEVRON2 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
-  var MONTH2 = /^(\d{4})-\d{2}$/;
+  var MONTH3 = /^(\d{4})-\d{2}$/;
   var CUSTOM_ROW = "__custom";
   var isCurrency = (select2) => select2.dataset.dd === "currency";
   var wrapperOf = (select2) => select2.nextElementSibling?.classList.contains("dd") ? select2.nextElementSibling : null;
@@ -1439,10 +1853,10 @@
   function create(select2) {
     const wrap = document.createElement("div");
     wrap.className = `dd ${select2.className}`.trim();
-    const label = select2.getAttribute("aria-label") ?? "";
-    wrap.innerHTML = `<button type="button" class="dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(label)}">
+    const label2 = select2.getAttribute("aria-label") ?? "";
+    wrap.innerHTML = `<button type="button" class="dd-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="${escapeHtml(label2)}">
       <span class="dd-label"></span>${CHEVRON2}</button>
-    ${isCurrency(select2) ? `<input class="dd-input" type="text" maxlength="6" placeholder="Code" autocapitalize="characters" spellcheck="false" aria-label="${escapeHtml(label)} code" hidden>` : ""}
+    ${isCurrency(select2) ? `<input class="dd-input" type="text" maxlength="6" placeholder="Code" autocapitalize="characters" spellcheck="false" aria-label="${escapeHtml(label2)} code" hidden>` : ""}
     <div class="dd-pop" role="listbox" hidden></div>`;
     select2.after(wrap);
     return wrap;
@@ -1452,18 +1866,18 @@
     const rows = optionsOf(select2).filter((o) => !(o.disabled && o.value === "") && (!isCurrency(select2) || CURRENCIES.includes(o.value)));
     if (isCurrency(select2)) rows.push({ value: CUSTOM_ROW, label: "Custom" });
     const row = (o, text2 = o.label) => `<button type="button" class="dd-opt" role="option" data-v="${escapeHtml(o.value)}" aria-selected="${o.value === current}">${escapeHtml(text2)}</button>`;
-    const months = rows.filter((o) => MONTH2.test(o.value));
+    const months = rows.filter((o) => MONTH3.test(o.value));
     const years = [...new Set(months.map((o) => o.value.slice(0, 4)))].sort().reverse();
     if (years.length < 2) return rows.map((o) => row(o)).join("");
-    const open3 = wrap._open;
+    const open4 = wrap._open;
     const groups = years.map((year) => {
       const inYear = months.filter((o) => o.value.startsWith(year));
-      const expanded = open3.has(year);
-      return `<div class="dd-group"><button type="button" class="dd-year" data-year="${year}" aria-expanded="${expanded}">
+      const expanded2 = open4.has(year);
+      return `<div class="dd-group"><button type="button" class="dd-year" data-year="${year}" aria-expanded="${expanded2}">
         <span>${year}</span><span class="dd-n">${inYear.length}</span>${CHEVRON2}</button>
-      <div class="dd-items"${expanded ? "" : " hidden"}>${inYear.map((o) => row(o, o.label.replace(` ${year}`, ""))).join("")}</div></div>`;
+      <div class="dd-items"${expanded2 ? "" : " hidden"}>${inYear.map((o) => row(o, o.label.replace(` ${year}`, ""))).join("")}</div></div>`;
     });
-    return groups.concat(rows.filter((o) => !MONTH2.test(o.value)).map((o) => row(o))).join("");
+    return groups.concat(rows.filter((o) => !MONTH3.test(o.value)).map((o) => row(o))).join("");
   }
   function closeAll(except) {
     $$(".dd-pop:not([hidden])").forEach((pop) => {
@@ -1476,8 +1890,8 @@
   function openList(wrap) {
     const select2 = selectOf(wrap);
     closeAll(wrap);
-    const years = optionsOf(select2).map((o) => o.value.match(MONTH2)?.[1]).filter(Boolean);
-    const chosen = select2.value.match(MONTH2)?.[1];
+    const years = optionsOf(select2).map((o) => o.value.match(MONTH3)?.[1]).filter(Boolean);
+    const chosen = select2.value.match(MONTH3)?.[1];
     const now = String((/* @__PURE__ */ new Date()).getFullYear());
     wrap._open = new Set([chosen ?? (years.includes(now) ? now : years.sort().at(-1))].filter(Boolean));
     const pop = wrap.querySelector(".dd-pop");
@@ -1531,9 +1945,9 @@
   }
   function update2(select2, wrap) {
     const selected = select2.selectedOptions[0];
-    const label = wrap.querySelector(".dd-label");
-    label.textContent = selected?.textContent ?? "";
-    label.classList.toggle("placeholder", !select2.value);
+    const label2 = wrap.querySelector(".dd-label");
+    label2.textContent = selected?.textContent ?? "";
+    label2.classList.toggle("placeholder", !select2.value);
     const btn = wrap.querySelector(".dd-btn");
     btn.disabled = select2.disabled;
     btn.title = select2.title;
@@ -1728,8 +2142,8 @@
   }
   function syncCollapsibles(state2) {
     $$("details[data-open]").forEach((el) => {
-      const open3 = !!state2.ui.open[el.dataset.open];
-      if (el.open !== open3) el.open = open3;
+      const open4 = !!state2.ui.open[el.dataset.open];
+      if (el.open !== open4) el.open = open4;
     });
   }
 
@@ -1810,10 +2224,10 @@
     employer: "var(--c-emp)",
     other: "var(--c-other)"
   };
-  var line = (label, value, cls = "", color = "") => `<div class="line ${cls}"><span class="k">${color ? `<i class="sw" style="background:${color}"></i>` : ""}${label}</span><span class="v">${value}</span></div>`;
+  var line = (label2, value, cls = "", color = "") => `<div class="line ${cls}"><span class="k">${color ? `<i class="sw" style="background:${color}"></i>` : ""}${label2}</span><span class="v">${value}</span></div>`;
   var negative = (value) => `<span class="neg">\u2212 ${value}</span>`;
   var positive = (value) => `<span class="pos">${value}</span>`;
-  var stat = (label, value, tone = "") => `<div class="stat"><div class="k">${label}</div><div class="v ${tone}">${value}</div></div>`;
+  var stat = (label2, value, tone = "") => `<div class="stat"><div class="k">${label2}</div><div class="v ${tone}">${value}</div></div>`;
   function legend(segments) {
     const total = segments.reduce((a, s) => a + s.value, 0) || 1;
     return `<div class="legend">${segments.filter((s) => s.value > 0).map((s) => `<span><i class="sw" style="background:${s.color}"></i>${s.label} ${formatPercent(s.value / total)}</span>`).join("")}</div>`;
@@ -1857,7 +2271,7 @@
   }
   function breakdownLines(r, state2, at, { net = true, entered = false } = {}) {
     const mine = entered ? " entered" : "";
-    const sub = (label, annual, netAnnual) => line(`${label}${netAnnual !== void 0 ? ` <span class="hint">net ${at(netAnnual)}</span>` : ""}`, positive(at(annual)), `sub${mine}`);
+    const sub = (label2, annual, netAnnual) => line(`${label2}${netAnnual !== void 0 ? ` <span class="hint">net ${at(netAnnual)}</span>` : ""}`, positive(at(annual)), `sub${mine}`);
     const earnings = [
       line("Basic salary", positive(at(r.baseAnnual)), mine.trim()),
       ...r.incomes.map((it) => sub(escapeHtml(it.name) + (it.taxable ? "" : ' <span class="hint">(exempt)</span>'), it.annual, it.taxable ? it.netAnnual : void 0)),
@@ -1927,8 +2341,8 @@
         const v = money(fromAnnual(annual, p.id, state2.schedule, pay.factor), cents2);
         return `<td class="r">${name === "Net" ? `<b>${v}</b>` : v}</td>`;
       }).join("");
-      const label = p.id === "month" && !pay.standard ? `${p.label} <span class="hint">(${pay.label})</span>` : p.label;
-      return `<tr class="${p.id === state2.ui.period ? "active" : ""}"><td><b>${label}</b></td>${cells}</tr>`;
+      const label2 = p.id === "month" && !pay.standard ? `${p.label} <span class="hint">(${pay.label})</span>` : p.label;
+      return `<tr class="${p.id === state2.ui.period ? "active" : ""}"><td><b>${label2}</b></td>${cells}</tr>`;
     }).join("");
     const s = state2.schedule;
     return `<div class="table-wrap"><table class="sticky-first">
@@ -1940,7 +2354,7 @@
 
   // js/ui/results/taxDetail.js
   function taxableTable(r, money) {
-    const row = (label, annual, cls = "") => `<tr class="${cls}"><td>${label}</td><td class="r">${money(annual / 12)}</td><td class="r">${money(annual)}</td></tr>`;
+    const row = (label2, annual, cls = "") => `<tr class="${cls}"><td>${label2}</td><td class="r">${money(annual / 12)}</td><td class="r">${money(annual)}</td></tr>`;
     const siNote = `<span class="hint">base ${money(r.si.base)}${r.si.capped ? " (capped)" : ""}</span>`;
     return `<div class="section-title">Taxable income</div>
     <div class="table-wrap"><table>
@@ -1959,7 +2373,7 @@
   function periodToggle(active) {
     const from = shownPeriod ?? active;
     shownPeriod = active;
-    const btn = (id, label) => `<button type="button" data-v="${id}" aria-pressed="${id === active}">${label}</button>`;
+    const btn = (id, label2) => `<button type="button" data-v="${id}" aria-pressed="${id === active}">${label2}</button>`;
     return `<div class="seg slide" data-seg="ui.bracketPeriod" style="--i:${SIDE[from]}" data-to="${SIDE[active]}">${btn("year", "Annual")}${btn("month", "Monthly")}</div>`;
   }
   function bracketTable(r, money, period) {
@@ -2097,12 +2511,230 @@
     return hydrate(state2);
   }
 
+  // js/utils/zip.js
+  var CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let n = 0; n < 256; n++) {
+      let c = n;
+      for (let k = 0; k < 8; k++) c = c & 1 ? 3988292384 ^ c >>> 1 : c >>> 1;
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes) {
+    let c = 4294967295;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ c >>> 8;
+    return (c ^ 4294967295) >>> 0;
+  }
+  function dosTime(date) {
+    const time = date.getHours() << 11 | date.getMinutes() << 5 | Math.floor(date.getSeconds() / 2);
+    const day = date.getFullYear() - 1980 << 9 | date.getMonth() + 1 << 5 | date.getDate();
+    return { time, day };
+  }
+  function zipFiles(files, date = /* @__PURE__ */ new Date()) {
+    const enc = new TextEncoder();
+    const { time, day } = dosTime(date);
+    const locals = [];
+    const centrals = [];
+    let offset = 0;
+    for (const f of files) {
+      const name = enc.encode(f.name);
+      const data = enc.encode(`\uFEFF${f.text}`);
+      const crc = crc32(data);
+      const local = new DataView(new ArrayBuffer(30));
+      local.setUint32(0, 67324752, true);
+      local.setUint16(4, 20, true);
+      local.setUint16(6, 2048, true);
+      local.setUint16(8, 0, true);
+      local.setUint16(10, time, true);
+      local.setUint16(12, day, true);
+      local.setUint32(14, crc, true);
+      local.setUint32(18, data.length, true);
+      local.setUint32(22, data.length, true);
+      local.setUint16(26, name.length, true);
+      local.setUint16(28, 0, true);
+      locals.push(new Uint8Array(local.buffer), name, data);
+      const central = new DataView(new ArrayBuffer(46));
+      central.setUint32(0, 33639248, true);
+      central.setUint16(4, 20, true);
+      central.setUint16(6, 20, true);
+      central.setUint16(8, 2048, true);
+      central.setUint16(10, 0, true);
+      central.setUint16(12, time, true);
+      central.setUint16(14, day, true);
+      central.setUint32(16, crc, true);
+      central.setUint32(20, data.length, true);
+      central.setUint32(24, data.length, true);
+      central.setUint16(28, name.length, true);
+      central.setUint32(42, offset, true);
+      centrals.push(new Uint8Array(central.buffer), name);
+      offset += 30 + name.length + data.length;
+    }
+    const centralSize = centrals.reduce((n, b) => n + b.length, 0);
+    const end = new DataView(new ArrayBuffer(22));
+    end.setUint32(0, 101010256, true);
+    end.setUint16(8, files.length, true);
+    end.setUint16(10, files.length, true);
+    end.setUint32(12, centralSize, true);
+    end.setUint32(16, offset, true);
+    const parts = [...locals, ...centrals, new Uint8Array(end.buffer)];
+    const out = new Uint8Array(parts.reduce((n, b) => n + b.length, 0));
+    let at = 0;
+    for (const b of parts) {
+      out.set(b, at);
+      at += b.length;
+    }
+    return out;
+  }
+  function unzipFiles(bytes) {
+    const view2 = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const dec = new TextDecoder();
+    const files = [];
+    let i = 0;
+    while (i + 30 <= bytes.length && view2.getUint32(i, true) === 67324752) {
+      const method = view2.getUint16(i + 8, true);
+      const size = view2.getUint32(i + 18, true);
+      const nameLen = view2.getUint16(i + 26, true);
+      const extraLen = view2.getUint16(i + 28, true);
+      const name = dec.decode(bytes.subarray(i + 30, i + 30 + nameLen));
+      const start2 = i + 30 + nameLen + extraLen;
+      if (method !== 0) throw new Error(`${name} is compressed; unzip it and import the CSV files instead`);
+      files.push({ name, text: dec.decode(bytes.subarray(start2, start2 + size)).replace(/^﻿/, "") });
+      i = start2 + size;
+    }
+    return files;
+  }
+
+  // js/ui/exportPick.js
+  var selection = "all";
+  var several = false;
+  var open = false;
+  var expanded = /* @__PURE__ */ new Set();
+  var CHEVRON3 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var exportSelection = () => selection;
+  function label() {
+    if (selection === "all") return "All months";
+    if (!selection.length) return "Nothing chosen";
+    const parts = selection.map((s) => s.length === 4 ? s : monthLabel(s));
+    return parts.length > 3 ? `${parts.slice(0, 2).join(", ")} +${parts.length - 2} more` : parts.join(", ");
+  }
+  var isChosen = (key2) => selection !== "all" && selection.includes(key2);
+  function toggle(key2, add) {
+    if (key2 === "all") {
+      selection = "all";
+      return;
+    }
+    const current = selection === "all" ? [] : [...selection];
+    if (!add) {
+      selection = [key2];
+      return;
+    }
+    const at = current.indexOf(key2);
+    if (at === -1) current.push(key2);
+    else current.splice(at, 1);
+    const years = current.filter((k) => k.length === 4);
+    selection = current.filter((k) => k.length === 4 || !years.includes(k.slice(0, 4)));
+    if (!selection.length) selection = "all";
+  }
+  function renderExportPick(state2) {
+    const host2 = $("#exportPick");
+    if (!host2) return;
+    const months = monthList(state2.months);
+    const years = [...new Set(months.map((m) => m.slice(0, 4)))];
+    if (!expanded.size) {
+      const now = String((/* @__PURE__ */ new Date()).getFullYear());
+      expanded.add(years.includes(now) ? now : years[0]);
+    }
+    const mark = (on) => `<span class="pick-box${on ? " on" : ""}" aria-hidden="true"></span>`;
+    const rows = years.map((y) => {
+      const inYear = months.filter((m) => m.startsWith(y));
+      const isOpen = expanded.has(y);
+      return `<div class="pick-year">
+      <div class="pick-row year${isChosen(y) ? " on" : ""}">
+        <button type="button" class="pick-item" data-pick="${y}">${several ? mark(isChosen(y)) : ""}<b>${y}</b><span class="hint">${inYear.length}</span></button>
+        <button type="button" class="pick-arrow${isOpen ? " open" : ""}" data-pick-arrow="${y}" aria-expanded="${isOpen}" aria-label="${isOpen ? "Close" : "Open"} ${y}">${CHEVRON3}</button>
+      </div>
+      ${isOpen ? inYear.map((m) => `<div class="pick-row${isChosen(m) || isChosen(y) ? " on" : ""}"><button type="button" class="pick-item month" data-pick="${m}">${several ? mark(isChosen(m) || isChosen(y)) : ""}${escapeHtml(monthLabel(m, "long"))}</button></div>`).join("") : ""}
+    </div>`;
+    }).join("");
+    host2.innerHTML = `<button type="button" class="pick-btn" data-pick-toggle aria-haspopup="listbox" aria-expanded="${open}"><span>${escapeHtml(label())}</span>${CHEVRON3}</button>
+    <div class="pick-pop"${open ? "" : " hidden"}>
+      <label class="check pick-several"><input type="checkbox" data-pick-several${several ? " checked" : ""}> Select several</label>
+      <div class="pick-row${selection === "all" ? " on" : ""}"><button type="button" class="pick-item" data-pick="all">${several ? mark(selection === "all") : ""}All months</button></div>
+      ${rows || '<div class="hint">No saved months yet.</div>'}
+      <div class="hint pick-tip">Ctrl / \u2318 + click to choose several.</div>
+    </div>`;
+  }
+  function initExportPick(getState2) {
+    const redraw = () => renderExportPick(getState2());
+    document.addEventListener("click", (e) => {
+      const host2 = $("#exportPick");
+      if (!host2) return;
+      if (!host2.contains(e.target)) {
+        if (open) {
+          open = false;
+          redraw();
+        }
+        return;
+      }
+      if (e.target.closest("[data-pick-toggle]")) {
+        open = !open;
+        return redraw();
+      }
+      const arrow = e.target.closest("[data-pick-arrow]");
+      if (arrow) {
+        const y = arrow.dataset.pickArrow;
+        if (expanded.has(y)) expanded.delete(y);
+        else expanded.add(y);
+        return redraw();
+      }
+      const item = e.target.closest("[data-pick]");
+      if (item) {
+        const add = several || e.ctrlKey || e.metaKey;
+        toggle(item.dataset.pick, add && item.dataset.pick !== "all");
+        if (!add) open = false;
+        return redraw();
+      }
+    });
+    document.addEventListener("change", (e) => {
+      if (e.target.matches?.("[data-pick-several]")) {
+        several = e.target.checked;
+        redraw();
+      }
+    });
+  }
+
   // js/ui/settings.js
   function applyTheme(theme) {
     if (theme) document.documentElement.dataset.theme = theme;
     else delete document.documentElement.dataset.theme;
   }
+  function download(name, bytes, type) {
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([bytes], { type }));
+    link.download = name;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(link.href), 1e3);
+  }
+  var pending = null;
+  function review({ title, changes, problems }) {
+    const host2 = $("#importReview");
+    const list = (items, cls) => items.length ? `<ul class="${cls}">${items.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul>` : "";
+    host2.innerHTML = `<div class="import-review">
+    <b>${escapeHtml(title)}</b>
+    ${changes.length ? `<div class="hint">This will change:</div>${list(changes, "changes")}` : '<div class="hint">Nothing in the app changes.</div>'}
+    ${problems.length ? `<div class="hint warn-text">Not imported:</div>${list(problems, "problems")}` : ""}
+    <div class="row" style="gap:6px;margin-top:8px">
+      ${changes.length ? '<button type="button" class="btn sm danger" data-import-go>Import</button>' : ""}
+      <button type="button" class="btn sm ghost" data-import-cancel>Cancel</button>
+    </div></div>`;
+  }
+  var clearReview = () => {
+    pending = null;
+    $("#importReview").innerHTML = "";
+  };
   function initSettings(onReplaced) {
+    initExportPick(() => getState());
     $("#themeBtn").addEventListener("click", () => {
       const { theme } = getState().ui;
       const isDark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
@@ -2112,20 +2744,62 @@
       const data = exportData(getState());
       downloadJson(`salary-calculator-${data.exportedAt.slice(0, 10)}.json`, data);
     });
+    $("#exportCsvBtn").addEventListener("click", () => {
+      const state2 = getState();
+      const pick2 = exportSelection();
+      const files = [
+        { name: "entries.csv", text: entriesCsv(state2.months, pick2) },
+        { name: "espp.csv", text: esppCsv(state2.espp, pick2) },
+        { name: "settings.csv", text: settingsCsv(state2, pick2) }
+      ];
+      const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+      download(`salary-calculator-${stamp}.zip`, zipFiles(files), "application/zip");
+    });
+    $("#importCsv").addEventListener("change", async (e) => {
+      const chosen = [...e.target.files];
+      e.target.value = "";
+      if (!chosen.length) return;
+      try {
+        const files = [];
+        for (const f of chosen) {
+          if (/\.zip$/i.test(f.name)) files.push(...unzipFiles(new Uint8Array(await f.arrayBuffer())));
+          else files.push({ name: f.name, text: await f.text() });
+        }
+        const usable = files.filter((f) => csvKind(f.text));
+        const { state: state2, changes, problems } = applyCsv(getState(), files);
+        pending = { state: hydrate(state2), kind: "csv" };
+        review({ title: `Import ${usable.map((f) => f.name).join(", ") || "CSV"}`, changes, problems });
+      } catch (err) {
+        clearReview();
+        toast(`Could not read the file: ${err.message}`);
+      }
+    });
     $("#importFile").addEventListener("change", async (e) => {
       const [file] = e.target.files;
       e.target.value = "";
       if (!file) return;
       try {
-        replace(importData(await file.text()));
-        onReplaced();
-        const months = Object.keys(getState().months).length;
-        toast(`Imported${months ? ` \xB7 ${months} month${months === 1 ? "" : "s"}` : ""}`);
+        const incoming = importData(await file.text());
+        pending = { state: incoming, kind: "json" };
+        review({ title: `Import everything from ${file.name} (replaces the whole app)`, changes: jsonChanges(getState(), incoming), problems: [] });
       } catch {
+        clearReview();
         toast("Invalid settings file");
       }
     });
-    $("#resetAll").addEventListener("click", () => {
+    document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-import-cancel]")) return clearReview();
+      if (!e.target.closest("[data-import-go]") || !pending) return;
+      const { state: state2 } = pending;
+      clearReview();
+      replace(state2);
+      onReplaced();
+      const months = Object.keys(getState().months).length;
+      toast(`Imported${months ? ` \xB7 ${months} month${months === 1 ? "" : "s"}` : ""}`);
+    });
+    $("#resetAll").addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (!confirm("Reset all values, extras and tax profiles to defaults?")) return;
       replace(structuredClone(DEFAULT_STATE));
       onReplaced();
@@ -2134,6 +2808,7 @@
   }
   function syncSettings(state2) {
     applyTheme(state2.ui.theme);
+    renderExportPick(getState());
   }
 
   // js/ui/stepper.js
@@ -2261,17 +2936,17 @@
   function resetEsppAdded() {
     esppAdded = false;
   }
-  function tile(label, a, b, tone = "") {
+  function tile(label2, a, b, tone = "") {
     const sign = (x) => x.n > 5e-3 ? "pos" : x.n < -5e-3 ? "neg" : "";
-    return `<div class="etile ${tone}"><div class="k">${label}</div>
+    return `<div class="etile ${tone}"><div class="k">${label2}</div>
     <div class="pair"><div><b class="${sign(a)}">${a.v}</b><small>${a.k}</small></div><div><b class="${sign(b)}">${b.v}</b><small>${b.k}</small></div></div></div>`;
   }
   function topTiles(rep, money) {
-    const label = monthLabel(rep.cutoff);
+    const label2 = monthLabel(rep.cutoff);
     return `<div class="etiles">
-    ${tile("Withdrawal", { v: money(rep.toDate.withdrawal), k: `to ${label}` }, { v: money(rep.forecast.withdrawal), k: `${rep.year} forecast` }, "w")}
-    ${tile("Profit", { v: money(rep.toDate.profit - rep.toDate.payslipTax), n: rep.toDate.profit - rep.toDate.payslipTax, k: `to ${label}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), n: rep.forecast.profit - rep.forecast.payslipTax, k: `${rep.year} forecast` }, "p")}
-    ${tile("Shares", { v: formatNumber2(rep.toDate.shares), k: `to ${label}` }, { v: formatNumber2(rep.forecast.shares), k: `${rep.year} forecast` }, "s")}
+    ${tile("Withdrawal", { v: money(rep.toDate.withdrawal), k: `to ${label2}` }, { v: money(rep.forecast.withdrawal), k: `${rep.year} forecast` }, "w")}
+    ${tile("Profit", { v: money(rep.toDate.profit - rep.toDate.payslipTax), n: rep.toDate.profit - rep.toDate.payslipTax, k: `to ${label2}` }, { v: money(rep.forecast.profit - rep.forecast.payslipTax), n: rep.forecast.profit - rep.forecast.payslipTax, k: `${rep.year} forecast` }, "p")}
+    ${tile("Shares", { v: formatNumber2(rep.toDate.shares), k: `to ${label2}` }, { v: formatNumber2(rep.forecast.shares), k: `${rep.year} forecast` }, "s")}
   </div>`;
   }
   var formatNumber2 = (v) => (Number(v) || 0).toFixed(2);
@@ -2319,7 +2994,7 @@
   }
   var colourOf = (kind, n) => kind === "cost" ? "neg" : n > 5e-3 ? "pos" : n < -5e-3 ? "neg" : "";
   function breakdown(rep, money, discount) {
-    const r = (label, a, b, kind = "") => `<tr><td>${label}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
+    const r = (label2, a, b, kind = "") => `<tr><td>${label2}</td><td class="r ${colourOf(kind, a[1])}">${a[0]}</td><td class="r ${colourOf(kind, b[1])}">${b[0]}</td></tr>`;
     const plain2 = (text2) => [text2, 0];
     const cost = (v, fmt) => [v ? `\u2212 ${fmt(v)}` : fmt(0), v];
     const d = rep.toDate, f = rep.forecast;
@@ -2429,8 +3104,8 @@
 
   // js/ui/monthPicker.js
   var SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  var CHEVRON3 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
-  var open = { id: "", year: 0 };
+  var CHEVRON4 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var open2 = { id: "", year: 0 };
   var handlers = /* @__PURE__ */ new Map();
   var onMonthPick = (id, fn) => handlers.set(id, fn);
   var backHandlers = /* @__PURE__ */ new Map();
@@ -2440,8 +3115,8 @@
   function openMonthPicker(id) {
     const root = document.querySelector(`.mpick[data-mpick="${id}"]`);
     if (!root) return;
-    open.id = id;
-    open.year = Number(root.dataset.value.slice(0, 4));
+    open2.id = id;
+    open2.year = Number(root.dataset.value.slice(0, 4));
     refill(root);
     root.querySelector(".mpick-pop").hidden = false;
     root.querySelector(".mpick-btn").setAttribute("aria-expanded", "true");
@@ -2461,24 +3136,24 @@
   }
   function monthPickerHtml(id, value, saved = []) {
     const shown = value || monthKey(/* @__PURE__ */ new Date());
-    const isOpen = open.id === id;
-    const year = isOpen ? open.year : Number(shown.slice(0, 4));
+    const isOpen = open2.id === id;
+    const year = isOpen ? open2.year : Number(shown.slice(0, 4));
     return `<div class="mpick" data-mpick="${id}" data-value="${shown}" data-saved="${saved.join(",")}">
     <button type="button" class="mpick-btn" data-mp-toggle="${id}" aria-haspopup="true" aria-expanded="${isOpen}">
-      <span>${monthLabel(shown, "long")}</span>${CHEVRON3}</button>
+      <span>${monthLabel(shown, "long")}</span>${CHEVRON4}</button>
     <div class="mpick-pop"${isOpen ? "" : " hidden"}>${popHtml(year, shown, saved)}</div>
   </div>`;
   }
   function closeAll2({ notify = true } = {}) {
-    const was = open.id;
-    open.id = "";
+    const was = open2.id;
+    open2.id = "";
     if (notify && was) setTimeout(() => closeHandlers.get(was)?.());
     $$(".mpick-pop").forEach((p) => p.hidden = true);
     $$(".mpick-btn").forEach((b) => b.setAttribute("aria-expanded", "false"));
   }
   function refill(root) {
     const back = backHandlers.has(root.dataset.mpick) ? '<button type="button" class="mpick-back" data-mp-back>\u2039 Back to list</button>' : "";
-    root.querySelector(".mpick-pop").innerHTML = popHtml(open.year, root.dataset.value, root.dataset.saved.split(",").filter(Boolean)) + back;
+    root.querySelector(".mpick-pop").innerHTML = popHtml(open2.year, root.dataset.value, root.dataset.saved.split(",").filter(Boolean)) + back;
   }
   function initMonthPickers() {
     document.addEventListener("click", (e) => {
@@ -2486,11 +3161,11 @@
       if (!root) return closeAll2();
       const id = root.dataset.mpick;
       if (e.target.closest("[data-mp-toggle]")) {
-        const wasOpen = open.id === id;
+        const wasOpen = open2.id === id;
         closeAll2({ notify: wasOpen });
         if (wasOpen) return;
-        open.id = id;
-        open.year = Number(root.dataset.value.slice(0, 4));
+        open2.id = id;
+        open2.year = Number(root.dataset.value.slice(0, 4));
         refill(root);
         root.querySelector(".mpick-pop").hidden = false;
         root.querySelector(".mpick-btn").setAttribute("aria-expanded", "true");
@@ -2502,7 +3177,7 @@
       }
       const step = e.target.closest("[data-mp-year]");
       if (step) {
-        open.year += Number(step.dataset.mpYear);
+        open2.year += Number(step.dataset.mpYear);
         return refill(root);
       }
       const pick2 = e.target.closest("[data-mp-pick]");
@@ -2625,7 +3300,7 @@
   var askOverride = false;
   var picking = false;
   var CUSTOM2 = "custom";
-  var CHEVRON4 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
+  var CHEVRON5 = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
   var RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
   var yearToggled = /* @__PURE__ */ new Map();
@@ -2659,7 +3334,7 @@
     const start2 = before ? state2.months[before] : grossPay(snapshotPay(state2), withProfile(state2));
     return { pay: drafts.get(month) ?? start2, base: start2 };
   }
-  function open2(month) {
+  function open3(month) {
     if (month === scopeMonth()) return;
     const current = scopeMonth();
     const state2 = getState();
@@ -2688,7 +3363,7 @@
   function rename(month) {
     const state2 = getState();
     const current = scopeMonth();
-    if (!current || month === current) return open2(month);
+    if (!current || month === current) return open3(month);
     const pay = scopePay();
     if (current === entry.home) drafts.delete(current);
     update((s) => {
@@ -2734,7 +3409,7 @@
     const state2 = getState();
     const month = nextFreeMonth(state2);
     const current = scopeMonth();
-    if (!current) return open2(month);
+    if (!current) return open3(month);
     const pay = scopePay();
     [current, entry.home].forEach((m) => m && drafts.delete(m));
     clearRename();
@@ -2755,8 +3430,8 @@
     }
     const pay = payOf(state2, month, active);
     const moved = month === active && movingFrom ? `<span class="tag">from ${escapeHtml(monthLabel(movingFrom))}</span>` : "";
-    const pending2 = isDirty(month) || month === active && overriding;
-    const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : pending2 ? '<span class="tag">unsaved</span>' : "");
+    const pending3 = isDirty(month) || month === active && overriding;
+    const tag = moved || (!isSaved(state2, month) ? '<span class="tag">new</span>' : pending3 ? '<span class="tag">unsaved</span>' : "");
     const now = month === monthKey(/* @__PURE__ */ new Date()) ? '<span class="hint">now</span>' : "";
     const reset = canReset(state2, month, active) ? `<button type="button" class="btn icon ghost reset" data-hist-reset="${month}" aria-label="Reset ${name} to saved" title="Reset to saved">${RESET_ICON}</button>` : "";
     const net = finalPay(state2, pay, month);
@@ -2780,7 +3455,7 @@
       const total = inYear.reduce((n, m) => n + finalPay(state2, payOf(state2, m, active), m), 0);
       const opened = yearToggled.get(year) ?? year === openYear;
       return `<div class="month-year${opened ? " open" : ""}">
-      <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${opened}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
+      <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${opened}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON5}</span></button>
       ${opened ? inYear.map((m) => monthRow(state2, m, active, money)).join("") : ""}</div>`;
     }).join("");
     return `<details class="more" data-open="histSaved">
@@ -2828,7 +3503,7 @@
         <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
         <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>` : "";
     $("#entrySummary").innerHTML = `<details class="hist-summary" data-open="histSummary">
-      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON4}</summary>
+      <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON5}</summary>
       ${monthSummary(state2, money, pay)}
     </details>`;
     const host2 = $("#entryHead");
@@ -2886,16 +3561,16 @@
       drafts: Object.fromEntries(drafts)
     };
   }
-  var MONTH3 = /^\d{4}-\d{2}$/;
+  var MONTH4 = /^\d{4}-\d{2}$/;
   var isPay = (p) => p && typeof p === "object" && !Array.isArray(p);
   function start(saved = null) {
     const state2 = getState();
-    if (saved && MONTH3.test(saved.month) && isPay(saved.pay)) {
+    if (saved && MONTH4.test(saved.month) && isPay(saved.pay)) {
       drafts.clear();
-      for (const [m, p] of Object.entries(saved.drafts ?? {})) if (MONTH3.test(m) && isPay(p)) drafts.set(m, p);
+      for (const [m, p] of Object.entries(saved.drafts ?? {})) if (MONTH4.test(m) && isPay(p)) drafts.set(m, p);
       const e = saved.entry ?? {};
-      setEntry(MONTH3.test(e.home) ? e.home : saved.month, !!(e.saved && state2.months[e.home]), isPay(e.base) ? e.base : null);
-      movingFrom = MONTH3.test(saved.movingFrom) && state2.months[saved.movingFrom] ? saved.movingFrom : "";
+      setEntry(MONTH4.test(e.home) ? e.home : saved.month, !!(e.saved && state2.months[e.home]), isPay(e.base) ? e.base : null);
+      movingFrom = MONTH4.test(saved.movingFrom) && state2.months[saved.movingFrom] ? saved.movingFrom : "";
       overriding = !!saved.overriding && isSaved(state2, saved.month);
       update((s) => {
         s.ui.histMonth = saved.month;
@@ -2904,7 +3579,7 @@
       return;
     }
     const last = state2.ui.histMonth;
-    open2(MONTH3.test(last) && (isSaved(state2, last) || drafts.has(last)) ? last : monthKey(/* @__PURE__ */ new Date()));
+    open3(MONTH4.test(last) && (isSaved(state2, last) || drafts.has(last)) ? last : monthKey(/* @__PURE__ */ new Date()));
   }
   function resetEntry() {
     drafts.clear();
@@ -2963,7 +3638,7 @@
       }
       const pick2 = e.target.closest("[data-hist-pick]");
       if (pick2) {
-        open2(pick2.dataset.histPick);
+        open3(pick2.dataset.histPick);
         return onChanged();
       }
       const reset = e.target.closest("[data-hist-reset]");
@@ -2990,7 +3665,7 @@
   }
 
   // js/ui/esppRates.js
-  var pending = /* @__PURE__ */ new Set();
+  var pending2 = /* @__PURE__ */ new Set();
   var isPastConversion = (month, today) => month < monthKey(today) || month === monthKey(today) && today.getDate() > 21;
   function monthRates(state2) {
     return state2.espp.rates ?? {};
@@ -2999,9 +3674,9 @@
     const state2 = getState();
     const currency = activeProfile().currency;
     const have = monthRates(state2);
-    const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`).filter((m) => isPastConversion(m, today) && !have[m] && !pending.has(`${currency}:${m}`));
+    const months = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`).filter((m) => isPastConversion(m, today) && !have[m] && !pending2.has(`${currency}:${m}`));
     if (!months.length) return;
-    months.forEach((m) => pending.add(`${currency}:${m}`));
+    months.forEach((m) => pending2.add(`${currency}:${m}`));
     Promise.allSettled(months.map((m) => getConversionRate("USD", currency, m).then((rate) => [m, rate]))).then((results) => {
       const got = results.filter((r) => r.status === "fulfilled").map((r) => r.value);
       if (!got.length) return;
