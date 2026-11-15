@@ -110,18 +110,26 @@
         </details>
 
         <details class="more" data-open="options">
-          <summary>More options</summary>
+          <summary>Settings</summary>
           <div class="inner">
+            <div class="row wrap compact-actions settings-actions">
+              <button class="btn" id="exportBtn">Export</button>
+              <label class="btn" for="importFile">Import</label>
+              <input id="importFile" type="file" accept="application/json,.json" class="sr">
+              <button class="btn danger" id="resetAll">Reset everything</button>
+            </div>
             <div class="field">
               <label for="jobSel">Job type</label>
               <select id="jobSel" data-bind="jobType"></select>
             </div>
             <div class="field">
-              <label for="siBase">Social insurance base (monthly)</label>
-              <input id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase" data-money>
-              <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply.</div>
-              <label class="check" style="margin-top:6px"><input type="checkbox" data-bind="overrides.siProRata"> Include pro-rata days in social insurance</label>
-              <div class="hint">Off: social insurance is charged for the whole month, whatever the days.</div>
+              <span class="label">Work schedule</span>
+              <div class="compact-grid">
+                <label>Weeks / year<input type="text" inputmode="decimal" data-bind="schedule.weeksPerYear"></label>
+                <label>Days / week<input type="text" inputmode="decimal" data-bind="schedule.daysPerWeek"></label>
+                <label>Hours / day<input type="text" inputmode="decimal" data-bind="schedule.hoursPerDay"></label>
+                <label title="OT hourly rate = monthly basic ÷ this">OT base hrs / mo<input type="text" inputmode="decimal" data-bind="schedule.otHoursBase"></label>
+              </div>
             </div>
             <div class="field">
               <label for="ovTax">Manual taxable amount</label>
@@ -131,33 +139,24 @@
               </div>
               <div class="hint">Replaces the computed taxable income fed into the brackets.</div>
             </div>
-              <details class="more" data-open="settings">
-                <summary>Settings</summary>
-                <div class="inner">
-                  <div class="compact-grid">
-                    <label>Weeks / year<input type="text" inputmode="decimal" data-bind="schedule.weeksPerYear"></label>
-                    <label>Days / week<input type="text" inputmode="decimal" data-bind="schedule.daysPerWeek"></label>
-                    <label>Hours / day<input type="text" inputmode="decimal" data-bind="schedule.hoursPerDay"></label>
-                    <label title="OT hourly rate = monthly basic ÷ this">OT base hrs / mo<input type="text" inputmode="decimal" data-bind="schedule.otHoursBase"></label>
-                  </div>
-                  <details class="more" data-open="esppVariable">
-                    <summary>Stocks: what counts as variable</summary>
-                    <div class="inner check-grid">
-                      <label class="check"><input type="checkbox" data-bind="espp.variable.allowances"> Taxable allowances</label>
-                      <label class="check"><input type="checkbox" data-bind="espp.variable.exempt"> Exempt (profit share)</label>
-                      <label class="check"><input type="checkbox" data-bind="espp.variable.overtime"> Overtime</label>
-                      <label class="check"><input type="checkbox" data-bind="espp.variable.cashAwards"> Cash awards</label>
-                      <div class="hint" style="grid-column:1/-1">Basic salary always uses the <b>constant</b> %; ticked items use the <b>variable</b> %.</div>
-                    </div>
-                  </details>
-                  <div class="row wrap compact-actions">
-                    <button class="btn" id="exportBtn">Export</button>
-                    <label class="btn" for="importFile">Import</label>
-                    <input id="importFile" type="file" accept="application/json,.json" class="sr">
-                    <button class="btn danger" id="resetAll">Reset everything</button>
-                  </div>
-                </div>
-              </details>
+            <div class="field">
+              <label for="siBase">Social insurance base (monthly)</label>
+              <div class="row si-row">
+                <input class="grow" id="siBase" type="text" inputmode="decimal" placeholder="Uses insurable salary if empty" data-bind="overrides.siBase" data-money>
+                <label class="check si-days" title="Off: social insurance is charged for the whole month, whatever the days"><input type="checkbox" data-bind="overrides.siProRata"> Include pro-rata days</label>
+              </div>
+              <div class="hint">Check yours at <a href="https://www.nosi.gov.eg" target="_blank" rel="noopener">nosi.gov.eg</a>. Yearly caps still apply. Pro-rata days off: social insurance is charged for the whole month.</div>
+            </div>
+            <div class="field">
+              <span class="label">Stocks: what counts as variable</span>
+              <div class="check-grid">
+                <label class="check"><input type="checkbox" data-bind="espp.variable.allowances"> Taxable allowances</label>
+                <label class="check"><input type="checkbox" data-bind="espp.variable.exempt"> Exempt (profit share)</label>
+                <label class="check"><input type="checkbox" data-bind="espp.variable.overtime"> Overtime</label>
+                <label class="check"><input type="checkbox" data-bind="espp.variable.cashAwards"> Cash awards</label>
+              </div>
+              <div class="hint">Basic salary always uses the <b>constant</b> %; ticked items use the <b>variable</b> %.</div>
+            </div>
           </div>
         </details>
         </div>

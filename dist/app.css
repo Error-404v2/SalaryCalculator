@@ -499,6 +499,18 @@ details.more > .inner {
   padding: 0 10px;
   font-size: .82rem;
 }
+.settings-actions {
+  margin-bottom: 14px;
+}
+.si-row {
+  align-items: center;
+  gap: 10px;
+}
+.si-row .si-days {
+  flex: 0 0 auto;
+  font-size: .84rem;
+  white-space: nowrap;
+}
 .pay-period .label {
   margin: 0;
 }
@@ -1989,8 +2001,11 @@ select option {
   padding: 0 12px;
   min-height: 36px;
 }
+.field:has(+ #entrySummary) {
+  margin-bottom: 0;
+}
 #entrySummary .hist-summary > summary {
-  margin: 10px 0;
+  margin: 12px 0;
 }
 @media (max-width: 420px) {
   .entry-bar {

@@ -106,7 +106,9 @@ select option { background: var(--surface); color: var(--text); }
 #entryHead details.more { margin-bottom: 0; }
 #entryHead details.more > summary { padding: 0 12px; min-height: 36px; }
 /* Summary heading: the same room above and below */
-#entrySummary .hist-summary > summary { margin: 10px 0; }
+/* The salary field's own bottom margin is dropped so the heading has exactly the same room above and below. */
+.field:has(+ #entrySummary) { margin-bottom: 0; }
+#entrySummary .hist-summary > summary { margin: 12px 0; }
 
 @media (max-width: 420px) {
   .entry-bar { padding: 10px 14px; gap: 8px; }

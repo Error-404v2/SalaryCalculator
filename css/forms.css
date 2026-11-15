@@ -51,6 +51,10 @@ details.more > .inner { padding: 4px 12px 12px; }
 .compact-grid input { height: 32px; padding: 0 8px; font-size: .88rem; color: var(--text); }
 @media (max-width: 420px) { .compact-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .compact-actions .btn { height: 30px; padding: 0 10px; font-size: .82rem; }
+.settings-actions { margin-bottom: 14px; }
+/* SI base with its pro-rata-days checkbox on the right */
+.si-row { align-items: center; gap: 10px; }
+.si-row .si-days { flex: 0 0 auto; font-size: .84rem; white-space: nowrap; }
 
 /* pro-rata month/day spinners */
 .pay-period .label { margin: 0; }
