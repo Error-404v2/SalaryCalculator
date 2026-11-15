@@ -637,11 +637,22 @@
       add("Overtime", otLabel(o), { hours: o.hours, factor: preset ? preset.mult : o.mult });
     }
     for (const it of pay.incomes ?? []) add("Allowance", it.name || "Allowance", { amount: it.amount, period: it.per });
-    for (const a of pay.cashAwards ?? []) add("Cash award", a.name || "Cash award", { amount: a.amount, currency: a.currency, rate: a.rate, period: a.per });
+    for (const a of pay.cashAwards ?? []) add("Cash award", a.name || "Cash award", { amount: a.amount, currency: a.currency, [LOCAL]: localValue(a), period: a.per });
     for (const d of pay.deductions ?? []) add("Deduction", d.name || "Deduction", { amount: d.amount, period: d.per });
     return out;
   }
-  var ITEM_FIELDS = { Overtime: ["hours", "factor"], Allowance: ["amount", "period"], "Cash award": ["amount", "currency", "rate", "period"], Deduction: ["amount", "period"] };
+  var LOCAL = "local";
+  var LOCAL_CURRENCY = "EGP";
+  var round2 = (n) => String(Math.round(n * 100) / 100);
+  function localValue(a) {
+    const amount = Number(String(a.amount ?? "").replace(/,/g, ""));
+    if (!(amount > 0)) return "";
+    if ((a.currency || LOCAL_CURRENCY) === LOCAL_CURRENCY) return round2(amount);
+    const rate = Number(String(a.rate ?? "").replace(/,/g, ""));
+    return rate > 0 ? round2(amount * rate) : "";
+  }
+  var ITEM_FIELDS = { Overtime: ["hours", "factor"], Allowance: ["amount", "period"], "Cash award": ["amount", "currency", LOCAL, "period"], Deduction: ["amount", "period"] };
+  var fieldLabel = (f) => f === LOCAL ? LOCAL_CURRENCY : f;
   var KIND_ORDER = ["Overtime", "Allowance", "Cash award", "Deduction"];
   var BASE_COLUMNS = [
     ["Month", (m) => m],
@@ -660,7 +671,7 @@
     for (const m of list) {
       for (const [kind, name] of itemsOf(months[m])) {
         for (const f of ITEM_FIELDS[kind]) {
-          const col = `${kind}: ${name} ${f}`;
+          const col = `${kind}: ${name} ${fieldLabel(f)}`;
           if (!known.has(col)) {
             known.add(col);
             cols.push({ col, kind, name, f });
@@ -681,8 +692,7 @@
   function esppCsv(espp = {}, selection2 = "all") {
     const months = new Set([
       ...Object.keys(espp.entries ?? {}),
-      ...espp.gainMonths ?? [],
-      ...Object.keys(espp.rates ?? {})
+      ...espp.gainMonths ?? []
     ].filter((m) => MONTH.test(m) && inSelection(m, selection2)));
     const header = ["Month", ...LEDGER_KEYS.map(([, h]) => h), "In ESPP Gains list", "USD rate (fetched)"];
     const rows = [...months].sort().map((m) => {
@@ -826,11 +836,11 @@
     };
     const items = /* @__PURE__ */ new Map();
     for (const h of header) {
-      const m = h.match(/^(Overtime|Allowance|Cash award|Deduction): (.+) (hours|factor|amount|period|currency|rate)$/);
+      const m = h.match(/^(Overtime|Allowance|Cash award|Deduction): (.+) (hours|factor|amount|period|currency|rate|EGP)$/);
       if (!m || row[h] === "" || row[h] === void 0) continue;
       const key2 = `${m[1]}|${m[2]}`;
       if (!items.has(key2)) items.set(key2, { kind: m[1], name: m[2], fields: {} });
-      items.get(key2).fields[m[3]] = row[h];
+      items.get(key2).fields[m[3] === LOCAL_CURRENCY ? LOCAL : m[3]] = row[h];
     }
     for (const { kind, name, fields } of items.values()) {
       const base = stripCount(name);
@@ -841,7 +851,11 @@
       } else if (kind === "Allowance") {
         pay.incomes.push({ name: base, amount: fields.amount ?? "", per: fields.period || "month", taxable: flag("taxable", true), insurable: flag("counts toward SI base", false), inEspp: flag("included in ESPP", true) });
       } else if (kind === "Cash award") {
-        pay.cashAwards.push({ name: base, amount: fields.amount ?? "", currency: fields.currency || "USD", rate: fields.rate ?? "", per: fields.period || "once", taxable: flag("taxable", true), inEspp: flag("included in ESPP", true) });
+        const currency = fields.currency || "USD";
+        const amount = Number(String(fields.amount ?? "").replace(/,/g, ""));
+        const local2 = Number(String(fields[LOCAL] ?? "").replace(/,/g, ""));
+        const rate = fields.rate ?? (currency !== LOCAL_CURRENCY && amount > 0 && local2 > 0 ? String(Number((local2 / amount).toFixed(6))) : "");
+        pay.cashAwards.push({ name: base, amount: fields.amount ?? "", currency, rate, per: fields.period || "once", taxable: flag("taxable", true), inEspp: flag("included in ESPP", true) });
       } else {
         pay.deductions.push({ name: base, amount: fields.amount ?? "", per: fields.period || "month", pretax: flag("before tax", false) });
       }

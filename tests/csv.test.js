@@ -187,3 +187,39 @@ test('the zip holds the three files and reads back the same text (UTF-8, names i
   const back = unzipFiles(zipFiles(files, new Date(2030, 4, 1, 12, 0, 0)));
   assert.deepEqual(back, files);
 });
+
+test('a cash award shows its value in EGP instead of the rate, and import works the rate back out', () => {
+  const s = sample();
+  s.months['2030-05'].cashAwards = [
+    { name: 'Spot award', amount: '50', currency: 'USD', rate: '48', per: 'once', taxable: true, inEspp: false },
+    { name: 'Local bonus', amount: '700', currency: 'EGP', rate: '', per: 'once', taxable: true, inEspp: true },
+  ];
+  const { header, rows } = readTable(entriesCsv(s.months));
+  assert.ok(header.includes('Cash award: Spot award EGP'), 'an EGP column');
+  assert.ok(!header.some((h) => h.startsWith('Cash award:') && h.endsWith(' rate')), 'no rate column');
+  const may = rows.find((r) => r.Month === '2030-05');
+  assert.equal(may['Cash award: Spot award EGP'], '2400', '50 USD x 48');
+  assert.equal(may['Cash award: Local bonus EGP'], '700', 'already in EGP');
+
+  const { state } = applyCsv(hydrate({}), [{ name: 'entries.csv', text: entriesCsv(s.months) }]);
+  const [spot, local] = state.months['2030-05'].cashAwards;
+  assert.equal(spot.rate, '48', 'rate = EGP / amount');
+  assert.equal(spot.currency, 'USD');
+  assert.equal(local.rate, '', 'an EGP award needs no rate');
+});
+
+test('an older entries.csv with a cash award rate column still imports', () => {
+  const old = 'Month,Gross salary,Salary period,Pro-rata months,Pro-rata days,Stocks constant %,Stocks variable %,ESPP gain,Cash award: Spot award amount,Cash award: Spot award currency,Cash award: Spot award rate,Cash award: Spot award period\r\n2030-05,9000,month,1,0,,,,50,USD,48.5,once\r\n';
+  const { state, problems } = applyCsv(hydrate({}), [{ name: 'entries.csv', text: old }]);
+  assert.deepEqual(problems, []);
+  assert.equal(state.months['2030-05'].cashAwards[0].rate, '48.5');
+});
+
+test('espp.csv leaves out months that have only a fetched USD rate, and keeps the rate on months that are listed', () => {
+  const s = sample();
+  s.espp.rates = { '2030-01': '48.1', '2030-02': '48.4', '2030-10': '54.1214' };
+  const { rows } = readTable(esppCsv(s.espp));
+  assert.deepEqual(rows.map((r) => r.Month), ['2030-01', '2030-03', '2030-07'], 'only ledger and Gains-list months');
+  assert.equal(rows.find((r) => r.Month === '2030-01')['USD rate (fetched)'], '48.1', 'a listed month keeps its rate');
+  assert.ok(!rows.some((r) => r.Month === '2030-10'), 'the rate-only month is not written');
+});
