@@ -110,5 +110,8 @@ details.more[data-open="options"]:not([open]) > summary .reset-all { display: no
 .pick-box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 3px; flex: 0 0 auto; }
 .pick-box.on { background: var(--accent); border-color: var(--accent); }
 .pick-several { font-size: .8rem; padding: 2px 6px 6px; }
+/* "All months" stands apart at the top, with a line under it */
+.pick-row.all { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--border); border-radius: 6px 6px 0 0; }
+.pick-row.all .pick-item { font-size: .9rem; }
 .pick-tip { margin: 6px 6px 0; font-size: .72rem; }
 @media (hover: none) { .pick-tip { display: none; } }

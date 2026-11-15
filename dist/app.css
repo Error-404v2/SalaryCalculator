@@ -764,6 +764,15 @@ details.more[data-open=options]:not([open]) > summary .reset-all {
   font-size: .8rem;
   padding: 2px 6px 6px;
 }
+.pick-row.all {
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 6px 6px 0 0;
+}
+.pick-row.all .pick-item {
+  font-size: .9rem;
+}
 .pick-tip {
   margin: 6px 6px 0;
   font-size: .72rem;

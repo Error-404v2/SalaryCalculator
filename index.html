@@ -127,12 +127,10 @@
                 <div class="field">
                   <span class="label">Import</span>
                   <div class="row wrap transfer-row">
-                    <label class="btn sm" for="importCsv" title="entries.csv, espp.csv, settings.csv, or the .zip">CSV files or .zip</label>
-                    <input id="importCsv" type="file" accept=".csv,text/csv,.zip,application/zip" multiple class="sr">
-                    <label class="btn sm" for="importFile" title="Replaces everything with the file">Everything (.json)</label>
-                    <input id="importFile" type="file" accept="application/json,.json" class="sr">
+                    <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Import</label>
+                    <input id="importFile" type="file" accept=".csv,text/csv,.zip,application/zip,.json,application/json" multiple class="sr">
                   </div>
-                  <div class="hint">CSV only changes what the files contain; months and settings not in them are kept. You see what will be overwritten before anything changes.</div>
+                  <div class="hint">CSV only adds or changes the values it has, other months stay intact. A .json backup replaces everything. You see what will change before anything is imported.</div>
                   <div id="importReview"></div>
                 </div>
               </div>

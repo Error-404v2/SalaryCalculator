@@ -40,7 +40,7 @@ function review({ title, changes, problems }) {
 const clearReview = () => { pending = null; $('#importReview').innerHTML = ''; };
 
 export function initSettings(onReplaced) {
-  initExportPick(() => store.getState());
+  initExportPick(() => store.getState(), () => store.scopeMonth());
 
   $('#themeBtn').addEventListener('click', () => {
     const { theme } = store.getState().ui;
@@ -65,37 +65,38 @@ export function initSettings(onReplaced) {
     download(`salary-calculator-${stamp}.zip`, zipFiles(files), 'application/zip');
   });
 
-  $('#importCsv').addEventListener('change', async (e) => {
+  /**
+   * One Import button: a .json backup replaces everything; CSV files and the .zip only add or change what they hold.
+   * The type is worked out from each file's content (a CSV header, a zip, or JSON), not only its name.
+   */
+  $('#importFile').addEventListener('change', async (e) => {
     const chosen = [...e.target.files];
     e.target.value = '';
     if (!chosen.length) return;
     try {
-      const files = [];
+      const csv = [];
+      const json = [];
       for (const f of chosen) {
-        if (/\.zip$/i.test(f.name)) files.push(...unzipFiles(new Uint8Array(await f.arrayBuffer())));
-        else files.push({ name: f.name, text: await f.text() });
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        if (bytes[0] === 0x50 && bytes[1] === 0x4b) { csv.push(...unzipFiles(bytes)); continue; }
+        const text = new TextDecoder().decode(bytes).replace(/^\uFEFF/, '');
+        if (/^\s*[{[]/.test(text)) json.push({ name: f.name, text });
+        else csv.push({ name: f.name, text });
       }
-      const usable = files.filter((f) => csvKind(f.text));
-      const { state, changes, problems } = applyCsv(store.getState(), files);
+      if (json.length && csv.length) throw new Error('choose either a .json backup or CSV files, not both');
+      if (json.length > 1) throw new Error('choose one .json backup');
+      if (json.length) {
+        const incoming = importData(json[0].text);
+        pending = { state: incoming, kind: 'json' };
+        return review({ title: `Import everything from ${json[0].name} (replaces the whole app)`, changes: jsonChanges(store.getState(), incoming), problems: [] });
+      }
+      const usable = csv.filter((f) => csvKind(f.text));
+      const { state, changes, problems } = applyCsv(store.getState(), csv);
       pending = { state: hydrate(state), kind: 'csv' };
       review({ title: `Import ${usable.map((f) => f.name).join(', ') || 'CSV'}`, changes, problems });
     } catch (err) {
       clearReview();
-      toast(`Could not read the file: ${err.message}`);
-    }
-  });
-
-  $('#importFile').addEventListener('change', async (e) => {
-    const [file] = e.target.files;
-    e.target.value = '';
-    if (!file) return;
-    try {
-      const incoming = importData(await file.text());
-      pending = { state: incoming, kind: 'json' };
-      review({ title: `Import everything from ${file.name} (replaces the whole app)`, changes: jsonChanges(store.getState(), incoming), problems: [] });
-    } catch {
-      clearReview();
-      toast('Invalid settings file');
+      toast(`Could not import: ${err.message}`);
     }
   });
 
@@ -122,5 +123,5 @@ export function initSettings(onReplaced) {
 
 export function syncSettings(state) {
   applyTheme(state.ui.theme);
-  renderExportPick(store.getState());
+  renderExportPick(store.getState(), store.scopeMonth());
 }

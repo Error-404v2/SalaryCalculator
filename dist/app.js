@@ -1872,10 +1872,10 @@
     const open4 = wrap._open;
     const groups = years.map((year) => {
       const inYear = months.filter((o) => o.value.startsWith(year));
-      const expanded2 = open4.has(year);
-      return `<div class="dd-group"><button type="button" class="dd-year" data-year="${year}" aria-expanded="${expanded2}">
+      const expanded = open4.has(year);
+      return `<div class="dd-group"><button type="button" class="dd-year" data-year="${year}" aria-expanded="${expanded}">
         <span>${year}</span><span class="dd-n">${inYear.length}</span>${CHEVRON2}</button>
-      <div class="dd-items"${expanded2 ? "" : " hidden"}>${inYear.map((o) => row(o, o.label.replace(` ${year}`, ""))).join("")}</div></div>`;
+      <div class="dd-items"${expanded ? "" : " hidden"}>${inYear.map((o) => row(o, o.label.replace(` ${year}`, ""))).join("")}</div></div>`;
     });
     return groups.concat(rows.filter((o) => !MONTH3.test(o.value)).map((o) => row(o))).join("");
   }
@@ -2607,9 +2607,9 @@
 
   // js/ui/exportPick.js
   var selection = "all";
-  var several = false;
+  var several = true;
   var open = false;
-  var expanded = /* @__PURE__ */ new Set();
+  var toggled = /* @__PURE__ */ new Map();
   var CHEVRON3 = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
   var exportSelection = () => selection;
   function label() {
@@ -2636,19 +2636,18 @@
     selection = current.filter((k) => k.length === 4 || !years.includes(k.slice(0, 4)));
     if (!selection.length) selection = "all";
   }
-  function renderExportPick(state2) {
+  function renderExportPick(state2, activeMonth = "") {
     const host2 = $("#exportPick");
     if (!host2) return;
     const months = monthList(state2.months);
     const years = [...new Set(months.map((m) => m.slice(0, 4)))];
-    if (!expanded.size) {
-      const now = String((/* @__PURE__ */ new Date()).getFullYear());
-      expanded.add(years.includes(now) ? now : years[0]);
-    }
+    const now = String((/* @__PURE__ */ new Date()).getFullYear());
+    const defaultYear = activeMonth.slice(0, 4) || (years.includes(now) ? now : years[0]);
+    const isYearOpen = (y) => toggled.get(y) ?? y === defaultYear;
     const mark = (on) => `<span class="pick-box${on ? " on" : ""}" aria-hidden="true"></span>`;
     const rows = years.map((y) => {
       const inYear = months.filter((m) => m.startsWith(y));
-      const isOpen = expanded.has(y);
+      const isOpen = isYearOpen(y);
       return `<div class="pick-year">
       <div class="pick-row year${isChosen(y) ? " on" : ""}">
         <button type="button" class="pick-item" data-pick="${y}">${several ? mark(isChosen(y)) : ""}<b>${y}</b><span class="hint">${inYear.length}</span></button>
@@ -2660,13 +2659,13 @@
     host2.innerHTML = `<button type="button" class="pick-btn" data-pick-toggle aria-haspopup="listbox" aria-expanded="${open}"><span>${escapeHtml(label())}</span>${CHEVRON3}</button>
     <div class="pick-pop"${open ? "" : " hidden"}>
       <label class="check pick-several"><input type="checkbox" data-pick-several${several ? " checked" : ""}> Select several</label>
-      <div class="pick-row${selection === "all" ? " on" : ""}"><button type="button" class="pick-item" data-pick="all">${several ? mark(selection === "all") : ""}All months</button></div>
+      <div class="pick-row all${selection === "all" ? " on" : ""}"><button type="button" class="pick-item" data-pick="all">${several ? mark(selection === "all") : ""}<b>All months</b><span class="hint">${months.length}</span></button></div>
       ${rows || '<div class="hint">No saved months yet.</div>'}
-      <div class="hint pick-tip">Ctrl / \u2318 + click to choose several.</div>
+      ${several ? "" : '<div class="hint pick-tip">Ctrl / \u2318 + click to choose several.</div>'}
     </div>`;
   }
-  function initExportPick(getState2) {
-    const redraw = () => renderExportPick(getState2());
+  function initExportPick(getState2, getMonth = () => "") {
+    const redraw = () => renderExportPick(getState2(), getMonth());
     document.addEventListener("click", (e) => {
       const host2 = $("#exportPick");
       if (!host2) return;
@@ -2684,8 +2683,7 @@
       const arrow = e.target.closest("[data-pick-arrow]");
       if (arrow) {
         const y = arrow.dataset.pickArrow;
-        if (expanded.has(y)) expanded.delete(y);
-        else expanded.add(y);
+        toggled.set(y, arrow.getAttribute("aria-expanded") !== "true");
         return redraw();
       }
       const item = e.target.closest("[data-pick]");
@@ -2734,7 +2732,7 @@
     $("#importReview").innerHTML = "";
   };
   function initSettings(onReplaced) {
-    initExportPick(() => getState());
+    initExportPick(() => getState(), () => scopeMonth());
     $("#themeBtn").addEventListener("click", () => {
       const { theme } = getState().ui;
       const isDark = theme ? theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
@@ -2755,36 +2753,37 @@
       const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
       download(`salary-calculator-${stamp}.zip`, zipFiles(files), "application/zip");
     });
-    $("#importCsv").addEventListener("change", async (e) => {
+    $("#importFile").addEventListener("change", async (e) => {
       const chosen = [...e.target.files];
       e.target.value = "";
       if (!chosen.length) return;
       try {
-        const files = [];
+        const csv = [];
+        const json = [];
         for (const f of chosen) {
-          if (/\.zip$/i.test(f.name)) files.push(...unzipFiles(new Uint8Array(await f.arrayBuffer())));
-          else files.push({ name: f.name, text: await f.text() });
+          const bytes = new Uint8Array(await f.arrayBuffer());
+          if (bytes[0] === 80 && bytes[1] === 75) {
+            csv.push(...unzipFiles(bytes));
+            continue;
+          }
+          const text2 = new TextDecoder().decode(bytes).replace(/^\uFEFF/, "");
+          if (/^\s*[{[]/.test(text2)) json.push({ name: f.name, text: text2 });
+          else csv.push({ name: f.name, text: text2 });
         }
-        const usable = files.filter((f) => csvKind(f.text));
-        const { state: state2, changes, problems } = applyCsv(getState(), files);
+        if (json.length && csv.length) throw new Error("choose either a .json backup or CSV files, not both");
+        if (json.length > 1) throw new Error("choose one .json backup");
+        if (json.length) {
+          const incoming = importData(json[0].text);
+          pending = { state: incoming, kind: "json" };
+          return review({ title: `Import everything from ${json[0].name} (replaces the whole app)`, changes: jsonChanges(getState(), incoming), problems: [] });
+        }
+        const usable = csv.filter((f) => csvKind(f.text));
+        const { state: state2, changes, problems } = applyCsv(getState(), csv);
         pending = { state: hydrate(state2), kind: "csv" };
         review({ title: `Import ${usable.map((f) => f.name).join(", ") || "CSV"}`, changes, problems });
       } catch (err) {
         clearReview();
-        toast(`Could not read the file: ${err.message}`);
-      }
-    });
-    $("#importFile").addEventListener("change", async (e) => {
-      const [file] = e.target.files;
-      e.target.value = "";
-      if (!file) return;
-      try {
-        const incoming = importData(await file.text());
-        pending = { state: incoming, kind: "json" };
-        review({ title: `Import everything from ${file.name} (replaces the whole app)`, changes: jsonChanges(getState(), incoming), problems: [] });
-      } catch {
-        clearReview();
-        toast("Invalid settings file");
+        toast(`Could not import: ${err.message}`);
       }
     });
     document.addEventListener("click", (e) => {
@@ -2808,7 +2807,7 @@
   }
   function syncSettings(state2) {
     applyTheme(state2.ui.theme);
-    renderExportPick(getState());
+    renderExportPick(getState(), scopeMonth());
   }
 
   // js/ui/stepper.js

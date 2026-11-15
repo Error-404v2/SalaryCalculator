@@ -5,12 +5,14 @@ import { monthLabel, monthList } from '../core/index.js';
 /**
  * What to export: All, or any mix of years and months, chosen from a dropdown laid out like the month dropdowns
  * (years with their months under them). Clicking a year's name chooses the whole year; its arrow only opens or
- * closes it. A plain click chooses one thing; Ctrl/⌘+click (or "Select several", for phones) adds or removes it.
+ * closes it, and every year can be closed. "Select several" is on by default, so each click adds or removes a
+ * year or month; with it off, a click chooses one thing and Ctrl/⌘+click adds or removes.
  */
 let selection = 'all';
-let several = false;
+let several = true;
 let open = false;
-const expanded = new Set();
+/** Years the user opened or closed; untouched years follow the default (only the open month's year is open). */
+const toggled = new Map();
 
 const CHEVRON = '<svg viewBox="0 0 10 6" aria-hidden="true"><path d="M1 1l4 4 4-4"/></svg>';
 
@@ -37,19 +39,18 @@ function toggle(key, add) {
   if (!selection.length) selection = 'all';
 }
 
-export function renderExportPick(state) {
+export function renderExportPick(state, activeMonth = '') {
   const host = $('#exportPick');
   if (!host) return;
   const months = monthList(state.months);
   const years = [...new Set(months.map((m) => m.slice(0, 4)))];
-  if (!expanded.size) {
-    const now = String(new Date().getFullYear());
-    expanded.add(years.includes(now) ? now : years[0]);
-  }
+  const now = String(new Date().getFullYear());
+  const defaultYear = activeMonth.slice(0, 4) || (years.includes(now) ? now : years[0]);
+  const isYearOpen = (y) => toggled.get(y) ?? y === defaultYear;
   const mark = (on) => `<span class="pick-box${on ? ' on' : ''}" aria-hidden="true"></span>`;
   const rows = years.map((y) => {
     const inYear = months.filter((m) => m.startsWith(y));
-    const isOpen = expanded.has(y);
+    const isOpen = isYearOpen(y);
     return `<div class="pick-year">
       <div class="pick-row year${isChosen(y) ? ' on' : ''}">
         <button type="button" class="pick-item" data-pick="${y}">${several ? mark(isChosen(y)) : ''}<b>${y}</b><span class="hint">${inYear.length}</span></button>
@@ -61,14 +62,14 @@ export function renderExportPick(state) {
   host.innerHTML = `<button type="button" class="pick-btn" data-pick-toggle aria-haspopup="listbox" aria-expanded="${open}"><span>${escapeHtml(label())}</span>${CHEVRON}</button>
     <div class="pick-pop"${open ? '' : ' hidden'}>
       <label class="check pick-several"><input type="checkbox" data-pick-several${several ? ' checked' : ''}> Select several</label>
-      <div class="pick-row${selection === 'all' ? ' on' : ''}"><button type="button" class="pick-item" data-pick="all">${several ? mark(selection === 'all') : ''}All months</button></div>
+      <div class="pick-row all${selection === 'all' ? ' on' : ''}"><button type="button" class="pick-item" data-pick="all">${several ? mark(selection === 'all') : ''}<b>All months</b><span class="hint">${months.length}</span></button></div>
       ${rows || '<div class="hint">No saved months yet.</div>'}
-      <div class="hint pick-tip">Ctrl / ⌘ + click to choose several.</div>
+      ${several ? '' : '<div class="hint pick-tip">Ctrl / ⌘ + click to choose several.</div>'}
     </div>`;
 }
 
-export function initExportPick(getState) {
-  const redraw = () => renderExportPick(getState());
+export function initExportPick(getState, getMonth = () => '') {
+  const redraw = () => renderExportPick(getState(), getMonth());
   document.addEventListener('click', (e) => {
     const host = $('#exportPick');
     if (!host) return;
@@ -77,7 +78,7 @@ export function initExportPick(getState) {
     const arrow = e.target.closest('[data-pick-arrow]');
     if (arrow) {
       const y = arrow.dataset.pickArrow;
-      if (expanded.has(y)) expanded.delete(y); else expanded.add(y);
+      toggled.set(y, arrow.getAttribute('aria-expanded') !== 'true');
       return redraw();
     }
     const item = e.target.closest('[data-pick]');
