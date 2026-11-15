@@ -510,7 +510,8 @@
       if (!(key2 in pay)) continue;
       next[key2] = key2 === "espp" ? { ...state2.espp, ...clone(pay.espp) } : clone(pay[key2]);
     }
-    if (isLocalSchedule(pay.scheduleLocal)) next.schedule = { ...state2.schedule ?? {}, ...clone(pay.scheduleLocal) };
+    const shared = state2.globalSchedule ?? state2.schedule ?? {};
+    next.schedule = isLocalSchedule(pay.scheduleLocal) ? { ...shared, ...clone(pay.scheduleLocal) } : clone(shared);
     return next;
   }
   var isLocalSchedule = (value) => !!value && typeof value === "object" && !Array.isArray(value);
@@ -667,7 +668,7 @@
   // js/core/esppGains.js
   function payBaseOf(input) {
     const tab = input.payTab ?? input;
-    return withPay(tab, grossPay(snapshotPay(tab), tab));
+    return { ...withPay(tab, grossPay(snapshotPay(tab), tab)), schedule: tab.schedule };
   }
   function payslipGainFor(input, month, payBase = input) {
     const typedRaw = input.espp?.entries?.[month]?.gain;
@@ -1037,7 +1038,7 @@
   };
   var scope = null;
   var getState = () => state;
-  var view = () => scope ? withPay(state, scope.pay) : state;
+  var view = () => scope ? { ...withPay(state, scope.pay), globalSchedule: state.schedule } : state;
   var scopeMonth = () => scope?.month ?? "";
   var scopePay = () => scope?.pay ?? null;
   var scopeBase = () => scope?.base ?? null;
@@ -2638,7 +2639,7 @@
   }
   var isSaved = (state2, month) => !!state2.months[month];
   var withProfile = (state2) => ({ ...state2, profile: activeProfile() });
-  var finalPay = (state2, pay, month) => toNumber(pay?.amount) > 0 ? periodNet(withPay(withProfile(state2), pay, month)) : 0;
+  var finalPay = (state2, pay, month) => toNumber(pay?.amount) > 0 ? periodNet(withPay(withProfile(getState()), pay, month)) : 0;
   var isDirty = (month) => month === scopeMonth() ? scopeDirty() : drafts.has(month);
   var payOf = (state2, month, active) => month === active ? scopePay() : drafts.get(month) ?? state2.months[month];
   function stash() {
@@ -2772,10 +2773,12 @@
     if (active) months.add(active);
     const sorted = [...months].sort((a, b) => b.localeCompare(a));
     const years = [...new Set(sorted.map((m) => m.slice(0, 4)))];
+    const now = String((/* @__PURE__ */ new Date()).getFullYear());
+    const openYear = active?.slice(0, 4) || (years.includes(now) ? now : years[0]);
     const rows = years.map((year) => {
       const inYear = sorted.filter((m) => m.startsWith(year));
       const total = inYear.reduce((n, m) => n + finalPay(state2, payOf(state2, m, active), m), 0);
-      const opened = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
+      const opened = yearToggled.get(year) ?? year === openYear;
       return `<div class="month-year${opened ? " open" : ""}">
       <button type="button" class="month-year-head${year === active?.slice(0, 4) ? " on" : ""}" data-hist-year="${year}" aria-expanded="${opened}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : "\u2014"}</span><span class="yr-chev">${CHEVRON4}</span></button>
       ${opened ? inYear.map((m) => monthRow(state2, m, active, money)).join("") : ""}</div>`;
@@ -3198,7 +3201,8 @@
       const draft = scopePay();
       const months = monthsWithDraft(state2.months, scopeMonth(), draft && grossPay(draft, input), scopeDirty());
       const payTab = { ...state2, profile: input.profile };
-      const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state2) });
+      const root = { ...getState(), profile: input.profile, year: input.year };
+      const report = esppReport({ ...root, months, payTab, esppRates: monthRates(state2) });
       renderEsppTab(report, money);
       renderGainEntries(report, money);
       ensureMonthRates(report.year, rebuild);

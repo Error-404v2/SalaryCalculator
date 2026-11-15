@@ -46,6 +46,21 @@ test('a month created from another carries its schedule choice and values forwar
   assert.equal(grossPay(pay(), base()).scheduleLocal, undefined, 'a Global month stays Global');
 });
 
+test('a month is worked out with its own schedule even when laid over an entry that has a different one', () => {
+  const s = base();
+  const openEntry = withPay(s, pay({ scheduleLocal: { weeksPerYear: '52', daysPerWeek: '5', hoursPerDay: '8', otHoursBase: '100' } }));
+  const view = { ...openEntry, globalSchedule: s.schedule };
+  const other = pay();
+  assert.equal(withPay(view, other).schedule.otHoursBase, '170', 'a Global month uses the global schedule, not the open local one');
+  assert.equal(
+    calculate(withPay(view, other)).overtimeAnnual,
+    calculate(withPay(s, other)).overtimeAnnual,
+    'its figures match the ones worked out from the saved state alone',
+  );
+  const otherLocal = pay({ scheduleLocal: { weeksPerYear: '52', daysPerWeek: '5', hoursPerDay: '8', otHoursBase: '150' } });
+  assert.equal(withPay(view, otherLocal).schedule.otHoursBase, '150', 'a Local month keeps its own');
+});
+
 test('a local schedule survives reload and export/import', () => {
   const local = { weeksPerYear: '48', daysPerWeek: '6', hoursPerDay: '9', otHoursBase: '210' };
   const s = hydrate({ months: putMonth({}, '2030-03', pay({ scheduleLocal: local })) });

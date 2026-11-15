@@ -13,7 +13,8 @@ import { withPay, snapshotPay, grossPay } from './months.js';
 /** The Pay tab as a gross-salary input: the starting point for a month that has no History entry. */
 export function payBaseOf(input) {
   const tab = input.payTab ?? input;
-  return withPay(tab, grossPay(snapshotPay(tab), tab));
+  // Keep the entry's own schedule (local or global): the snapshot carries its values but not the schedule choice.
+  return { ...withPay(tab, grossPay(snapshotPay(tab), tab)), schedule: tab.schedule };
 }
 
 /** The gain on `month`'s payslip (EGP) and the extra income tax it caused. `payBase` stands in for a month with no History entry. */
