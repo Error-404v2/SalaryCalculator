@@ -168,34 +168,55 @@ export function esppCsv(espp = {}, selection = 'all') {
 // ---------- settings.csv ----------
 const SETTINGS_HEADER = ['Section', 'Setting', 'Month', 'Profile', 'Value'];
 
-/** The per-month settings of a saved month, as [setting, value] pairs (the "advanced" bits of its items). */
-function monthSettings(p) {
+/**
+ * Defaults a month starts with. A month setting is written only when it differs from these, so a file shows only
+ * what was actually changed; importing a missing setting gives the same default back, so nothing is lost.
+ * Mode is not written at all: a saved month is always stored as gross.
+ */
+const MONTH_DEFAULTS = {
+  jobType: 'ft', siBase: '', siProRata: false, taxable: '', taxablePer: 'month',
+  variable: { allowances: true, exempt: true, overtime: true, cashAwards: true },
+  allowance: { taxable: true, insurable: false, inEspp: true },
+  cashAward: { taxable: true, inEspp: true },
+  deduction: { pretax: false },
+};
+const VARIABLE_KEYS = [['allowances', 'Taxable allowances'], ['exempt', 'Exempt (profit share)'], ['overtime', 'Overtime'], ['cashAwards', 'Cash awards']];
+
+/**
+ * The per-month settings of a saved month that differ from the defaults, as [setting, value] pairs: overrides,
+ * Stocks variable ticks, each item's advanced flags, and the local work-schedule fields that differ from the global
+ * schedule (`globalSchedule`). An empty list means the month uses only defaults.
+ */
+function monthSettings(p, globalSchedule = {}) {
   const out = [];
   const push = (k, v) => out.push([k, v ?? '']);
-  push('Mode', p.mode);
-  push('Job type', p.jobType);
-  push('SI base override', p.overrides?.siBase);
-  push('SI pro-rata days', boolText(!!p.overrides?.siProRata));
-  push('Manual taxable amount', p.overrides?.taxable);
-  push('Manual taxable period', p.overrides?.taxablePer);
-  const v = p.espp?.variable ?? {};
-  for (const [k, label] of [['allowances', 'Taxable allowances'], ['exempt', 'Exempt (profit share)'], ['overtime', 'Overtime'], ['cashAwards', 'Cash awards']]) {
-    if (k in v) push(`Stocks variable: ${label}`, boolText(!!v[k]));
+  const d = MONTH_DEFAULTS;
+  if ((p.jobType || d.jobType) !== d.jobType) push('Job type', p.jobType);
+  if ((p.overrides?.siBase ?? '') !== d.siBase) push('SI base override', p.overrides.siBase);
+  if (!!p.overrides?.siProRata !== d.siProRata) push('SI pro-rata days', boolText(!!p.overrides.siProRata));
+  if ((p.overrides?.taxable ?? '') !== d.taxable) {
+    push('Manual taxable amount', p.overrides.taxable);
+    if ((p.overrides.taxablePer || d.taxablePer) !== d.taxablePer) push('Manual taxable period', p.overrides.taxablePer);
   }
+  const v = p.espp?.variable ?? {};
+  // The calculator counts a missing tick as off, so compare that value, not whether the key is there.
+  for (const [k, label] of VARIABLE_KEYS) if (!!v[k] !== d.variable[k]) push(`Stocks variable: ${label}`, boolText(!!v[k]));
   for (const [kind, name, , item] of itemsWithSource(p)) {
     if (kind === 'Allowance') {
-      push(`Allowance: ${name} taxable`, boolText(item.taxable !== false));
-      push(`Allowance: ${name} counts toward SI base`, boolText(!!item.insurable));
-      push(`Allowance: ${name} included in ESPP`, boolText(item.inEspp !== false));
+      if ((item.taxable !== false) !== d.allowance.taxable) push(`Allowance: ${name} taxable`, boolText(item.taxable !== false));
+      if (!!item.insurable !== d.allowance.insurable) push(`Allowance: ${name} counts toward SI base`, boolText(!!item.insurable));
+      if ((item.inEspp !== false) !== d.allowance.inEspp) push(`Allowance: ${name} included in ESPP`, boolText(item.inEspp !== false));
     } else if (kind === 'Cash award') {
-      push(`Cash award: ${name} taxable`, boolText(item.taxable !== false));
-      push(`Cash award: ${name} included in ESPP`, boolText(item.inEspp !== false));
+      if ((item.taxable !== false) !== d.cashAward.taxable) push(`Cash award: ${name} taxable`, boolText(item.taxable !== false));
+      if ((item.inEspp !== false) !== d.cashAward.inEspp) push(`Cash award: ${name} included in ESPP`, boolText(item.inEspp !== false));
     } else if (kind === 'Deduction') {
-      push(`Deduction: ${name} before tax`, boolText(!!item.pretax));
+      if (!!item.pretax !== d.deduction.pretax) push(`Deduction: ${name} before tax`, boolText(!!item.pretax));
     }
   }
   if (isLocalSchedule(p.scheduleLocal)) {
-    for (const [k, label] of SCHEDULE_KEYS) push(`Work schedule (local): ${label}`, p.scheduleLocal[k]);
+    const changed = SCHEDULE_KEYS.filter(([k]) => String(p.scheduleLocal[k] ?? '') !== String(globalSchedule[k] ?? ''));
+    // A local schedule equal to the global one still needs one row, so the month stays Local on import.
+    for (const [k, label] of changed.length ? changed : SCHEDULE_KEYS.slice(0, 1)) push(`Work schedule (local): ${label}`, p.scheduleLocal[k]);
   }
   return out;
 }
@@ -214,54 +235,71 @@ const ASSUMPTION_KEYS = [
   ['feeIn', 'Fee in $ (Jan/Jul)'], ['withdrawalFee', 'Withdrawal fee $'],
 ];
 
-export function settingsCsv(state, selection = 'all') {
+/** The groups of settings.csv, in file order; any of them can be left out of an export. */
+export const SETTING_GROUPS = [
+  ['general', 'General settings'],
+  ['espp', 'ESPP settings'],
+  ['tax', 'Tax settings'],
+  ['months', 'Month settings'],
+];
+
+export function settingsCsv(state, selection = 'all', groups = SETTING_GROUPS.map(([g]) => g)) {
   const rows = [];
   const add = (section, setting, value, month = '', profile = '') => rows.push([section, setting, month, profile, value ?? '']);
+  const want = new Set(groups);
 
-  for (const [k, label] of SCHEDULE_KEYS) add('Work schedule', label, state.schedule?.[k]);
-  add('General', 'Active tax profile', state.profileId);
-
-  const espp = state.espp ?? {};
-  add('ESPP', 'Symbol', espp.symbol);
-  for (const [k, label] of ASSUMPTION_KEYS) add('ESPP assumptions', label, espp.assumptions?.[k]);
-  add('ESPP', 'Change day', espp.changeDay);
-  add('ESPP', 'Month offset', espp.monthOffset);
-
-  for (const p of state.profiles ?? []) {
-    const id = p.id;
-    add('Tax profile', 'Name', p.name, '', id);
-    add('Tax profile', 'Currency', p.currency, '', id);
-    add('Tax', 'Personal exemption', p.tax?.exemption, '', id);
-    (p.tax?.brackets ?? []).forEach((b, i) => {
-      add('Tax bracket', `${i + 1} rate %`, b.rate, '', id);
-      add('Tax bracket', `${i + 1} from`, b.min, '', id);
-      add('Tax bracket', `${i + 1} to`, b.max, '', id);
-      add('Tax bracket', `${i + 1} excluded above`, b.exclusion, '', id);
-    });
-    (p.levies ?? []).forEach((l, i) => {
-      add('Levy', `${i + 1} name`, l.name, '', id);
-      add('Levy', `${i + 1} rate %`, l.rate, '', id);
-      add('Levy', `${i + 1} base`, l.base, '', id);
-    });
-    add('Social insurance', 'Employee share %', p.si?.employeeRate, '', id);
-    add('Social insurance', 'Employer share %', p.si?.employerRate, '', id);
-    (p.si?.caps ?? []).forEach((c, i) => {
-      add('SI cap', `${i + 1} year`, c.year, '', id);
-      add('SI cap', `${i + 1} min`, c.min, '', id);
-      add('SI cap', `${i + 1} max`, c.max, '', id);
-    });
-    (p.jobTypes ?? []).forEach((j, i) => {
-      add('Job type', `${i + 1} id`, j.id, '', id);
-      add('Job type', `${i + 1} name`, j.name, '', id);
-      add('Job type', `${i + 1} social insurance`, boolText(!!j.si), '', id);
-      add('Job type', `${i + 1} exemption`, boolText(!!j.exemption), '', id);
-      add('Job type', `${i + 1} mode`, j.mode, '', id);
-      add('Job type', `${i + 1} flat rate %`, j.flatRate, '', id);
-    });
+  if (want.has('general')) {
+    for (const [k, label] of SCHEDULE_KEYS) add('Work schedule', label, state.schedule?.[k]);
   }
 
-  for (const m of Object.keys(state.months ?? {}).filter((x) => MONTH.test(x) && inSelection(x, selection)).sort()) {
-    for (const [setting, value] of monthSettings(state.months[m])) add('Month', setting, value, m);
+  if (want.has('espp')) {
+    const espp = state.espp ?? {};
+    add('ESPP', 'Symbol', espp.symbol);
+    for (const [k, label] of ASSUMPTION_KEYS) add('ESPP assumptions', label, espp.assumptions?.[k]);
+    add('ESPP', 'Change day', espp.changeDay);
+    add('ESPP', 'Month offset', espp.monthOffset);
+  }
+
+  if (want.has('tax')) {
+    add('General', 'Active tax profile', state.profileId);
+    for (const p of state.profiles ?? []) {
+      const id = p.id;
+      add('Tax profile', 'Name', p.name, '', id);
+      add('Tax profile', 'Currency', p.currency, '', id);
+      add('Tax', 'Personal exemption', p.tax?.exemption, '', id);
+      (p.tax?.brackets ?? []).forEach((b, i) => {
+        add('Tax bracket', `${i + 1} rate %`, b.rate, '', id);
+        add('Tax bracket', `${i + 1} from`, b.min, '', id);
+        add('Tax bracket', `${i + 1} to`, b.max, '', id);
+        add('Tax bracket', `${i + 1} excluded above`, b.exclusion, '', id);
+      });
+      (p.levies ?? []).forEach((l, i) => {
+        add('Levy', `${i + 1} name`, l.name, '', id);
+        add('Levy', `${i + 1} rate %`, l.rate, '', id);
+        add('Levy', `${i + 1} base`, l.base, '', id);
+      });
+      add('Social insurance', 'Employee share %', p.si?.employeeRate, '', id);
+      add('Social insurance', 'Employer share %', p.si?.employerRate, '', id);
+      (p.si?.caps ?? []).forEach((c, i) => {
+        add('SI cap', `${i + 1} year`, c.year, '', id);
+        add('SI cap', `${i + 1} min`, c.min, '', id);
+        add('SI cap', `${i + 1} max`, c.max, '', id);
+      });
+      (p.jobTypes ?? []).forEach((j, i) => {
+        add('Job type', `${i + 1} id`, j.id, '', id);
+        add('Job type', `${i + 1} name`, j.name, '', id);
+        add('Job type', `${i + 1} social insurance`, boolText(!!j.si), '', id);
+        add('Job type', `${i + 1} exemption`, boolText(!!j.exemption), '', id);
+        add('Job type', `${i + 1} mode`, j.mode, '', id);
+        add('Job type', `${i + 1} flat rate %`, j.flatRate, '', id);
+      });
+    }
+  }
+
+  if (want.has('months')) {
+    for (const m of Object.keys(state.months ?? {}).filter((x) => MONTH.test(x) && inSelection(x, selection)).sort()) {
+      for (const [setting, value] of monthSettings(state.months[m], state.schedule)) add('Month', setting, value, m);
+    }
   }
   return toCsv(SETTINGS_HEADER, rows);
 }
@@ -284,10 +322,10 @@ const stripCount = (name) => name.replace(/ #\d+$/, '');
 const stripFactor = (name) => name.replace(/ ×[\d.]+$/, '');
 
 /** A saved month from one entries.csv row, merged with its month rows from settings.csv (when given). */
-function monthFromRow(row, header, settingRows = []) {
+function monthFromRow(row, header, settingRows = [], globalSchedule = {}) {
   const s = new Map(settingRows.map((r) => [r.Setting, r.Value]));
   const pay = {
-    amount: row['Gross salary'] ?? '', per: row['Salary period'] || 'month', mode: s.get('Mode') || 'gross',
+    amount: row['Gross salary'] ?? '', per: row['Salary period'] || 'month', mode: 'gross',
     payPeriod: { months: row['Pro-rata months'] || '1', days: row['Pro-rata days'] || '0' },
     jobType: s.get('Job type') || 'ft',
     overrides: {
@@ -297,9 +335,8 @@ function monthFromRow(row, header, settingRows = []) {
     incomes: [], overtime: [], cashAwards: [], deductions: [],
     espp: {
       constPct: row['Stocks constant %'] ?? '', varPct: row['Stocks variable %'] ?? '', gain: row['ESPP gain'] ?? '',
-      // Only the ticks the month had are written back; a tick missing from the file stays missing.
-      variable: Object.fromEntries([['allowances', 'Taxable allowances'], ['exempt', 'Exempt (profit share)'], ['overtime', 'Overtime'], ['cashAwards', 'Cash awards']]
-        .filter(([, label]) => s.has(`Stocks variable: ${label}`)).map(([k, label]) => [k, readBool(s.get(`Stocks variable: ${label}`))])),
+      // Only ticks that differ from the default are in the file; a missing one is the default (ticked).
+      variable: Object.fromEntries(VARIABLE_KEYS.map(([k, label]) => [k, readBool(s.get(`Stocks variable: ${label}`), MONTH_DEFAULTS.variable[k])])),
     },
   };
   // Item columns: "Kind: Name field", read in header order so items keep their order.
@@ -331,7 +368,8 @@ function monthFromRow(row, header, settingRows = []) {
     }
   }
   const local = SCHEDULE_KEYS.map(([k, label]) => [k, s.get(`Work schedule (local): ${label}`)]);
-  if (local.some(([, v]) => v !== undefined)) pay.scheduleLocal = Object.fromEntries(local.map(([k, v]) => [k, v ?? '']));
+  // Only the fields that differ are in the file; the others are the global schedule's.
+  if (local.some(([, v]) => v !== undefined)) pay.scheduleLocal = Object.fromEntries(local.map(([k, v]) => [k, v ?? String(globalSchedule[k] ?? '')]));
   return pay;
 }
 
@@ -361,7 +399,8 @@ export function applyCsv(state, files) {
     for (const row of byKind.entries.rows) {
       if (!MONTH.test(row.Month)) { problems.push(`entries: row "${row.Month}" is not a YYYY-MM month`); continue; }
       if (!String(row['Gross salary'] ?? '').trim()) { problems.push(`entries: ${row.Month} has no gross salary, skipped`); continue; }
-      const pay = monthFromRow(row, byKind.entries.header, monthRows.get(row.Month) ?? []);
+      // A local schedule is completed from the global schedule in the file, else the one in the app.
+      const pay = monthFromRow(row, byKind.entries.header, monthRows.get(row.Month) ?? [], globalScheduleFrom(settings, next.schedule));
       const before = next.months[row.Month];
       if (!before) changes.push(`Add month ${row.Month}`);
       else if (!sameJson({ ...before }, pay)) changes.push(`Overwrite month ${row.Month}`);
@@ -387,6 +426,16 @@ export function applyCsv(state, files) {
 
   if (settings.length) applySettingRows(next, settings, changes, problems);
   return { state: next, changes, problems };
+}
+
+/** The global work schedule a settings file holds, filled in from `fallback` where it has no row. */
+function globalScheduleFrom(rows, fallback = {}) {
+  const out = { ...fallback };
+  for (const [k, label] of SCHEDULE_KEYS) {
+    const r = rows.find((x) => x.Section === 'Work schedule' && x.Setting === label && !x.Month);
+    if (r) out[k] = r.Value;
+  }
+  return out;
 }
 
 function applySettingRows(next, rows, changes, problems) {

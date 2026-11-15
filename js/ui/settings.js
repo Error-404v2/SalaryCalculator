@@ -59,7 +59,7 @@ export function initSettings(onReplaced) {
     const files = [
       { name: 'entries.csv', text: entriesCsv(state.months, pick) },
       { name: 'espp.csv', text: esppCsv(state.espp, pick) },
-      { name: 'settings.csv', text: settingsCsv(state, pick) },
+      { name: 'settings.csv', text: settingsCsv(state, pick, [...document.querySelectorAll('[data-settings-group]:checked')].map((b) => b.dataset.settingsGroup)) },
     ];
     const stamp = new Date().toISOString().slice(0, 10);
     download(`salary-calculator-${stamp}.zip`, zipFiles(files), 'application/zip');

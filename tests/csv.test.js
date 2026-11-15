@@ -223,3 +223,61 @@ test('espp.csv leaves out months that have only a fetched USD rate, and keeps th
   assert.equal(rows.find((r) => r.Month === '2030-01')['USD rate (fetched)'], '48.1', 'a listed month keeps its rate');
   assert.ok(!rows.some((r) => r.Month === '2030-10'), 'the rate-only month is not written');
 });
+
+test('month settings list only what differs from the defaults; no Mode row', () => {
+  const s = hydrate({});
+  s.schedule = { weeksPerYear: '52', daysPerWeek: '5', hoursPerDay: '8', otHoursBase: '170' };
+  s.months = {
+    '2030-01': month('9000', {
+      incomes: [{ name: 'Transportation', amount: '1000', per: 'month', taxable: true, insurable: false, inEspp: true }],
+      cashAwards: [], deductions: [{ name: 'Medical insurance', amount: '230', per: 'month', pretax: false }],
+      espp: { constPct: '', varPct: '', gain: '', variable: { allowances: true, exempt: true, overtime: true, cashAwards: true } },
+    }),
+    '2030-02': month('9000', {
+      incomes: [{ name: 'Language', amount: '300', per: 'month', taxable: true, insurable: true, inEspp: true }],
+      cashAwards: [], deductions: [],
+      espp: { constPct: '', varPct: '', gain: '', variable: { allowances: true, exempt: true, overtime: false, cashAwards: true } },
+      scheduleLocal: { weeksPerYear: '52', daysPerWeek: '5', hoursPerDay: '8', otHoursBase: '240' },
+    }),
+  };
+  const rows = readTable(settingsCsv(s)).rows.filter((r) => r.Section === 'Month');
+  assert.ok(!rows.some((r) => r.Month === '2030-01'), 'a month on all defaults writes nothing');
+  assert.ok(!rows.some((r) => r.Setting === 'Mode'), 'no Mode rows');
+  assert.deepEqual(rows.filter((r) => r.Month === '2030-02').map((r) => `${r.Setting}=${r.Value}`), [
+    'Stocks variable: Overtime=no',
+    'Allowance: Language counts toward SI base=yes',
+    'Work schedule (local): OT base hrs / mo=240',
+  ], 'only the changed bits, and only the changed local schedule field');
+});
+
+test('a month with defaults or a partly listed local schedule round-trips exactly', () => {
+  const s = hydrate({});
+  s.months = {
+    '2030-01': month('9000'),
+    '2030-02': month('9100', { scheduleLocal: { ...s.schedule, otHoursBase: '240' } }),
+    '2030-03': month('9200', { scheduleLocal: { ...s.schedule } }),
+    '2030-04': month('9300', { espp: { constPct: '5', varPct: '', gain: '', variable: {} } }),
+  };
+  const files = [{ name: 'e', text: entriesCsv(s.months) }, { name: 's', text: settingsCsv(s) }];
+  const back = applyCsv(hydrate({}), files).state.months;
+  assert.deepEqual(back['2030-02'].scheduleLocal, s.months['2030-02'].scheduleLocal, 'local schedule filled in from the global one');
+  assert.deepEqual(back['2030-03'].scheduleLocal, s.months['2030-03'].scheduleLocal, 'a local schedule equal to the global one stays Local');
+  assert.deepEqual(back['2030-04'].espp.variable, { allowances: false, exempt: false, overtime: false, cashAwards: false }, 'no ticks stays no ticks');
+  assert.deepEqual(back['2030-01'].espp.variable, { allowances: true, exempt: true, overtime: false, cashAwards: true }, 'ticks as they were (overtime off)');
+  for (const m of Object.keys(s.months)) assert.equal(back[m].mode, 'gross', 'mode is always gross');
+});
+
+test('settings.csv: General, then ESPP, then the active profile right before the tax rows; groups can be left out', () => {
+  const s = sample();
+  const sections = readTable(settingsCsv(s)).rows.map((r) => r.Section);
+  const first = (name) => sections.indexOf(name);
+  assert.ok(first('Work schedule') < first('ESPP'), 'general before ESPP');
+  assert.ok(first('ESPP assumptions') < first('General'), 'ESPP before the tax part');
+  assert.equal(sections[first('General') + 1], 'Tax profile', 'active profile right before the tax rows');
+  assert.ok(first('Job type') < first('Month'), 'month settings last');
+
+  const onlyTax = readTable(settingsCsv(s, 'all', ['tax'])).rows;
+  assert.ok(onlyTax.length > 0 && onlyTax.every((r) => !['Work schedule', 'ESPP', 'ESPP assumptions', 'Month'].includes(r.Section)), 'only the tax group');
+  const noMonths = readTable(settingsCsv(s, 'all', ['general', 'espp', 'tax'])).rows;
+  assert.ok(!noMonths.some((r) => r.Section === 'Month'), 'month settings left out');
+});

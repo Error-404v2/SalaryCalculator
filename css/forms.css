@@ -92,7 +92,7 @@ details.more[data-open="options"]:not([open]) > summary .reset-all { display: no
 .import-review li { margin: 1px 0; }
 .import-review .problems li, .warn-text { color: var(--danger); }
 
-/* Export picker: All / years / months, several with Ctrl/⌘ or "Select several" */
+/* Export picker: All months, then years with their months; each click adds or removes one */
 .pick { position: relative; flex: 1 1 180px; min-width: 0; }
 .pick-btn { width: 100%; height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); cursor: pointer; font-size: .86rem; color: var(--text); }
 .pick-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -109,9 +109,11 @@ details.more[data-open="options"]:not([open]) > summary .reset-all { display: no
 .pick-arrow:not(.open) svg { transform: rotate(-90deg); }
 .pick-box { width: 14px; height: 14px; border: 1.5px solid var(--muted); border-radius: 3px; flex: 0 0 auto; }
 .pick-box.on { background: var(--accent); border-color: var(--accent); }
-.pick-several { font-size: .8rem; padding: 2px 6px 6px; }
 /* "All months" stands apart at the top, with a line under it */
 .pick-row.all { margin-bottom: 4px; padding-bottom: 4px; border-bottom: 1px solid var(--border); border-radius: 6px 6px 0 0; }
 .pick-row.all .pick-item { font-size: .9rem; }
-.pick-tip { margin: 6px 6px 0; font-size: .72rem; }
-@media (hover: none) { .pick-tip { display: none; } }
+
+/* settings.csv groups to include */
+.settings-groups { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 8px; }
+.settings-groups .hint { margin: 0; }
+.settings-groups .check { font-size: .82rem; }
