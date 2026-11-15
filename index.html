@@ -123,6 +123,7 @@
                     <button type="button" class="btn sm json-btn" id="exportBtn" title="Everything in one file, to import back exactly">Everything (.json)</button>
                   </div>
                   <div class="transfer-row groups-row">
+                    <span class="groups-label">Settings.csv:</span>
                     <div class="pick groups-pick" id="groupsPick"></div>
                   </div>
                   <div class="hint">CSV: entries (one row per month), the ESPP ledger, and settings. Savings stay in the .json only.</div>
@@ -133,7 +134,7 @@
                     <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Import</label>
                     <input id="importFile" type="file" accept=".csv,text/csv,.zip,application/zip,.json,application/json" multiple class="sr">
                   </div>
-                  <div class="hint">CSV only adds or changes the values it has, other months stay intact. A .json backup replaces everything. You see what will change before anything is imported.</div>
+                  <div class="hint">CSV only adds or changes the values it has, other months stay intact.<br>A .json backup replaces everything. You see what will change before anything is imported.</div>
                   <div id="importReview"></div>
                 </div>
               </div>

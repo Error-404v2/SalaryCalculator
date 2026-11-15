@@ -1948,7 +1948,13 @@
     pop.innerHTML = listHtml(select2, wrap);
     pop.hidden = false;
     wrap.querySelector(".dd-btn").setAttribute("aria-expanded", "true");
-    pop.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+    const current = pop.querySelector('[aria-selected="true"]');
+    if (current) {
+      const box = pop.getBoundingClientRect();
+      const row = current.getBoundingClientRect();
+      if (row.top < box.top) pop.scrollTop -= box.top - row.top;
+      else if (row.bottom > box.bottom) pop.scrollTop += row.bottom - box.bottom;
+    }
   }
   function commit2(select2, value) {
     if (select2.value !== value) {
@@ -2680,9 +2686,18 @@
     selection = current.filter((k) => k.length === 4 || !years.includes(k.slice(0, 4)));
     if (!selection.length) selection = "all";
   }
+  function keepListScroll(host2, draw) {
+    const before = host2.querySelector(".pick-pop")?.scrollTop ?? 0;
+    draw();
+    const pop = host2.querySelector(".pick-pop");
+    if (pop && before) pop.scrollTop = before;
+  }
   function renderExportPick(state2, activeMonth = "") {
     const host2 = $("#exportPick");
     if (!host2) return;
+    keepListScroll(host2, () => drawExportPick(host2, state2, activeMonth));
+  }
+  function drawExportPick(host2, state2, activeMonth) {
     const months = monthList(state2.months);
     const years = [...new Set(months.map((m) => m.slice(0, 4)))];
     const now = String((/* @__PURE__ */ new Date()).getFullYear());
@@ -2746,6 +2761,9 @@
   function renderGroupsPick() {
     const host2 = $("#groupsPick");
     if (!host2) return;
+    keepListScroll(host2, () => drawGroupsPick(host2));
+  }
+  function drawGroupsPick(host2) {
     const mark = (on) => `<span class="pick-box${on ? " on" : ""}" aria-hidden="true"></span>`;
     const all = groups.size === GROUPS2.length;
     host2.innerHTML = `<button type="button" class="pick-btn" data-groups-toggle aria-haspopup="listbox" aria-expanded="${groupsOpen}" title="What goes into settings.csv"><span>${escapeHtml(groupsLabel())}</span>${CHEVRON3}</button>

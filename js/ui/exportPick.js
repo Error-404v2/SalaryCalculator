@@ -36,9 +36,21 @@ function toggle(key) {
   if (!selection.length) selection = 'all';
 }
 
+/** Runs `draw`, then puts the open list back at the scroll position it had (a redraw would reset it to the top). */
+function keepListScroll(host, draw) {
+  const before = host.querySelector('.pick-pop')?.scrollTop ?? 0;
+  draw();
+  const pop = host.querySelector('.pick-pop');
+  if (pop && before) pop.scrollTop = before;
+}
+
 export function renderExportPick(state, activeMonth = '') {
   const host = $('#exportPick');
   if (!host) return;
+  keepListScroll(host, () => drawExportPick(host, state, activeMonth));
+}
+
+function drawExportPick(host, state, activeMonth) {
   const months = monthList(state.months);
   const years = [...new Set(months.map((m) => m.slice(0, 4)))];
   const now = String(new Date().getFullYear());
@@ -101,6 +113,10 @@ function groupsLabel() {
 export function renderGroupsPick() {
   const host = $('#groupsPick');
   if (!host) return;
+  keepListScroll(host, () => drawGroupsPick(host));
+}
+
+function drawGroupsPick(host) {
   const mark = (on) => `<span class="pick-box${on ? ' on' : ''}" aria-hidden="true"></span>`;
   const all = groups.size === GROUPS.length;
   host.innerHTML = `<button type="button" class="pick-btn" data-groups-toggle aria-haspopup="listbox" aria-expanded="${groupsOpen}" title="What goes into settings.csv"><span>${escapeHtml(groupsLabel())}</span>${CHEVRON}</button>

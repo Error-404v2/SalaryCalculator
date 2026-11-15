@@ -715,8 +715,9 @@ details.more[data-open=transfer] > .inner {
   left: 0;
   min-width: 100%;
   width: max-content;
-  max-width: min(280px, 86vw);
+  max-width: min(360px, 90vw);
   max-height: calc(var(--dd-row) * 5.5 + 2px);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 0;
@@ -838,11 +839,24 @@ details.more[data-open=transfer] > .inner {
   margin-left: auto;
 }
 .groups-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
   margin-top: 6px;
 }
+.groups-label {
+  font-size: .85rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
 .groups-row .groups-pick {
-  flex: 1 1 100%;
-  max-width: 260px;
+  flex: 0 1 260px;
+  margin-left: auto;
+}
+.groups-row .pick-pop {
+  left: auto;
+  right: 0;
 }
 @media (max-width: 420px) {
   .export-row {
@@ -852,7 +866,7 @@ details.more[data-open=transfer] > .inner {
     flex: 1 1 100%;
   }
   .groups-row .groups-pick {
-    max-width: none;
+    flex: 1 1 auto;
   }
 }
 
@@ -2465,6 +2479,7 @@ select[data-dd] {
   width: max-content;
   max-width: min(280px, 86vw);
   max-height: calc(var(--dd-row) * 5.5 + 2px);
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface);
