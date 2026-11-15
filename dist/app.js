@@ -1014,18 +1014,35 @@
     if (active && next.profiles.some((p) => p.id === active)) set2("active tax profile", next, "profileId", active);
     if (active && !next.profiles.some((p) => p.id === active)) problems.push(`settings: active tax profile "${active}" is not in the file`);
   }
+  var sortKeys = (v) => Array.isArray(v) ? v.map(sortKeys) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v;
+  var sameData = (a, b) => JSON.stringify(sortKeys(a ?? null)) === JSON.stringify(sortKeys(b ?? null));
+  var ENTRY_KEYS = ["amount", "per", "mode", "year", "jobType", "overrides", "payPeriod", "incomes", "overtime", "cashAwards", "deductions"];
+  var ENTRY_ESPP_KEYS = ["constPct", "varPct", "gain", "variable"];
   function jsonChanges(state2, incoming) {
     const changes = [];
+    const differs = (a, b) => !sameData(a, b);
     for (const m of Object.keys(incoming.months ?? {}).sort()) {
       if (!state2.months?.[m]) changes.push(`Add month ${m}`);
-      else if (!sameJson(state2.months[m], incoming.months[m])) changes.push(`Overwrite month ${m}`);
+      else if (differs(state2.months[m], incoming.months[m])) changes.push(`Overwrite month ${m}`);
     }
     for (const m of Object.keys(state2.months ?? {}).sort()) if (!incoming.months?.[m]) changes.push(`Remove month ${m} (not in the file)`);
-    if (!sameJson(state2.espp?.entries, incoming.espp?.entries)) changes.push("Replace the ESPP ledger");
-    if (!sameJson(state2.espp?.assumptions, incoming.espp?.assumptions)) changes.push("Replace the ESPP assumptions");
-    if (!sameJson(state2.profiles, incoming.profiles)) changes.push("Replace the tax profiles");
-    if (!sameJson(state2.schedule, incoming.schedule)) changes.push("Replace the work schedule");
-    if (!sameJson(state2.savings, incoming.savings)) changes.push("Replace the Savings plan");
+    const e = state2.espp ?? {}, f = incoming.espp ?? {};
+    if (differs(e.entries, f.entries)) changes.push("Replace the ESPP ledger");
+    if (differs(e.gainMonths, f.gainMonths)) changes.push("Replace the ESPP Gains list");
+    if (differs(e.rates, f.rates)) changes.push("Replace the fetched USD rates");
+    if (differs(e.assumptions, f.assumptions)) changes.push("Replace the ESPP assumptions");
+    if (differs([e.symbol, e.changeDay, e.monthOffset], [f.symbol, f.changeDay, f.monthOffset])) changes.push("Replace the ESPP settings (symbol, change day, month offset)");
+    if (differs(state2.profiles, incoming.profiles) || differs(state2.profileId, incoming.profileId)) changes.push("Replace the tax profiles");
+    if (differs(state2.schedule, incoming.schedule)) changes.push("Replace the work schedule");
+    if (differs(state2.savings, incoming.savings)) changes.push("Replace the Savings plan");
+    const entry2 = (x) => ({ ...Object.fromEntries(ENTRY_KEYS.map((k) => [k, x[k]])), espp: Object.fromEntries(ENTRY_ESPP_KEYS.map((k) => [k, x.espp?.[k]])) });
+    if (differs(entry2(state2), entry2(incoming))) changes.push("Replace the starting values for new months");
+    if (differs(state2.history, incoming.history)) changes.push("Replace the old per-field history");
+    if (differs(state2.ui, incoming.ui)) changes.push("Replace the view choices (open tabs, sections, theme)");
+    const known = /* @__PURE__ */ new Set(["months", "espp", "profiles", "profileId", "schedule", "savings", "history", "ui", "work", ...ENTRY_KEYS]);
+    for (const k of [.../* @__PURE__ */ new Set([...Object.keys(state2), ...Object.keys(incoming)])].sort()) {
+      if (!known.has(k) && differs(state2[k], incoming[k])) changes.push(`Replace ${k}`);
+    }
     return changes;
   }
 
@@ -2810,15 +2827,16 @@
     setTimeout(() => URL.revokeObjectURL(link.href), 1e3);
   }
   var pending = null;
-  function review({ title, changes, problems }) {
+  function review({ title, changes, problems, always = false }) {
     const host2 = $("#importReview");
     const list = (items, cls) => items.length ? `<ul class="${cls}">${items.map((c) => `<li>${escapeHtml(c)}</li>`).join("")}</ul>` : "";
+    const nothing = always ? "The file holds the same data as the app." : "Nothing in the app changes.";
     host2.innerHTML = `<div class="import-review">
     <b>${escapeHtml(title)}</b>
-    ${changes.length ? `<div class="hint">This will change:</div>${list(changes, "changes")}` : '<div class="hint">Nothing in the app changes.</div>'}
+    ${changes.length ? `<div class="hint">This will change:</div>${list(changes, "changes")}` : `<div class="hint">${nothing}</div>`}
     ${problems.length ? `<div class="hint warn-text">Not imported:</div>${list(problems, "problems")}` : ""}
     <div class="row" style="gap:6px;margin-top:8px">
-      ${changes.length ? '<button type="button" class="btn sm danger" data-import-go>Import</button>' : ""}
+      ${changes.length || always ? `<button type="button" class="btn sm danger" data-import-go>${changes.length ? "Import" : "Import anyway"}</button>` : ""}
       <button type="button" class="btn sm ghost" data-import-cancel>Cancel</button>
     </div></div>`;
   }
@@ -2876,7 +2894,7 @@
         if (json.length) {
           const incoming = importData(json[0].text);
           pending = { state: incoming, kind: "json" };
-          return review({ title: `Import everything from ${json[0].name} (replaces the whole app)`, changes: jsonChanges(getState(), incoming), problems: [] });
+          return review({ title: `Import everything from ${json[0].name} (replaces the whole app)`, changes: jsonChanges(getState(), incoming), problems: [], always: true });
         }
         const usable = csv.filter((f) => csvKind(f.text));
         const { state: state2, changes, problems } = applyCsv(getState(), csv);

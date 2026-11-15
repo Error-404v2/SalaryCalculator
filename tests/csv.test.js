@@ -281,3 +281,24 @@ test('settings.csv: General, then ESPP, then the active profile right before the
   const noMonths = readTable(settingsCsv(s, 'all', ['general', 'espp', 'tax'])).rows;
   assert.ok(!noMonths.some((r) => r.Section === 'Month'), 'month settings left out');
 });
+
+test('JSON import review notices a difference anywhere in the saved data, never "nothing changes" when it does', () => {
+  const a = hydrate({});
+  const changed = (f) => { const b = structuredClone(a); f(b); return jsonChanges(a, b); };
+  assert.ok(changed((b) => { b.amount = '12345'; }).length, 'the starting values for new months');
+  assert.ok(changed((b) => { b.incomes = [{ name: 'X', amount: '1', per: 'month' }]; }).length, 'an allowance in the starting values');
+  assert.ok(changed((b) => { b.espp.gainMonths = ['2030-01']; }).length, 'the ESPP Gains list');
+  assert.ok(changed((b) => { b.espp.rates = { '2030-01': '50' }; }).length, 'the fetched USD rates');
+  assert.ok(changed((b) => { b.espp.changeDay = '15'; }).length, 'the ESPP settings');
+  assert.ok(changed((b) => { b.ui.theme = 'light'; }).length, 'the view choices');
+  assert.ok(changed((b) => { b.somethingNew = 1; }).length, 'data the review does not know about yet');
+  assert.deepEqual(changed(() => {}), [], 'identical data: nothing');
+});
+
+test('JSON import review ignores key order (an export from another device may list keys differently)', () => {
+  const a = hydrate({});
+  a.months = { '2030-01': { amount: '1', per: 'month' } };
+  const b = structuredClone(a);
+  b.months['2030-01'] = { per: 'month', amount: '1' };
+  assert.deepEqual(jsonChanges(a, b), []);
+});
