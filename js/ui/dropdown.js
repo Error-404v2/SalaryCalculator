@@ -9,7 +9,7 @@ import { CURRENCIES } from '../data/defaults.js';
  *
  *  - The list shows at most 5½ rows and scrolls, so the half-visible row hints at more.
  *  - Options whose value is a month ("YYYY-MM") are grouped under expandable year headers once they span more
- *    than one year; only the most recent year (and the year of the current choice) starts expanded.
+ *    than one year; only the year of the current choice starts expanded (with nothing chosen: this year, else the latest).
  *  - `data-dd="currency"` adds a free-text mode: EGP, USD, SAR, AED, EUR, then Custom, which turns the field into
  *    a text box while the arrow on the right stays, to get back to the list.
  */
@@ -69,8 +69,11 @@ function closeAll(except) {
 function openList(wrap) {
   const select = selectOf(wrap);
   closeAll(wrap);
-  const years = optionsOf(select).map((o) => o.value.match(MONTH)?.[0]?.slice(0, 4)).filter(Boolean);
-  wrap._open = new Set([years.sort().at(-1), select.value.match(MONTH)?.[0]?.slice(0, 4)].filter(Boolean));
+  // Expanded: the year of the current choice, else this calendar year if it is listed, else the latest year.
+  const years = optionsOf(select).map((o) => o.value.match(MONTH)?.[1]).filter(Boolean);
+  const chosen = select.value.match(MONTH)?.[1];
+  const now = String(new Date().getFullYear());
+  wrap._open = new Set([chosen ?? (years.includes(now) ? now : years.sort().at(-1))].filter(Boolean));
   const pop = wrap.querySelector('.dd-pop');
   pop.innerHTML = listHtml(select, wrap);
   pop.hidden = false;

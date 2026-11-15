@@ -25,7 +25,7 @@ npm test           # engine unit tests (Node 18+)
 
 The salary amount is the only required field.
 
-- **Top bar:** the *Month* / *Day* pro-rata spinners on the left and *Save* on the right. Below it come the *Saved months* list and the summary of the entry you are working on, then *Gross → Net* / *Net → Gross* with the month to save to beside it, then the form.
+- **Top bar:** the *Month* / *Day* pro-rata spinners on the left and *Gross → Net* / *Net → Gross* on the right. Below it: the *Saved months* list, then the *month to save to* with *Save* beside it, then the gross salary field with the summary of the entry right under it, then the rest of the form.
 - **Pro-rata:** *Month* (default 1) and *Day* (default 0) spinners with ▲▼ buttons, in the top bar. They set the period of the entry you are working on, and it is saved with that month. As in the original sheet, the period is `months + days / 30` of a full month (for example 0 months + 15 days = half a month, 1 month − 10 days = ⅔).
   - The days never scale **One-Time** allowances and deductions, overtime hours, cash awards or the ESPP gain: those are paid in full in the period.
   - **Social insurance** is charged for whole months by default (at least one), so the days don't change it. Tick *Include pro-rata days in social insurance* (More options, under the SI base) to scale it with the days too.
@@ -48,13 +48,13 @@ Collapsible sections, in this order:
 Rarely changed per-row options sit under a muted **Advanced ⌄** toggle on the right of a single line, with a faded preview of the first options on its left. Clicking it expands the options: the *taxable* / *counts toward SI base* flags, a cash award's period and taxable flag, and a deduction's before-tax flag.
 
 **One input panel** (the old Pay and History tabs, merged). You always work on one *entry*, one month's full set of inputs. The *Saved months* list loads a month into it; nothing is stored in a month until you press *Save*.
-- **Save** (top bar, right): stores the entry under the month chosen beside Gross → Net, always as a **gross** salary (a Net → Gross entry is solved first). It is greyed out as *Saved* when nothing changed. Saving onto a month that already exists asks "Override it?" first.
-- **Month to save to** (right of Gross → Net / Net → Gross): a dropdown of saved months (nearest first) ending in *Custom…*, which opens the month picker. Choosing a month only renames the entry: its values carry over untouched, even when that month is already saved (that month's own entry is never opened or merged). Renaming through a saved month and on (e.g. new October → May → October) never touches May: both stay listed and May keeps its saved values. To open a saved month, use the *Saved months* list.
+- **Save** (right of the month to save to): stores the entry under the month shown beside it, always as a **gross** salary (a Net → Gross entry is solved first). It is greyed out as *Saved* when nothing changed. Saving onto a month that already exists asks "Override it?" first.
+- **Month to save to** (left of Save): a dropdown of saved months (nearest first) ending in *Custom…*, which opens the month picker. Choosing a month only renames the entry: its values carry over untouched, even when that month is already saved (that month's own entry is never opened or merged). Renaming through a saved month and on (e.g. new October → May → October) never touches May: both stay listed and May keeps its saved values. To open a saved month, use the *Saved months* list.
 - **Tax year:** follows the entry's month (October 2025 uses the 2025 rules). A month beyond the last year with insurance caps uses the nearest year that has them. There is no year dropdown any more.
 - **Saved months:** collapsible, grouped under a compact header per year with that year's total (each month for its own pro-rata period), newest year and the open month's year expanded. *+ New month* copies the values currently entered (unsaved ones included) into the new month and puts the month it came from back to its saved state. Each row shows the month's net for its own pro-rata period and a red − to delete it (asks inline). While a saved month has changes waiting (edits or a rename), a **reset** arrow appears before the − and puts it back to its saved state.
 - **Pick up where you left off:** the entry and the unsaved edits of other months are remembered on this device, so a reload (or a later visit) continues from there. They are not saved into any month and are not part of an export. The app opens on the month you last worked on, or this month.
 - **Summary of (month):** collapsible; net pay, then the pay items and deductions as compact lines, with the values you entered softly highlighted.
-- **Dropdowns:** the month and currency lists show 5½ rows and scroll; month lists spanning several years group them under expandable years, with only the latest expanded.
+- **Dropdowns:** the month and currency lists show 5½ rows and scroll; month lists spanning several years group them under expandable years, with only the year of the current choice expanded (or this year when nothing is chosen).
 
 **Results tabs**
 

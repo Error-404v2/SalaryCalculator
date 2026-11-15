@@ -265,24 +265,31 @@ export function renderEntry(state, money, pay) {
   save.classList.toggle('done', !dirty);
   save.title = dirty ? `Save this entry as ${monthLabel(month, 'long')}` : `${monthLabel(month, 'long')} is saved`;
 
+  // Redraw the "save to" control on every change (a choice moves focus onto it, so a focus guard would leave a
+  // stale Custom… on screen). Only an open month picker is left alone, and focus is put back on the new control.
   const slot = $('#saveToSlot');
-  if (!slot.contains(document.activeElement) && !slot.querySelector('.mpick-pop:not([hidden])')) {
+  if (!slot.querySelector('.mpick-pop:not([hidden])')) {
+    const hadFocus = slot.contains(document.activeElement);
     slot.innerHTML = saveToHtml(state, month);
+    syncDropdowns(slot);
+    if (hadFocus) slot.querySelector('.dd-btn, .mpick-btn')?.focus();
   }
 
-  const host = $('#entryHead');
-  const focused = document.activeElement;
-  if (host.contains(focused) && focused.tagName === 'INPUT') return;
-  const ask = askOverride
+  // The override question and the summary are redrawn every time; the list waits while one of its fields has focus.
+  $('#entryAsk').innerHTML = askOverride
     ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, 'long'))} is already saved. Override it?</span>
         <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
         <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>`
     : '';
-  host.innerHTML = `${savedList(state, month, money)}${ask}
-    <details class="hist-summary" data-open="histSummary">
+  $('#entrySummary').innerHTML = `<details class="hist-summary" data-open="histSummary">
       <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, 'long'))}</span>${CHEVRON}</summary>
       ${monthSummary(state, money, pay)}
     </details>`;
+
+  const host = $('#entryHead');
+  const focused = document.activeElement;
+  if (host.contains(focused) && focused.tagName === 'INPUT') return;
+  host.innerHTML = savedList(state, month, money);
 }
 
 function save() {

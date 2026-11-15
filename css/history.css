@@ -1,20 +1,23 @@
-/* Top bar of the input card: pro-rata on the left, Save on the right */
-.entry-bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
-.entry-bar .btn { height: 32px; min-width: 64px; }
-.entry-bar .btn.done { color: var(--muted); opacity: .55; cursor: default; }
-.entry-bar .spins { gap: 4px; }
+/* Top bar of the input card: pro-rata, then Gross → Net / Net → Gross */
+.entry-bar { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid var(--border); }
+.entry-bar .spins { gap: 4px; flex: 0 0 auto; }
 .entry-bar .spin { height: 32px; }
 .entry-bar .spin input { width: 30px; }
 .entry-bar .spin-label { padding-left: 7px; font-size: .7rem; }
 .entry-bar .spin-btns button { width: 18px; }
+.entry-bar .seg { flex: 0 1 auto; }
+.entry-bar .seg button { padding: 6px 10px; font-size: .84rem; }
 
-/* Gross → Net / Net → Gross on the left, the month this entry will be saved to on the right */
-.entry-mode { gap: 8px; flex-wrap: nowrap; }
-.save-slot { margin-left: auto; min-width: 0; width: 190px; flex: 0 1 190px; }
+/* Save line: the month this entry will be saved to (left), Save (right) */
+.entry-save { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.entry-save .btn { height: 36px; min-width: 76px; flex: 0 0 auto; }
+.entry-save .btn.done { color: var(--muted); opacity: .55; cursor: default; }
+.save-slot { flex: 1 1 auto; min-width: 0; }
 .save-slot .dd, .save-slot select { width: 100%; }
-.save-slot select { height: 34px; font-size: .88rem; }
-.save-slot .mpick-btn { height: 34px; font-size: .88rem; }
-.save-slot .mpick-pop { left: auto; right: 0; }
+.save-slot select { height: 36px; font-size: .9rem; }
+.save-slot .mpick-btn { height: 36px; font-size: .9rem; }
+.save-slot .mpick-pop { left: 0; }
+#entryAsk:not(:empty) { margin: -4px 0 10px; }
 .confirm { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; color: var(--danger); }
 
 /* Saved months: compact list, "+ New month" first, a red minus on each row */
@@ -99,17 +102,16 @@ select option { background: var(--surface); color: var(--text); }
 .lines.compact .line.sep { margin-top: 3px; padding-top: 6px; }
 .lines.compact .line.strong .k, .lines.compact .line.strong .v { font-size: .9rem; }
 #entryHead { margin-bottom: 10px; }
+#entrySummary .hist-summary > summary { margin-top: 4px; }
 
 @media (max-width: 420px) {
-  .entry-bar { padding: 10px 14px; }
+  .entry-bar { padding: 10px 14px; gap: 8px; }
   /* Phone: M and D instead of Month and Day */
   .entry-bar .spin-label { font-size: 0; padding-left: 7px; }
   .entry-bar .spin-label::before { content: attr(data-short); font-size: .7rem; }
-  .entry-bar .spin input { width: 26px; }
-  .entry-mode .seg { flex: 0 0 auto; }
-  .entry-mode .seg button { padding: 6px 8px; font-size: .8rem; }
-  .save-slot { width: 118px; flex-basis: 118px; }
-  .save-slot select, .save-slot .dd-btn, .save-slot .mpick-btn { font-size: .8rem; padding-left: 8px; }
+  .entry-bar .spin input { width: 24px; }
+  .entry-bar .seg button { padding: 6px 7px; font-size: .78rem; }
+  .entry-save .btn { min-width: 64px; }
 }
 .mpick-back { display: block; width: 100%; margin-top: 6px; padding: 6px 0 2px; border: 0; border-top: 1px solid var(--border); background: none; color: var(--accent); cursor: pointer; font-size: .82rem; text-align: left; }
 

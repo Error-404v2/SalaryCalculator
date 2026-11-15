@@ -1602,22 +1602,13 @@ tr.active td:first-child {
 .entry-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  gap: 10px;
   padding: 10px 18px;
   border-bottom: 1px solid var(--border);
 }
-.entry-bar .btn {
-  height: 32px;
-  min-width: 64px;
-}
-.entry-bar .btn.done {
-  color: var(--muted);
-  opacity: .55;
-  cursor: default;
-}
 .entry-bar .spins {
   gap: 4px;
+  flex: 0 0 auto;
 }
 .entry-bar .spin {
   height: 32px;
@@ -1632,31 +1623,50 @@ tr.active td:first-child {
 .entry-bar .spin-btns button {
   width: 18px;
 }
-.entry-mode {
+.entry-bar .seg {
+  flex: 0 1 auto;
+}
+.entry-bar .seg button {
+  padding: 6px 10px;
+  font-size: .84rem;
+}
+.entry-save {
+  display: flex;
+  align-items: center;
   gap: 8px;
-  flex-wrap: nowrap;
+  margin-bottom: 10px;
+}
+.entry-save .btn {
+  height: 36px;
+  min-width: 76px;
+  flex: 0 0 auto;
+}
+.entry-save .btn.done {
+  color: var(--muted);
+  opacity: .55;
+  cursor: default;
 }
 .save-slot {
-  margin-left: auto;
+  flex: 1 1 auto;
   min-width: 0;
-  width: 190px;
-  flex: 0 1 190px;
 }
 .save-slot .dd,
 .save-slot select {
   width: 100%;
 }
 .save-slot select {
-  height: 34px;
-  font-size: .88rem;
+  height: 36px;
+  font-size: .9rem;
 }
 .save-slot .mpick-btn {
-  height: 34px;
-  font-size: .88rem;
+  height: 36px;
+  font-size: .9rem;
 }
 .save-slot .mpick-pop {
-  left: auto;
-  right: 0;
+  left: 0;
+}
+#entryAsk:not(:empty) {
+  margin: -4px 0 10px;
 }
 .confirm {
   display: inline-flex;
@@ -1971,9 +1981,13 @@ select option {
 #entryHead {
   margin-bottom: 10px;
 }
+#entrySummary .hist-summary > summary {
+  margin-top: 4px;
+}
 @media (max-width: 420px) {
   .entry-bar {
     padding: 10px 14px;
+    gap: 8px;
   }
   .entry-bar .spin-label {
     font-size: 0;
@@ -1984,24 +1998,14 @@ select option {
     font-size: .7rem;
   }
   .entry-bar .spin input {
-    width: 26px;
+    width: 24px;
   }
-  .entry-mode .seg {
-    flex: 0 0 auto;
+  .entry-bar .seg button {
+    padding: 6px 7px;
+    font-size: .78rem;
   }
-  .entry-mode .seg button {
-    padding: 6px 8px;
-    font-size: .8rem;
-  }
-  .save-slot {
-    width: 118px;
-    flex-basis: 118px;
-  }
-  .save-slot select,
-  .save-slot .dd-btn,
-  .save-slot .mpick-btn {
-    font-size: .8rem;
-    padding-left: 8px;
+  .entry-save .btn {
+    min-width: 64px;
   }
 }
 .mpick-back {

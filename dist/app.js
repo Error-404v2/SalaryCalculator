@@ -1457,8 +1457,10 @@
   function openList(wrap) {
     const select2 = selectOf(wrap);
     closeAll(wrap);
-    const years = optionsOf(select2).map((o) => o.value.match(MONTH2)?.[0]?.slice(0, 4)).filter(Boolean);
-    wrap._open = new Set([years.sort().at(-1), select2.value.match(MONTH2)?.[0]?.slice(0, 4)].filter(Boolean));
+    const years = optionsOf(select2).map((o) => o.value.match(MONTH2)?.[1]).filter(Boolean);
+    const chosen = select2.value.match(MONTH2)?.[1];
+    const now = String((/* @__PURE__ */ new Date()).getFullYear());
+    wrap._open = new Set([chosen ?? (years.includes(now) ? now : years.sort().at(-1))].filter(Boolean));
     const pop = wrap.querySelector(".dd-pop");
     pop.innerHTML = listHtml(select2, wrap);
     pop.hidden = false;
@@ -2793,20 +2795,23 @@
     save2.classList.toggle("done", !dirty);
     save2.title = dirty ? `Save this entry as ${monthLabel(month, "long")}` : `${monthLabel(month, "long")} is saved`;
     const slot = $("#saveToSlot");
-    if (!slot.contains(document.activeElement) && !slot.querySelector(".mpick-pop:not([hidden])")) {
+    if (!slot.querySelector(".mpick-pop:not([hidden])")) {
+      const hadFocus = slot.contains(document.activeElement);
       slot.innerHTML = saveToHtml(state2, month);
+      syncDropdowns(slot);
+      if (hadFocus) slot.querySelector(".dd-btn, .mpick-btn")?.focus();
     }
-    const host2 = $("#entryHead");
-    const focused = document.activeElement;
-    if (host2.contains(focused) && focused.tagName === "INPUT") return;
-    const ask = askOverride ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, "long"))} is already saved. Override it?</span>
+    $("#entryAsk").innerHTML = askOverride ? `<div class="month-row ask"><span>${escapeHtml(monthLabel(month, "long"))} is already saved. Override it?</span>
         <span class="row"><button type="button" class="btn sm danger" data-hist-act="override-yes">Override</button>
         <button type="button" class="btn sm ghost" data-hist-act="override-no">Cancel</button></span></div>` : "";
-    host2.innerHTML = `${savedList(state2, month, money)}${ask}
-    <details class="hist-summary" data-open="histSummary">
+    $("#entrySummary").innerHTML = `<details class="hist-summary" data-open="histSummary">
       <summary><span class="section-title">Summary of ${escapeHtml(monthLabel(month, "long"))}</span>${CHEVRON4}</summary>
       ${monthSummary(state2, money, pay)}
     </details>`;
+    const host2 = $("#entryHead");
+    const focused = document.activeElement;
+    if (host2.contains(focused) && focused.tagName === "INPUT") return;
+    host2.innerHTML = savedList(state2, month, money);
   }
   function save() {
     if (!toNumber(scopePay()?.amount)) return toast("Enter a gross salary to save this month");

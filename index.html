@@ -41,17 +41,18 @@
               </span>
             </div>
           </div>
-        <button type="button" class="btn sm primary" id="saveBtn" data-entry-save>Save</button>
+        <div class="seg" data-seg="mode">
+          <button data-v="gross">Gross &rarr; Net</button>
+          <button data-v="net">Net &rarr; Gross</button>
+        </div>
       </div>
       <div class="card-body">
         <div id="entryHead"></div>
-        <div class="row between field entry-mode">
-          <div class="seg" data-seg="mode">
-            <button data-v="gross">Gross &rarr; Net</button>
-            <button data-v="net">Net &rarr; Gross</button>
-          </div>
+        <div class="entry-save">
           <span class="save-slot" id="saveToSlot"></span>
+          <button type="button" class="btn primary" id="saveBtn" data-entry-save>Save</button>
         </div>
+        <div id="entryAsk"></div>
         <div id="payForm">
         <div class="field">
           <label for="amount"><span id="amountLabel">Gross salary</span> <span class="req">*</span></label>
@@ -61,6 +62,7 @@
           </div>
           <div class="hint" id="amountHint"></div>
         </div>
+        <div id="entrySummary"></div>
 
         <details class="more" data-open="overtime">
           <summary>Overtime <span class="count" data-count="overtime"></span></summary>
