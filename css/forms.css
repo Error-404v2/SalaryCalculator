@@ -68,3 +68,9 @@ details.more > .inner { padding: 4px 12px 12px; }
 .spin-btns button + button { border-top: 1px solid var(--border); }
 .spin-btns button:hover { color: var(--accent); background: var(--accent-soft); }
 .spin-btns svg { width: 9px; height: 6px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+
+/* A field label with a small toggle on its right (Work schedule: Global | Local) */
+.label-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+.label-row .label { margin: 0; }
+.seg.sm { padding: 2px; }
+.seg.sm button { padding: 3px 10px; font-size: .78rem; }

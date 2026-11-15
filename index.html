@@ -123,7 +123,13 @@
               <select id="jobSel" data-bind="jobType"></select>
             </div>
             <div class="field">
-              <span class="label">Work schedule</span>
+              <div class="label-row">
+                <span class="label">Work schedule</span>
+                <div class="seg sm" data-schedule-mode role="group" aria-label="Work schedule scope">
+                  <button type="button" data-v="global" title="Use the shared schedule (changes apply to every month that follows it)">Global</button>
+                  <button type="button" data-v="local" title="Keep this month's own schedule (changes apply to this month only)">Local</button>
+                </div>
+              </div>
               <div class="compact-grid">
                 <label>Weeks / year<input type="text" inputmode="decimal" data-bind="schedule.weeksPerYear"></label>
                 <label>Days / week<input type="text" inputmode="decimal" data-bind="schedule.daysPerWeek"></label>
