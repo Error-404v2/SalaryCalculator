@@ -92,6 +92,13 @@ details.more[data-open="transfer"] > .inner { padding: 2px 10px 10px; }
 .transfer .field { margin-bottom: 10px; }
 .transfer-row { gap: 6px; align-items: center; }
 .transfer-row .btn { height: 34px; }
+/* Import: a line above it, "Import:" with Choose file… beside it, and a drop zone shown only while a file is held */
+.import-field { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border); }
+.import-row { display: flex; align-items: center; gap: 8px; }
+.import-label { font-size: .85rem; font-weight: 700; }
+.drop-zone { margin-top: 8px; padding: 14px 10px; border: 1.5px dashed color-mix(in srgb, var(--accent) 55%, var(--border)); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--accent) 6%, transparent); color: var(--muted); font-size: .85rem; text-align: center; }
+.drop-zone[hidden] { display: none; }
+.drop-zone.over { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .import-review { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); font-size: .84rem; }
 .import-review ul { margin: 4px 0 0; padding-left: 18px; max-height: 180px; overflow: auto; }
 .import-review li { margin: 1px 0; }

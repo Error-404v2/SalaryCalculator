@@ -128,13 +128,14 @@
                   </div>
                   <div class="hint">CSV: entries (one row per month), the ESPP ledger, and settings. Savings stay in the .json only.</div>
                 </div>
-                <div class="field">
-                  <span class="label">Import</span>
-                  <div class="row wrap transfer-row">
-                    <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Import</label>
+                <div class="field import-field">
+                  <div class="transfer-row import-row">
+                    <span class="import-label">Import:</span>
+                    <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Choose file…</label>
                     <input id="importFile" type="file" accept=".csv,text/csv,.zip,application/zip,.json,application/json" multiple class="sr">
                   </div>
-                  <div class="hint">CSV only adds or changes the values it has, other months stay intact.<br>A .json backup replaces everything. You see what will change before anything is imported.</div>
+                  <div class="drop-zone" id="importDrop" hidden>Drop a CSV, .zip or .json file</div>
+                  <div class="hint">CSV adds or changes only what it holds. A .json backup replaces everything.</div>
                   <div id="importReview"></div>
                 </div>
               </div>

@@ -2850,9 +2850,13 @@
       const stamp = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
       download(`salary-calculator-${stamp}.zip`, zipFiles(files), "application/zip");
     });
-    $("#importFile").addEventListener("change", async (e) => {
+    $("#importFile").addEventListener("change", (e) => {
       const chosen = [...e.target.files];
       e.target.value = "";
+      importFiles(chosen);
+    });
+    initDropZone();
+    async function importFiles(chosen) {
       if (!chosen.length) return;
       try {
         const csv = [];
@@ -2882,7 +2886,44 @@
         clearReview();
         toast(`Could not import: ${err.message}`);
       }
-    });
+    }
+    function initDropZone() {
+      const zone = $("#importDrop");
+      let depth = 0;
+      const holdsFiles = (e) => [...e.dataTransfer?.types ?? []].includes("Files");
+      const show = (on) => {
+        zone.hidden = !on;
+        if (!on) zone.classList.remove("over");
+      };
+      document.addEventListener("dragenter", (e) => {
+        if (!holdsFiles(e)) return;
+        depth++;
+        if (depth === 1) {
+          document.querySelector('details[data-open="options"]').open = true;
+          document.querySelector('details[data-open="transfer"]').open = true;
+          show(true);
+        }
+      });
+      document.addEventListener("dragleave", (e) => {
+        if (!holdsFiles(e)) return;
+        depth = Math.max(0, depth - 1);
+        if (!depth) show(false);
+      });
+      document.addEventListener("dragover", (e) => {
+        if (!holdsFiles(e)) return;
+        e.preventDefault();
+        zone.classList.toggle("over", zone.contains(e.target));
+        e.dataTransfer.dropEffect = zone.contains(e.target) ? "copy" : "none";
+      });
+      document.addEventListener("drop", (e) => {
+        if (!holdsFiles(e)) return;
+        e.preventDefault();
+        depth = 0;
+        const onZone = zone.contains(e.target);
+        show(false);
+        if (onZone) importFiles([...e.dataTransfer.files]);
+      });
+    }
     document.addEventListener("click", (e) => {
       if (e.target.closest("[data-import-cancel]")) return clearReview();
       if (!e.target.closest("[data-import-go]") || !pending) return;
