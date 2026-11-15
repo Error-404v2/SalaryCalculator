@@ -5,7 +5,7 @@
 .entry-bar .spin input { width: 30px; }
 .entry-bar .spin-label { padding-left: 7px; font-size: .7rem; }
 .entry-bar .spin-btns button { width: 18px; }
-.entry-bar .seg { flex: 0 1 auto; }
+.entry-bar .seg { flex: 0 1 auto; margin-left: auto; }
 .entry-bar .seg button { padding: 6px 10px; font-size: .84rem; }
 
 /* Save line: the month this entry will be saved to (left), Save (right) */
@@ -101,8 +101,12 @@ select option { background: var(--surface); color: var(--text); }
 .lines.compact .line { padding: 3px 0; font-size: .86rem; }
 .lines.compact .line.sep { margin-top: 3px; padding-top: 6px; }
 .lines.compact .line.strong .k, .lines.compact .line.strong .v { font-size: .9rem; }
-#entryHead { margin-bottom: 10px; }
-#entrySummary .hist-summary > summary { margin-top: 4px; }
+#entryHead { margin-bottom: 12px; }
+/* Saved months: as slim as the month row below it */
+#entryHead details.more { margin-bottom: 0; }
+#entryHead details.more > summary { padding: 0 12px; min-height: 36px; }
+/* Summary heading: the same room above and below */
+#entrySummary .hist-summary > summary { margin: 10px 0; }
 
 @media (max-width: 420px) {
   .entry-bar { padding: 10px 14px; gap: 8px; }

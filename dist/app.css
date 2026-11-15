@@ -1625,6 +1625,7 @@ tr.active td:first-child {
 }
 .entry-bar .seg {
   flex: 0 1 auto;
+  margin-left: auto;
 }
 .entry-bar .seg button {
   padding: 6px 10px;
@@ -1979,10 +1980,17 @@ select option {
   font-size: .9rem;
 }
 #entryHead {
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+}
+#entryHead details.more {
+  margin-bottom: 0;
+}
+#entryHead details.more > summary {
+  padding: 0 12px;
+  min-height: 36px;
 }
 #entrySummary .hist-summary > summary {
-  margin-top: 4px;
+  margin: 10px 0;
 }
 @media (max-width: 420px) {
   .entry-bar {
