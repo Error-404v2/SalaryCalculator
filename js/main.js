@@ -71,7 +71,8 @@ function render(state) {
     const months = monthsWithDraft(state.months, store.scopeMonth(), draft && grossPay(draft, input), store.scopeDirty());
     // A gain month with no saved entry is taxed on the entry being worked on.
     const payTab = { ...state, profile: input.profile };
-    const report = esppReport({ ...input, months, payTab, esppRates: monthRates(state) });
+    const root = { ...store.getState(), profile: input.profile, year: input.year };
+    const report = esppReport({ ...root, months, payTab, esppRates: monthRates(state) });
     renderEsppTab(report, money);
     renderGainEntries(report, money);
     ensureMonthRates(report.year, rebuild);

@@ -27,7 +27,7 @@ let scope = null;
 export const getState = () => state;
 
 /** The state as the Pay form shows it: the month being edited on the History tab, or the Pay tab itself. */
-export const view = () => (scope ? withPay(state, scope.pay) : state);
+export const view = () => (scope ? { ...withPay(state, scope.pay), globalSchedule: state.schedule } : state);
 
 export const scopeMonth = () => scope?.month ?? '';
 export const scopePay = () => scope?.pay ?? null;

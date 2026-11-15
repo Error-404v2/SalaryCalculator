@@ -53,8 +53,10 @@ export function withPay(state, pay, month = '') {
     if (!(key in pay)) continue;
     next[key] = key === 'espp' ? { ...state.espp, ...clone(pay.espp) } : clone(pay[key]);
   }
-  // A month with its own (local) work schedule uses it; otherwise the global schedule applies.
-  if (isLocalSchedule(pay.scheduleLocal)) next.schedule = { ...(state.schedule ?? {}), ...clone(pay.scheduleLocal) };
+  // A month with its own (local) work schedule uses it; otherwise the global schedule applies. `globalSchedule`
+  // is the shared schedule even when `state` is an entry with a local one laid over it.
+  const shared = state.globalSchedule ?? state.schedule ?? {};
+  next.schedule = isLocalSchedule(pay.scheduleLocal) ? { ...shared, ...clone(pay.scheduleLocal) } : clone(shared);
   return next;
 }
 

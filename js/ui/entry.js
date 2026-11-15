@@ -39,7 +39,7 @@ const CHEVRON = '<svg class="chev" viewBox="0 0 10 6" aria-hidden="true"><path d
 const RED_MINUS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12h14"/></svg>';
 const RESET_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>';
 
-/** Years the user opened or closed in the Saved months list; others are open only for the newest year and the open month's year. */
+/** Years the user opened or closed in the Saved months list; otherwise only the open month's year (else this year) is open. */
 const yearToggled = new Map();
 
 const setEntry = (home, saved, base) => { entry = { home, saved, base }; };
@@ -51,9 +51,13 @@ function clearRename() {
 
 const isSaved = (state, month) => !!state.months[month];
 const withProfile = (state) => ({ ...state, profile: store.activeProfile() });
-/** A month's final (net) pay for its own pro-rata period, under its own tax year, for the Saved months list. */
+/**
+ * A month's final (net) pay for its own pro-rata period, under its own tax year and its own (local or global)
+ * schedule, for the Saved months list. It is worked out from the saved state plus that month's values only, so
+ * nothing of the entry that is open (its schedule, overrides, …) leaks into another month.
+ */
 const finalPay = (state, pay, month) =>
-  (toNumber(pay?.amount) > 0 ? periodNet(withPay(withProfile(state), pay, month)) : 0);
+  (toNumber(pay?.amount) > 0 ? periodNet(withPay(withProfile(store.getState()), pay, month)) : 0);
 const isDirty = (month) => (month === store.scopeMonth() ? store.scopeDirty() : drafts.has(month));
 /** Values of a month as shown in the list: the open entry, an unsaved draft, or what is saved. */
 const payOf = (state, month, active) => (month === active ? store.scopePay() : drafts.get(month) ?? state.months[month]);
@@ -216,10 +220,13 @@ function savedList(state, active, money) {
   if (active) months.add(active);
   const sorted = [...months].sort((a, b) => b.localeCompare(a));
   const years = [...new Set(sorted.map((m) => m.slice(0, 4)))];
+  // Open by default: the year of the month being worked on, else this year, else the newest year listed.
+  const now = String(new Date().getFullYear());
+  const openYear = active?.slice(0, 4) || (years.includes(now) ? now : years[0]);
   const rows = years.map((year) => {
     const inYear = sorted.filter((m) => m.startsWith(year));
     const total = inYear.reduce((n, m) => n + finalPay(state, payOf(state, m, active), m), 0);
-    const opened = yearToggled.get(year) ?? (year === years[0] || year === active?.slice(0, 4));
+    const opened = yearToggled.get(year) ?? year === openYear;
     return `<div class="month-year${opened ? ' open' : ''}">
       <button type="button" class="month-year-head${year === active?.slice(0, 4) ? ' on' : ''}" data-hist-year="${year}" aria-expanded="${opened}"><span class="yr">${year}</span><span class="hint">${inYear.length}</span><span class="yr-total" title="Total of the year's months, each for its own pro-rata period">${total ? money(total) : '—'}</span><span class="yr-chev">${CHEVRON}</span></button>
       ${opened ? inYear.map((m) => monthRow(state, m, active, money)).join('') : ''}</div>`;
