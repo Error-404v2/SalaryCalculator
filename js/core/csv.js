@@ -498,18 +498,50 @@ function applySettingRows(next, rows, changes, problems) {
 }
 
 // ---------- JSON (everything) ----------
-/** What importing a full JSON file would overwrite, for the confirmation list. */
+/** Same data whatever the order of the keys (an export from another device may list them differently). */
+const sortKeys = (v) => (Array.isArray(v) ? v.map(sortKeys)
+  : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
+const sameData = (a, b) => JSON.stringify(sortKeys(a ?? null)) === JSON.stringify(sortKeys(b ?? null));
+
+/** The starting values a new month is copied from (the old Pay tab), as kept at the top of the saved data. */
+const ENTRY_KEYS = ['amount', 'per', 'mode', 'year', 'jobType', 'overrides', 'payPeriod', 'incomes', 'overtime', 'cashAwards', 'deductions'];
+const ENTRY_ESPP_KEYS = ['constPct', 'varPct', 'gain', 'variable'];
+
+/**
+ * Everything importing a full JSON backup would change, for the confirmation list. Every saved part is compared,
+ * so a file that differs anywhere is never reported as "nothing changes". Unsaved drafts (`work`) are not part of a
+ * backup and are left out.
+ */
 export function jsonChanges(state, incoming) {
   const changes = [];
+  const differs = (a, b) => !sameData(a, b);
+
   for (const m of Object.keys(incoming.months ?? {}).sort()) {
     if (!state.months?.[m]) changes.push(`Add month ${m}`);
-    else if (!sameJson(state.months[m], incoming.months[m])) changes.push(`Overwrite month ${m}`);
+    else if (differs(state.months[m], incoming.months[m])) changes.push(`Overwrite month ${m}`);
   }
   for (const m of Object.keys(state.months ?? {}).sort()) if (!incoming.months?.[m]) changes.push(`Remove month ${m} (not in the file)`);
-  if (!sameJson(state.espp?.entries, incoming.espp?.entries)) changes.push('Replace the ESPP ledger');
-  if (!sameJson(state.espp?.assumptions, incoming.espp?.assumptions)) changes.push('Replace the ESPP assumptions');
-  if (!sameJson(state.profiles, incoming.profiles)) changes.push('Replace the tax profiles');
-  if (!sameJson(state.schedule, incoming.schedule)) changes.push('Replace the work schedule');
-  if (!sameJson(state.savings, incoming.savings)) changes.push('Replace the Savings plan');
+
+  const e = state.espp ?? {}, f = incoming.espp ?? {};
+  if (differs(e.entries, f.entries)) changes.push('Replace the ESPP ledger');
+  if (differs(e.gainMonths, f.gainMonths)) changes.push('Replace the ESPP Gains list');
+  if (differs(e.rates, f.rates)) changes.push('Replace the fetched USD rates');
+  if (differs(e.assumptions, f.assumptions)) changes.push('Replace the ESPP assumptions');
+  if (differs([e.symbol, e.changeDay, e.monthOffset], [f.symbol, f.changeDay, f.monthOffset])) changes.push('Replace the ESPP settings (symbol, change day, month offset)');
+
+  if (differs(state.profiles, incoming.profiles) || differs(state.profileId, incoming.profileId)) changes.push('Replace the tax profiles');
+  if (differs(state.schedule, incoming.schedule)) changes.push('Replace the work schedule');
+  if (differs(state.savings, incoming.savings)) changes.push('Replace the Savings plan');
+
+  const entry = (x) => ({ ...Object.fromEntries(ENTRY_KEYS.map((k) => [k, x[k]])), espp: Object.fromEntries(ENTRY_ESPP_KEYS.map((k) => [k, x.espp?.[k]])) });
+  if (differs(entry(state), entry(incoming))) changes.push('Replace the starting values for new months');
+  if (differs(state.history, incoming.history)) changes.push('Replace the old per-field history');
+  if (differs(state.ui, incoming.ui)) changes.push('Replace the view choices (open tabs, sections, theme)');
+
+  // Anything else that is saved and differs is still listed, so a new kind of data can never be missed.
+  const known = new Set(['months', 'espp', 'profiles', 'profileId', 'schedule', 'savings', 'history', 'ui', 'work', ...ENTRY_KEYS]);
+  for (const k of [...new Set([...Object.keys(state), ...Object.keys(incoming)])].sort()) {
+    if (!known.has(k) && differs(state[k], incoming[k])) changes.push(`Replace ${k}`);
+  }
   return changes;
 }

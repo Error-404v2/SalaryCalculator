@@ -24,15 +24,20 @@ function download(name, bytes, type) {
 /** The import waiting for "Import" after its list of changes was shown: { state, kind }. */
 let pending = null;
 
-function review({ title, changes, problems }) {
+/**
+ * The confirmation before an import. A full .json backup can always be imported (it replaces everything, so it is
+ * offered even when it matches what the app holds); CSV is only offered when it would change something.
+ */
+function review({ title, changes, problems, always = false }) {
   const host = $('#importReview');
   const list = (items, cls) => (items.length ? `<ul class="${cls}">${items.map((c) => `<li>${escapeHtml(c)}</li>`).join('')}</ul>` : '');
+  const nothing = always ? 'The file holds the same data as the app.' : 'Nothing in the app changes.';
   host.innerHTML = `<div class="import-review">
     <b>${escapeHtml(title)}</b>
-    ${changes.length ? `<div class="hint">This will change:</div>${list(changes, 'changes')}` : '<div class="hint">Nothing in the app changes.</div>'}
+    ${changes.length ? `<div class="hint">This will change:</div>${list(changes, 'changes')}` : `<div class="hint">${nothing}</div>`}
     ${problems.length ? `<div class="hint warn-text">Not imported:</div>${list(problems, 'problems')}` : ''}
     <div class="row" style="gap:6px;margin-top:8px">
-      ${changes.length ? '<button type="button" class="btn sm danger" data-import-go>Import</button>' : ''}
+      ${changes.length || always ? `<button type="button" class="btn sm danger" data-import-go>${changes.length ? 'Import' : 'Import anyway'}</button>` : ''}
       <button type="button" class="btn sm ghost" data-import-cancel>Cancel</button>
     </div></div>`;
 }
@@ -95,7 +100,7 @@ export function initSettings(onReplaced) {
       if (json.length) {
         const incoming = importData(json[0].text);
         pending = { state: incoming, kind: 'json' };
-        return review({ title: `Import everything from ${json[0].name} (replaces the whole app)`, changes: jsonChanges(store.getState(), incoming), problems: [] });
+        return review({ title: `Import everything from ${json[0].name} (replaces the whole app)`, changes: jsonChanges(store.getState(), incoming), problems: [], always: true });
       }
       const usable = csv.filter((f) => csvKind(f.text));
       const { state, changes, problems } = applyCsv(store.getState(), csv);
