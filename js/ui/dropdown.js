@@ -78,7 +78,14 @@ function openList(wrap) {
   pop.innerHTML = listHtml(select, wrap);
   pop.hidden = false;
   wrap.querySelector('.dd-btn').setAttribute('aria-expanded', 'true');
-  pop.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+  // Bring the current choice into view inside the list only; scrollIntoView would also move the page.
+  const current = pop.querySelector('[aria-selected="true"]');
+  if (current) {
+    const box = pop.getBoundingClientRect();
+    const row = current.getBoundingClientRect();
+    if (row.top < box.top) pop.scrollTop -= box.top - row.top;
+    else if (row.bottom > box.bottom) pop.scrollTop += row.bottom - box.bottom;
+  }
 }
 
 function commit(select, value) {

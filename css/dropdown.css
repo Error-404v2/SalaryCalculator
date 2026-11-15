@@ -31,7 +31,7 @@ select[data-dd] { display: none; }
 /* At most 5½ rows, so the half-visible row hints that the list scrolls */
 .dd-pop {
   position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 100%; width: max-content; max-width: min(280px, 86vw);
-  max-height: calc(var(--dd-row) * 5.5 + 2px); overflow-y: auto; overscroll-behavior: contain;
+  max-height: calc(var(--dd-row) * 5.5 + 2px); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 8px 24px rgba(0, 0, 0, .25);
 }
 .dd-pop[hidden], .dd-items[hidden] { display: none; }

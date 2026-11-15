@@ -110,14 +110,35 @@
         </details>
 
         <details class="more" data-open="options">
-          <summary>Settings</summary>
+          <summary><span>Settings</span><button type="button" class="btn sm ghost danger reset-all" id="resetAll">Reset everything</button></summary>
           <div class="inner">
-            <div class="row wrap compact-actions settings-actions">
-              <button class="btn" id="exportBtn">Export</button>
-              <label class="btn" for="importFile">Import</label>
-              <input id="importFile" type="file" accept="application/json,.json" class="sr">
-              <button class="btn danger" id="resetAll">Reset everything</button>
-            </div>
+            <details class="more" data-open="transfer">
+              <summary>Export / Import</summary>
+              <div class="inner transfer">
+                <div class="field">
+                  <span class="label">Export</span>
+                  <div class="transfer-row export-row">
+                    <div class="pick" id="exportPick"></div>
+                    <button type="button" class="btn sm" id="exportCsvBtn" title="entries.csv, espp.csv and settings.csv in one .zip">CSV (.zip)</button>
+                    <button type="button" class="btn sm json-btn" id="exportBtn" title="Everything in one file, to import back exactly">Everything (.json)</button>
+                  </div>
+                  <div class="transfer-row groups-row">
+                    <span class="groups-label">Settings.csv:</span>
+                    <div class="pick groups-pick" id="groupsPick"></div>
+                  </div>
+                  <div class="hint">CSV: entries (one row per month), the ESPP ledger, and settings. Savings stay in the .json only.</div>
+                </div>
+                <div class="field">
+                  <span class="label">Import</span>
+                  <div class="row wrap transfer-row">
+                    <label class="btn sm" for="importFile" title="CSV files, the .zip, or the .json backup — the file type is worked out for you">Import</label>
+                    <input id="importFile" type="file" accept=".csv,text/csv,.zip,application/zip,.json,application/json" multiple class="sr">
+                  </div>
+                  <div class="hint">CSV only adds or changes the values it has, other months stay intact.<br>A .json backup replaces everything. You see what will change before anything is imported.</div>
+                  <div id="importReview"></div>
+                </div>
+              </div>
+            </details>
             <div class="field">
               <label for="jobSel">Job type</label>
               <select id="jobSel" data-bind="jobType"></select>
